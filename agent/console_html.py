@@ -108,6 +108,15 @@ body.locked{overflow:hidden}
 .row input[type=range]{flex:1}
 .row .val{width:44px;text-align:right;color:var(--blue);font-weight:600}
 .row input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue)}
+/* 省 token 开关：醒目的卡片式勾选 */
+.think-card{display:flex;gap:12px;align-items:flex-start;background:linear-gradient(135deg,#EFF4FF,#F7FAFF);
+  border:1.5px solid #BFD3FE;border-radius:12px;padding:12px 14px;margin-bottom:12px;cursor:pointer}
+.think-card input[type=checkbox]{width:20px;height:20px;accent-color:var(--blue);margin-top:2px;flex:none}
+.think-card.on{background:linear-gradient(135deg,#E7F8EE,#F2FBF5);border-color:#9FD8B8}
+.think-card .tc-title{font-weight:700;font-size:13.5px;color:var(--tx)}
+.think-card .tc-sub{font-size:12px;color:var(--tx2);margin-top:3px;line-height:1.6}
+.think-card .tc-badge{display:inline-block;background:#0E9F6E;color:#fff;font-size:11px;border-radius:8px;
+  padding:1px 8px;margin-left:6px;vertical-align:1px}
 .mid{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .mid > *{flex:1;min-width:240px}
 .btns{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
@@ -250,13 +259,16 @@ th{color:var(--tx2);font-weight:500}
 
     <section id="sec-sessions" class="card" data-sec>
       <h2>运行明细</h2>
-      <div class="desc">每轮对话的思考过程、token 用量与工具调用（服务端按天落盘，最近 30 轮）。</div>
+      <div class="desc">简明日志：发了什么、多少 token、耗时（服务端按天落盘，最近 30 轮）。</div>
       <div class="btns">
         <button id="sessRefresh" class="pri">刷新</button>
-        <span class="hint" style="align-self:center">点击「思考」可展开/收起推理内容；思考为模型返回的空闲字段，未返回时无内容。</span>
+        <label class="hint" style="align-self:center;cursor:pointer"><input type="checkbox" id="sessExpand"> 展开详情（推理/工具/触发）</label>
+        <span class="hint" style="align-self:center">推理文本按输出价计费，控制台「省 token 开关」默认已关闭思考。</span>
       </div>
-      <div id="sessList" style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
-        <div class="hint" style="padding:14px;text-align:center;color:var(--tx2)">加载中…</div>
+      <div id="sessBox" style="max-height:360px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-top:10px;background:#FBFCFE">
+        <div id="sessList" style="display:flex;flex-direction:column;gap:8px">
+          <div class="hint" style="padding:14px;text-align:center;color:var(--tx2)">加载中…</div>
+        </div>
       </div>
     </section>
 
@@ -295,6 +307,14 @@ th{color:var(--tx2);font-weight:500}
           <div class="hint">所选厂商的常用模型都在下拉里；不够用就选「自定义」手填，或改原始 JSON。</div>
         </div></div>
       <div class="row"><label>视觉(看图)</label><input type="checkbox" data-cfg="api.vision"><span class="hint">模型支持图片则勾选</span></div>
+      <label class="think-card" id="thinkCard" title="模型返回的「推理文本」是生成的思考链式输出，并非真实内部思维；它按输出价计费，通常占一个会话 token 的 50~90%。">
+        <input type="checkbox" data-cfg="api.thinking" id="thinkOffChk" checked>
+        <div>
+          <div class="tc-title">省 token：关闭模型思考<span class="tc-badge" id="thinkBadge">已开启省 token</span></div>
+          <div class="tc-sub">勾选 = 关闭推理文本（api.thinking=off），单会话可省 50~90% token；群里闲聊/问答建议保持勾选。
+          取消勾选 = 跟随模型默认（auto）或强制思考（on），回答更「深思熟虑」但费 token、更慢。</div>
+        </div>
+      </label>
       <div class="row"><label>温度</label><input type="range" id="api.temperature" min="0" max="1" step="0.05" data-cfg="api.temperature"><span class="val" id="api.temperature-v">0.8</span></div>
       <div class="row"><label>单次工具轮数</label><div class="grow"><input type="number" data-cfg="api.max_rounds" min="1" max="50"></div></div>
       <div class="row"><label>请求超时(ms)</label><div class="grow"><input type="number" data-cfg="api.timeout_ms" min="5000" step="1000"></div></div>
@@ -312,6 +332,7 @@ th{color:var(--tx2);font-weight:500}
       <div class="desc">机器人微信身份与轮询 / 白名单。改完保存后需要重启才能完全生效。</div>
       <div class="row"><label>机器人昵称</label><div class="grow"><input type="text" data-cfg="wechat.bot_nickname"></div></div>
       <div class="row"><label>自我称呼</label><div class="grow"><input type="text" data-cfg="persona.self_nickname" placeholder="留空=机器人昵称，用于识别「我」"></div></div>
+      <div class="row"><label>启动后暂停</label><input type="checkbox" data-cfg="wechat.start_paused"><span class="hint">勾选：机器人启动后不自动监听，需点「恢复」才工作（防开机刷群/回应积压旧消息）</span></div>
       <div class="row"><label>轮询间隔(秒)</label><div class="grow"><input type="number" step="0.5" min="0.5" data-cfg="wechat.poll_interval"></div></div>
       <div class="row"><label>每分钟限发</label><div class="grow"><input type="number" min="1" data-cfg="wechat.rate_limit_per_minute"></div></div>
       <div class="row"><label>群白名单</label>
@@ -350,17 +371,20 @@ th{color:var(--tx2);font-weight:500}
       <div class="row"><label>自定义角色文本</label><div class="grow"><textarea data-cfg="persona.role_text" placeholder="留空=内置小鲸鱼角色卡；填了=完全替换。可参考 agent/persona.py"></textarea></div></div>
       <div class="row"><label>额外规则</label><div class="grow"><textarea data-cfg="persona.custom_rules" placeholder="如：回复永远不超过 5 个字"></textarea></div></div>
       <hr style="border:none;border-top:1px solid var(--bd);margin:12px 0">
-      <div class="row"><label>响应档位</label><div class="grow"><select data-cfg="store.context_tier">
+      <div class="row"><label>响应档位</label><div class="grow"><select data-cfg="store.context_tier" id="ctxTier">
         <option value="1">1 档：仅艾特</option><option value="2">2 档：+关键词</option>
-        <option value="3">3 档：+随机</option><option value="4">4 档：全响应</option></select></div></div>
-      <div class="row"><label>关键词(逗号)</label><div class="grow"><input type="text" data-cfg="store.keywords" placeholder="2档起命中即响应"></div></div>
-      <div class="row"><label>随机概率%</label><div class="grow"><input type="number" min="0" max="100" data-cfg="store.random_percent"></div></div>
+        <option value="3">3 档：+随机</option><option value="4">4 档：全响应</option></select>
+        <div class="hint">1 档只回艾特；2 档加关键词；3 档再加随机；4 档全回。关键词在 2/3 档生效，随机只在 3 档生效。</div>
+      </div></div>
+      <div class="row" data-tier="2,3"><label>关键词(逗号)</label><div class="grow"><input type="text" data-cfg="store.keywords" placeholder="2/3档命中即响应"></div></div>
+      <div class="row" data-tier="3"><label>随机概率%</label><div class="grow"><input type="number" min="0" max="100" data-cfg="store.random_percent"></div></div>
       <div class="mid">
         <div class="row"><label>艾特上下文条数</label><input type="number" min="1" data-cfg="store.at_count"></div>
-        <div class="row"><label>关键词上下文</label><input type="number" min="1" data-cfg="store.keyword_count"></div>
-        <div class="row"><label>随机上下文</label><input type="number" min="1" data-cfg="store.random_count"></div>
+        <div class="row" data-tier="2,3"><label>关键词上下文</label><input type="number" min="1" data-cfg="store.keyword_count"></div>
+        <div class="row" data-tier="3"><label>随机上下文</label><input type="number" min="1" data-cfg="store.random_count"></div>
       </div>
       <div class="row"><label>单档上下文上限</label><div class="grow"><input type="number" min="1" data-cfg="store.all_count"></div></div>
+      <div class="row"><label>历史窗口(分钟)</label><div class="grow"><input type="number" min="0" data-cfg="store.past_window_min" title="0=不限"> <span class="hint">只把最近 N 分钟内的消息给模型当历史，防它回应很久之前的艾特/旧话题</span></div></div>
       <div class="row"><label>每群消息上限</label><div class="grow"><input type="number" min="0" data-cfg="store.max_messages_per_chat" title="0=不限制"></div></div>
       <div class="btns"><button class="pri" data-save>保存设置（人设与响应）</button></div>
     </section>
@@ -491,9 +515,13 @@ function syncToForm(){
       return;
     }
     let v = getPath(cfg, path);
-    if(isCheck){ el.checked = !!v; return; }
+    if(isCheck){
+      if(path==='api.thinking'){ el.checked = (String(v||'').toLowerCase()==='off'); }
+      else { el.checked = !!v; }
+      return;
+    }
     if(v==null) v = '';
-    if(Array.isArray(v)) v = v.join(',');
+    if(Array.isArray(v)) v = v.join('，'); // 关键词等多值用全角逗号回显（与输入一致）
     el.value = v;
   });
   $('api.temperature-v').textContent = getPath(cfg,'api.temperature') ?? '0.8';
@@ -516,6 +544,32 @@ function syncToForm(){
       $('modelCustom').value = model;
     }
   }
+  /* 省 token 卡片视觉联动 */
+  const tb = $('thinkOffChk');
+  if(tb){
+    tb.addEventListener('change', ()=>{
+      const on = tb.checked;
+      $('thinkCard').classList.toggle('on', on);
+      $('thinkBadge').textContent = on ? '已开启省 token' : '已关闭（模型自由思考）';
+    });
+    const on0 = tb.checked;
+    $('thinkCard').classList.toggle('on', on0);
+    $('thinkBadge').textContent = on0 ? '已开启省 token' : '已关闭（模型自由思考）';
+  }
+  /* 自绘下拉（厂商/模型/etc）：程序赋值后同步按钮文字（不触发业务 change） */
+  document.querySelectorAll('select').forEach(s=>{ if(s._refresh) s._refresh(); });
+  updateTierRows();
+}
+
+/* 档位联动：关键词(2/3档)与随机(3档)只在对应档位选中时显示 */
+function updateTierRows(){
+  const sel = document.querySelector('[data-cfg="store.context_tier"]');
+  if(!sel) return;
+  const tier = parseInt(sel.value || '1', 10);
+  document.querySelectorAll('[data-tier]').forEach(el=>{
+    const show = String(el.dataset.tier).split(',').map(Number).includes(tier);
+    el.style.display = show ? '' : 'none';
+  });
 }
 
 function syncFromForm(){
@@ -523,11 +577,14 @@ function syncFromForm(){
     const path = el.dataset.cfg;
     if(path === 'wechat.group_name_white_list'){ setPath(cfg, path, wlList.slice()); return; }
     let v;
-    if(el.type==='checkbox') v = el.checked;
+    if(el.type==='checkbox'){
+      if(path==='api.thinking') v = el.checked ? 'off' : 'auto';  // 勾选=off，取消=auto（跟随模型默认）
+      else v = el.checked;
+    }
     else if(el.type==='number') v = parseFloat(el.value);
     else {
       v = el.value;
-      if(path === 'store.keywords') v = v.split(',').map(s=>s.trim()).filter(Boolean);
+      if(path === 'store.keywords') v = v.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
     }
     setPath(cfg, path, v);
   });
@@ -667,27 +724,34 @@ async function loadSessions(){
       return;
     }
     el.innerHTML='';
+    const showDetail = $('sessExpand') ? $('sessExpand').checked : false;
     for(const e of list){
       const card=document.createElement('div');
       card.className='dlist';
       const tools=(e.tools||[]).map(t=>'<span class="pill">'+esc(t.name)+'</span>').join(' ');
       const reason=(e.reasoning||'').trim();
+      const rt = parseInt(e.reasoning_tokens||0);
+      const tt = parseInt(e.tokens||0);
+      const rpct = (tt>0 && rt>0) ? (' · 推理 '+rt+' tok（'+Math.round(rt/tt*100)+'%）') : '';
       let html='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
         +'<b>'+esc(e.chat_name||e.chat_key)+'</b>'
         +'<span class="pill '+(e.ok?'ok':'off')+'">'+esc(e.status||'')+'</span>'
         +'<span class="hint" style="font-size:11px">'+esc((e.ts||'').replace('T',' '))+' · '+esc(e.latency_ms||0)+'ms</span>'
-        +'<span class="hint" style="font-size:11px">tokens='+esc(e.tokens||0)+' · ¥'+((e.cost||0).toFixed(6))+'</span></div>';
-      if(e.trigger) html+='<div class="hint" style="margin-top:6px">触发：'+esc(e.trigger.slice(0,120))+'</div>';
-      if(tools) html+='<div style="margin-top:6px">工具：'+tools+'</div>';
-      if(e.reply) html+='<div style="margin-top:6px">回复：'+esc(e.reply)+'</div>';
-      if(e.error) html+='<div style="margin-top:6px;color:#B91C1C">失败：'+esc(e.error)+'</div>';
-      if(reason){
-        html+='<details style="margin-top:6px"><summary class="hint" style="cursor:pointer;user-select:none">思考过程（'+reason.length+' 字）</summary>'
-          +'<pre class="out" style="margin-top:6px;max-height:220px;overflow:auto;white-space:pre-wrap;cursor:text">'+esc(reason)+'</pre></details>';
+        +'<span class="hint" style="font-size:11px">'+esc(e.tokens||0)+' tok · ¥'+((e.cost||0).toFixed(4))+'</span></div>';
+      if(e.reply) html+='<div class="hint" style="margin-top:3px">发：'+esc(e.reply)+'</div>';
+      if(showDetail){
+        if(e.trigger) html+='<div class="hint" style="margin-top:6px">触发：'+esc(e.trigger.slice(0,120))+'</div>';
+        if(tools) html+='<div style="margin-top:6px">工具：'+tools+'</div>';
+        if(e.error) html+='<div style="margin-top:6px;color:#B91C1C">失败：'+esc(e.error)+'</div>';
+        if(reason){
+          html+='<details style="margin-top:6px"><summary class="hint" style="cursor:pointer;user-select:none">推理文本（'+reason.length+' 字'+esc(rpct)+'）</summary>'
+            +'<pre class="out" style="margin-top:6px;max-height:220px;overflow:auto;white-space:pre-wrap;cursor:text">'+esc(reason)+'</pre></details>';
+        }
       }
       card.innerHTML=html;
       el.appendChild(card);
     }
+    $('sessBox').scrollTop = $('sessBox').scrollHeight;  // 始终滚到最新
   }catch(e){ el.innerHTML='<div class="hint" style="padding:14px;text-align:center">加载失败：'+esc(String(e))+'</div>'; }
 }
 
@@ -698,7 +762,8 @@ async function saveAllBtn(btn){
     if(raw){ cfg = raw; } else { syncFromForm(); }
     await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
     toast('已保存 ' + new Date().toLocaleTimeString());
-    syncToForm();
+    try{ await loadStatus(); }catch(e){}
+    try{ loadSessions(); }catch(e){}
   }catch(e){ toast('保存失败：'+e.message); }
 }
 
@@ -717,6 +782,7 @@ function enhanceSelects(){
       const o = sel2.options[sel2.selectedIndex];
       btn.querySelector('.txt').textContent = (o && o.textContent) || sel2.value || '—';
     }
+    sel2._refresh = refreshText;   // 程序改 value 后调用（只刷按钮文字，不触发业务 change）
     function buildMenu(){
       menu.innerHTML='';
       Array.from(sel2.options).forEach((o,i)=>{
@@ -1134,6 +1200,9 @@ setInterval(()=>{ if($('autolog').checked) loadLog(); }, 4000);
 setInterval(checkAlive, 6000);
 $('sessRefresh').onclick = ()=>loadSessions();
 addEventListener('hashchange', ()=>{ if(location.hash==='#sec-sessions') loadSessions(); });
+$('sessExpand').addEventListener('change', ()=>loadSessions());
+const _tierSel = document.querySelector('[data-cfg="store.context_tier"]');
+if(_tierSel) _tierSel.addEventListener('change', ()=>updateTierRows());
 </script>
 </body>
 </html>
