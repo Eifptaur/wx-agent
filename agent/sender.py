@@ -123,7 +123,9 @@ class SendQueue:
                 reply_text = auto_quote[0]
                 reply_sender_name = auto_quote[1] or reply_sender_name
                 log.info("新对话开始，自动引用对方最近一句：%s", reply_text[:40])
-        with self._lock:
+        with self._lock, self.wechat.fg_hold():
+            # fg_hold：整批只置前一次，全部发完才把微信送回后台（否则分条发送
+            # 会「发一条切后台→下一条又置前」地闪来闪去，且每条都各自恢复易受前台锁影响）
             for i, text in enumerate(parts):
                 is_first = i == 0
                 is_last = i == len(parts) - 1
@@ -168,7 +170,7 @@ class SendQueue:
     def send_image(self, chat_key: str, local_path: str):
         """发送一张本地图片（微信剪贴板粘贴）。"""
         kind, chat_id = self._parse_key(chat_key)
-        with self._lock:
+        with self._lock, self.wechat.fg_hold():
             self._check_rate(chat_key)
             time.sleep(rand_int(600, 1500) / 1000.0)
             ok, msg = self.wechat.send_image(chat_id, local_path)
