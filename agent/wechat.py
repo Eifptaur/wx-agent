@@ -1120,12 +1120,6 @@ class WeChatAdapter:
             recs.append(time.time())
         return ok, msg
 
-    def poke_back_cooldown_left(self, target_id: str) -> int:
-        """某 wxid 距冷却结束还剩多少秒（供提示/日志/控制台展示）。"""
-        last = self._poke_back_cd.get(target_id, 0)
-        cd = float(self._poke_cfg().get("cooldown_seconds", 1800))
-        return max(0, int(cd - (time.time() - last)))
-
     def poke_diag(self, chat_id: str, target_name: str, target_id: str = "",
                   verify_only: bool = False) -> dict:
         """控制台「拍一拍诊断」：跑一遍完整流程并返回分步结果。

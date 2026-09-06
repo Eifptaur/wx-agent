@@ -154,37 +154,3 @@ def safe_fetch(url_string: str, max_chars: int = 50000):
         return {"url": current_url, "status_code": result["status_code"],
                 "truncated": result["truncated"], "body": text}
     raise FetchError("重定向次数过多，已停止")
-
-
-def safe_fetch_binary(url_string: str, max_bytes: int = 12 * 1024 * 1024):
-    """下载二进制（图片），返回 {buffer, content_type}。"""
-    allow_private = get_config().get("security", {}).get("allow_private_image_hosts") is True
-    scheme, host, port, path, ip = validate_url(url_string, allow_private)
-    current_url = url_string
-    for _ in range(MAX_REDIRECTS + 1):
-        result = _pinned_request(scheme, host, port, path, ip, max_bytes, as_binary=True)
-        if result["status_code"] in (301, 302, 303, 307, 308):
-            if not result["location"]:
-                raise FetchError("重定向缺少 Location：%d" % result["status_code"])
-            next_url = urljoin(current_url, result["location"])
-            current_url = next_url
-            scheme, host, port, path, ip = validate_url(next_url, allow_private)
-            continue
-        if result["status_code"] != 200:
-            raise FetchError("HTTP %d" % result["status_code"])
-        return {"buffer": result["body"], "content_type": result["content_type"]}
-    raise FetchError("重定向次数过多，已停止")
-
-
-def validate_image_url(raw: str) -> str:
-    """图片地址校验：默认内网地址一律拒绝。"""
-    try:
-        parts = urlsplit(str(raw or "").strip())
-    except Exception:
-        raise FetchError("图片地址不合法")
-    if parts.scheme not in ("http", "https"):
-        raise FetchError("只允许 http(s) 图片地址")
-    if get_config().get("security", {}).get("allow_private_image_hosts") is True:
-        return raw
-    scheme, host, port, path, ip = validate_url(raw)
-    return "%s://%s%s" % (scheme, host, path)
