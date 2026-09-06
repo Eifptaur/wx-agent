@@ -21,6 +21,7 @@ psutil>=5.9.0
 colorama>=0.4.6
 winsdk>=1.0.0b10
 imageio-ffmpeg>=0.4.9
+pypinyin>=0.48.0
 
 # 说明：
 # 1. 完全离线部署时，把上面所有包（含 wechatauto）的 .whl 放进 offline/wheels/，
