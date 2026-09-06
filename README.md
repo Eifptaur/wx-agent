@@ -20,7 +20,7 @@
 
 ## 功能一览
 
-- 多模型（10 家厂商 60+ 型号）：DeepSeek / Kimi（含 K3）/ 智谱 / 通义 / MiniMax / 豆包 / ChatGPT·OpenAI（含 GPT-5）/ Claude / Gemini / Grok·xAI / 自定义 BaseURL，控制台一键切换、按厂商存 Key（api.provider_keys）
+- 多模型（12 家厂商 80+ 型号，含 2026-09 榜单新模型）：DeepSeek / Kimi（含 K3）/ 智谱 / 通义 / MiniMax / 豆包 / ChatGPT·OpenAI（含 GPT-5）/ Claude / Gemini / Grok·xAI / 自定义 BaseURL，控制台一键切换、按厂商存 Key（api.provider_keys）
 - 无状态会话：每次唤醒独立会话，提示词 = 静态人设 + 存档摘要 + 最新消息，成本不随历史膨胀
 - 响应档位：4 档（仅艾特 / +关键词 / +随机 / 全响应），没命中不调模型（零 token）
 - 工具集：发消息（分条 / @ / 引用）、看图、发图、翻历史、查活跃成员、记忆增删查、联网搜索/抓网页、拍一拍（别人拍自动回拍 90% + 30 分钟冷却，主动皮一下低频）
