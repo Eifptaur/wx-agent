@@ -229,23 +229,31 @@ def dismiss_overlays(wechat_hwnds: tuple = ()) -> list:
     return handled
 
 
-def ensure_point(x: int, y: int, wechat_hwnds: tuple = (), retries: int = 3) -> tuple:
+def ensure_point(x: int, y: int, wechat_hwnds: tuple = (), retries: int = 3, gui=None) -> tuple:
     """确保点击点 (x, y)（鼠标空间）当前由微信窗口接收。
 
-    返回 (ok, 描述)：ok=True 可直接点击；False 时描述里写明挡路窗口，
-    便于设备上如实反馈「坐标被 XX 窗口遮挡，请关闭它」。
+    返回 (ok, 描述)：ok=True 可直接点击；False 时描述里写明挡路窗口。
+    每轮失败都会先「把微信置前」再重试（浏览器/其它窗口挡住时自动拯救，
+    只有重试后仍被挡才报错并把原因说清楚）。
     """
+    cover = None
     for i in range(max(1, retries)):
         cover = find_cover(x, y, wechat_hwnds)
         if cover is None:
             return True, "点击点属于微信窗口"
+        # 自动拯救：把微信窗口置前（贴顶再复位），避免用户手动切窗口
+        try:
+            if gui is not None and hasattr(gui, "bring_to_front"):
+                gui.bring_to_front(keep_topmost=True)
+            elif wechat_hwnds:
+                _user32.SetForegroundWindow(wechat_hwnds[0])
+            time.sleep(0.5)
+        except Exception:
+            pass
         if i == 0:
             dismiss_overlays(wechat_hwnds)
             time.sleep(0.4)
-        else:
-            return False, "点击坐标被「%s / %s」窗口遮挡（pid=%d，区域 %s），请关闭该窗口后重试" % (
-                cover[1] or "?", cover[2][:60] or "?", cover[3], cover[4])
-    return False, "点击坐标被「%s / %s」窗口遮挡（pid=%d，区域 %s），请关闭该窗口后重试" % (
+    return False, "点击坐标被「%s / %s」窗口遮挡（pid=%d，区域 %s）——已自动尝试把微信置前仍失败，请切到微信窗口或关闭遮挡窗口后重试" % (
         cover[1] or "?", cover[2][:60] or "?", cover[3], cover[4])
 
 
@@ -295,7 +303,7 @@ def click(gui, x: int, y: int, right: bool = False, scale=None) -> tuple:
     """
     try:
         sx, sy = to_click(x + gui.origin_x, y + gui.origin_y, scale)
-        ok, why = ensure_point(sx, sy, (gui.main_hwnd, gui.render_hwnd))
+        ok, why = ensure_point(sx, sy, (gui.main_hwnd, gui.render_hwnd), gui=gui)
         if not ok:
             return False, why
         try:
