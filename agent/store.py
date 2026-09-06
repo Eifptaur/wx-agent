@@ -160,13 +160,6 @@ class ChatStore:
                 return m
         return None
 
-    def find_by_local_id(self, chat_key: str, local_id: int):
-        st = self._state(chat_key)
-        for m in st["messages"]:
-            if m.get("id") == int(local_id):
-                return m
-        return None
-
     def active_members(self, chat_key: str, limit: int = 10):
         st = self._state(chat_key)
         by_id: dict = {}
@@ -181,21 +174,3 @@ class ChatStore:
             else:
                 prev["count"] += 1
         return sorted(by_id.values(), key=lambda x: -x["last_ts"])[: max(1, int(limit))]
-
-    def update_by_mid(self, chat_key: str, mid, text=None, append_media=None) -> bool:
-        with self._lock:
-            st = self._state(chat_key)
-            target = str(mid)
-            for m in st["messages"]:
-                if str(m.get("mid")) == target:
-                    if text is not None:
-                        m["text"] = str(text)
-                    if append_media:
-                        seen = {x.get("url") for x in m.get("media", []) if x and x.get("url")}
-                        for x in append_media:
-                            if x and x.get("url") and x["url"] not in seen:
-                                m.setdefault("media", []).append(x)
-                                seen.add(x["url"])
-                    _save_chat(st)
-                    return True
-            return False
