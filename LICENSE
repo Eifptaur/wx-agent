@@ -25,8 +25,9 @@ SOFTWARE.
 关于上游项目的许可说明：
 
 本项目的智能大脑源自 qq-agent（MIT License，作者 Kondius，基于 qq-bridge 修改），
-人设「小鲸鱼」角色卡源自 qq-bridge（Derpyu520），微信接入层用 wechatauto-replica，
+人设「小鲸鱼」角色卡源自 qq-bridge（Derpyu520），微信接入层用 wechatauto-replica
+（源自 wechat-deepseek-bot，B 站视频 BV1Mz4267EHQ / https://github.com/bdydgz114514/wechat-deepseek-bot），
 并参考了 chatgpt-on-wechat、DeepSeek-Balance-Whale-Widget 的思路。
 
 上述上游项目的代码与角色卡版权归各自原作者所有；本 LICENSE 仅覆盖本仓库中「新增 /
-自写」的部分。使用本项目请同时遵守各上游项目各自的许可证（详见《使用说明.md》的致谢章节）。
+自写」的部分。使用本项目请同时遵守各上游项目各自的许可证（详见《使用说明.md》开头「致谢」章节）。
