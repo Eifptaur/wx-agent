@@ -13,6 +13,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
 PID_FILE = os.path.join(DATA, "watchdog.pid")
+CRASH_LOG = os.path.join(DATA, "bot_crash.log")
 os.makedirs(DATA, exist_ok=True)
 
 
@@ -33,17 +34,25 @@ def main():
     except Exception:
         pass
     exe = find_pythonw()
-    # CREATE_NO_WINDOW：即便退回 python.exe 也无窗口
     flags = 0x08000000 | 0x00000008 if os.name == "nt" else 0
     while True:
         try:
+            # stderr 重定向到崩溃日志：下次机器人无声挂掉时能查到原因
+            # （wx_agent 若 import 失败/启动即崩溃，之前 stderr=DEVNULL 会静默重启，无从排查）
+            crash = open(CRASH_LOG, "a", encoding="utf-8")
+            crash.write("\n[watchdog] %s 拉起 wx_agent…\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
+            crash.flush()
             p = subprocess.Popen([exe, os.path.join(ROOT, "wx_agent.py")],
                                  cwd=ROOT, creationflags=flags,
-                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL)
+                                 stdin=subprocess.DEVNULL, stdout=crash, stderr=crash)
+            crash.close()
             p.wait()
-        except Exception:
-            pass
+        except Exception as e:
+            try:
+                with open(CRASH_LOG, "a", encoding="utf-8") as crash:
+                    crash.write("[watchdog] 异常：%s\n" % e)
+            except Exception:
+                pass
         time.sleep(5)
 
 
