@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul
 schtasks /delete /tn "wx-agent" /f
-echo å·²å–æ¶ˆå¼€æœºè‡ªå¯ã€‚
+echo ÒÑÈ¡Ïû¿ª»ú×ÔÆô¡£
 pause
