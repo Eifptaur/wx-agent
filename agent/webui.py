@@ -14,7 +14,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from .config import get_config, save_config, set_config
+from .config import deep_merge, get_config, save_config, set_config
 from .console_html import HTML  # 界面模板（蓝白设计，设置项全量，独立文件便于改版）
 from .util import mask_secret, redact_secrets
 
@@ -273,6 +273,10 @@ class WebUI:
                 if path == "/api/config":
                     try:
                         new_cfg = data if isinstance(data, dict) and data else get_config()
+                        # 部分字段保存不丢段：与当前配置深合并（新值优先，缺失键保留旧值）
+                        # 注意：deep_merge 返回全新深拷贝，绝不能原地改 _current_config，
+                        # 否则 _protect_secrets 拿到的"旧值"已被掩码写脏，真实 key 会丢失。
+                        new_cfg = deep_merge(get_config(), new_cfg)
                         _protect_secrets(new_cfg)  # 掩码值不覆盖真实密钥
                         set_config(new_cfg)
                         save_config(new_cfg)
