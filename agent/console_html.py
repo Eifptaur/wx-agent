@@ -74,6 +74,11 @@ button:active{transform:scale(.97)}
 .pick .opt b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pick .opt .hint{margin:0;white-space:nowrap;font-size:11px;color:var(--tx2)}
 .pick .opt input{width:16px;height:16px;accent-color:var(--blue)}
+/* 群列表容器：固定高度滚动槽 + 顶部搜索框 */
+.group-box{max-height:340px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:6px;margin-top:6px}
+.group-box .opt{margin-bottom:4px}
+.group-search{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;font:inherit;margin-top:6px;box-sizing:border-box}
+.group-search:focus{border-color:var(--blue);outline:none}
 .dlist{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:4px;font-size:13px}
 .main{min-width:0}
 
@@ -358,6 +363,7 @@ th{color:var(--tx2);font-weight:500}
       <div class="desc">每个群友的长期印象，机器人回复时会参考。点「保存设置」不影响此处；删除即从记忆中移除。</div>
       <div class="row"><label>选择群聊</label>
         <div class="grow">
+          <input type="text" id="memSearch" class="group-search" placeholder="搜索群名，回车选中第一个匹配…">
           <select id="memChats"><option value="">（加载中…）</option></select>
           <button id="memRefresh" class="ghost" style="margin-top:6px">刷新</button>
         </div>
@@ -652,26 +658,51 @@ $('keySave').onclick = async ()=>{
     }catch(e){ /* 测试失败不打断保存成功提示 */ }
   }catch(e){ toast('保存失败：'+e.message); }
 };
+/* 通用群列表渲染：搜索框 + 滚动槽。groups=[{name,wxid}]；pick=Set(选中名)；
+   onPick(selectedSet) 每次勾选变化回调；返回时容器已含搜索框。 */
+function renderGroupList(box, groups, pick, onPick){
+  box.innerHTML='';
+  box.className='group-box';
+  const search=document.createElement('input'); search.type='text';
+  search.className='group-search'; search.placeholder='搜索群名…';
+  box.appendChild(search);
+  const list=document.createElement('div'); list.className='pick';
+  box.appendChild(list);
+  function draw(filter){
+    list.innerHTML='';
+    const kw=(filter||'').trim().toLowerCase();
+    let shown=0;
+    groups.forEach(g=>{
+      if(kw && !String(g.name||'').toLowerCase().includes(kw)) return;
+      shown++;
+      const lab=document.createElement('label'); lab.className='opt';
+      const inp=document.createElement('input'); inp.type='checkbox'; inp.checked=pick.has(g.name);
+      lab.appendChild(inp);
+      const b=document.createElement('b'); b.textContent=g.name; lab.appendChild(b);
+      const h=document.createElement('span'); h.className='hint'; h.style.marginLeft='8px'; h.textContent=g.wxid; lab.appendChild(h);
+      inp.onchange=()=>{ if(inp.checked) pick.add(g.name); else pick.delete(g.name); onPick(pick); };
+      list.appendChild(lab);
+    });
+    if(!shown){
+      const d=document.createElement('div'); d.className='hint'; d.style.padding='12px';
+      d.textContent=kw?('没有名字包含「'+kw+'」的群'):'没有检测到群聊——请确认微信已登录，重启机器人后再试。';
+      list.appendChild(d);
+    }
+  }
+  search.addEventListener('input', ()=>draw(search.value));
+  if(!groups.length){ draw(''); } else { draw(''); }
+  return {search, list, draw};
+}
 $('pickGroups').onclick = async ()=>{
   try{
     const r = await getJSON('/api/wechat-groups');
     const groups = r.groups||[];
     const m=document.createElement('div'); m.className='mask';
-    m.innerHTML='<div class="box" style="text-align:left"><h1>选择监听的群</h1><p>检测到 '+groups.length+' 个群聊，勾选机器人需要监听的群（全不勾=监听所有群）。</p><div class="pick" id="groupPick" style="max-height:340px;overflow:auto"></div><div class="btns" style="justify-content:flex-end;margin-top:10px"><button class="pri" id="gpOk">确定</button><button class="ghost" id="gpCancel">取消</button></div></div>';
+    m.innerHTML='<div class="box" style="text-align:left"><h1>选择监听的群</h1><p>检测到 '+groups.length+' 个群聊，勾选机器人需要监听的群（全不勾=监听所有群）。</p><div id="groupPick"></div><div class="btns" style="justify-content:flex-end;margin-top:10px"><button class="pri" id="gpOk">确定</button><button class="ghost" id="gpCancel">取消</button></div></div>';
     document.body.appendChild(m);
     const box=$('groupPick');
     const pick = new Set(wlList);
-    if(!groups.length){ box.innerHTML='<div class="hint">没有检测到群聊——请确认微信已登录，重启机器人后再试。</div>'; }
-    groups.forEach(g=>{
-      const lab=document.createElement('label'); lab.className='opt';
-      const inp=document.createElement('input'); inp.type='checkbox'; inp.checked = pick.has(g.name);
-      lab.appendChild(inp);
-      lab.appendChild(document.createTextNode(' '));
-      const b=document.createElement('b'); b.textContent=g.name; lab.appendChild(b);
-      const h=document.createElement('span'); h.className='hint'; h.style.marginLeft='8px'; h.textContent=g.wxid; lab.appendChild(h);
-      inp.onchange=()=>{ if(inp.checked) pick.add(g.name); else pick.delete(g.name); };
-      box.appendChild(lab);
-    });
+    renderGroupList(box, groups, pick, ()=>{});
     $('gpOk').onclick=()=>{ wlList=[...pick]; renderChips(); maskClose(m); m.remove(); };
     $('gpCancel').onclick=()=>{ maskClose(m); m.remove(); };
   }catch(e){ toast('检测失败：'+e.message); }
@@ -1014,16 +1045,11 @@ async function onboarding(){
         $('obDesc').textContent = '第 2 步/共 3 步：勾选需要机器人监听的群（全不勾=监听所有群）。检测到 '+groups.length+' 个群聊。';
         $('obKey').style.display='none';
         const body=$('obBody'); body.innerHTML='';
-        if(!groups.length){ body.innerHTML='<div class="hint">未检测到群聊——请确认微信已登录，重启机器人后再试。</div>'; }
-        groups.forEach(g=>{
-          const lab=document.createElement('label'); lab.className='opt';
-          const inp=document.createElement('input'); inp.type='checkbox'; inp.checked = (wlList||[]).includes(g.name);
-          inp.onchange=()=>{ if(inp.checked) picked.push(g.name); else picked=picked.filter(x=>x!==g.name); };
-          lab.appendChild(inp);
-          const b=document.createElement('b'); b.textContent=g.name; lab.appendChild(b);
-          const h=document.createElement('span'); h.className='hint'; h.style.marginLeft='8px'; h.textContent=g.wxid; lab.appendChild(h);
-          body.appendChild(lab);
-        });
+        picked = [];  // 重新开始（防重复调用残留）
+        const pickSet = new Set((wlList||[]));
+        renderGroupList(body, groups, pickSet, (s)=>{ picked = [...s]; });
+        picked = [...pickSet];
+        if(groups.length){ body.querySelector('.group-search').focus(); }
         $('obNext').textContent='下一步'; step=2; return;
       }
       if(step===2){
@@ -1185,6 +1211,21 @@ async function loadMemory(chat_key){
 let memMembers = [];
 $('memChats').addEventListener('change', ()=>loadMemory($('memChats').value));
 $('memRefresh').onclick = ()=>loadMemory($('memChats').value);
+/* 记忆页群搜索：过滤下拉选项；回车选中第一个匹配（群多时最顺手） */
+$('memSearch').addEventListener('input', ()=>{
+  const kw=$('memSearch').value.trim().toLowerCase();
+  Array.from($('memChats').options).forEach(o=>{
+    if(!o.value) return;
+    o.hidden = !!(kw && !o.textContent.toLowerCase().includes(kw));
+  });
+});
+$('memSearch').addEventListener('keydown', (e)=>{
+  if(e.key!=='Enter') return;
+  const kw=$('memSearch').value.trim().toLowerCase();
+  const opt = Array.from($('memChats').options).find(o=>o.value && o.textContent.toLowerCase().includes(kw));
+  if(opt){ $('memChats').value=opt.value; loadMemory(opt.value); }
+  e.preventDefault();
+});
 
 /* 导航：滚动同步高亮 + 蓝色指示条平滑滑动 */
 (function(){
