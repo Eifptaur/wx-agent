@@ -74,6 +74,13 @@ def chat_completion(messages, tools=None, tool_choice="auto", temperature=None, 
             body["temperature"] = float(temp)
         except (TypeError, ValueError):
             pass
+    # 思考模式：auto=不传参数（跟随模型默认）；on/off 显式控制（DeepSeek 等支持 thinking 参数的模型）
+    # 关闭思考可省掉大部分 completion token（思考过程全部按输出价计费）
+    thinking = str(api.get("thinking") or "auto").strip().lower()
+    if thinking in ("on", "true", "enabled", "1"):
+        body["thinking"] = {"type": "enabled"}
+    elif thinking in ("off", "false", "disabled", "0"):
+        body["thinking"] = {"type": "disabled"}
     timeout_ms = max(5000, int(api.get("timeout_ms") or 180000))
     headers = {"Content-Type": "application/json", **_auth_headers(str(api.get("api_key") or ""))}
     try:
@@ -118,7 +125,8 @@ def chat_completion_with_retry(args, retries=2):
 
 
 def empty_usage() -> dict:
-    return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cached_tokens": 0, "calls": 0}
+    return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cached_tokens": 0,
+            "reasoning_tokens": 0, "calls": 0}
 
 
 def add_usage(target: dict, usage) -> dict:
@@ -129,6 +137,14 @@ def add_usage(target: dict, usage) -> dict:
     target["prompt_tokens"] += prompt
     target["completion_tokens"] += completion
     target["total_tokens"] += int(usage.get("total_tokens") or (prompt + completion))
+    # 思考过程 token（DeepSeek/部分模型在 completion_tokens_details.reasoning_tokens，
+    # 旧协议在顶层 reasoning_tokens）——思考全部按输出价计费，是 token 大头
+    details = usage.get("completion_tokens_details") or {}
+    reasoning = (details.get("reasoning_tokens") or usage.get("reasoning_tokens") or 0)
+    try:
+        target["reasoning_tokens"] += int(reasoning or 0)
+    except (TypeError, ValueError):
+        pass
     details = usage.get("prompt_tokens_details") or {}
     cached = details.get("cached_tokens") or usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0
     target["cached_tokens"] += int(cached or 0)
