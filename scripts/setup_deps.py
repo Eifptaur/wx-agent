@@ -29,7 +29,7 @@ def main():
     if ok:
         print("-" * 52)
         print("全部依赖已就绪且版本正确，跳过安装 ✔")
-        print("下一步：运行 scripts\自检.bat 验证，然后双击 启动机器人.vbs。")
+        print("下一步：运行 自检.bat 验证，然后双击 启动机器人.vbs。")
         return 0
 
     py_exe = sys.executable or "py"
@@ -58,7 +58,7 @@ def main():
     rows2, ok2 = dep_check()
     print("-" * 52)
     print("复查：" + ("全部满足 ✔" if ok2 else "仍有缺失: " + ", ".join(r[0] for r in rows2 if not r[3])))
-    print("下一步：运行 scripts\自检.bat 验证，然后双击 启动机器人.vbs。")
+    print("下一步：运行 自检.bat 验证，然后双击 启动机器人.vbs。")
     return 0 if ok2 else 1
 
 
