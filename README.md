@@ -9,10 +9,10 @@
 ## 快速安装（三步）
 
 1. 装环境：Windows 10/11（64 位）+ Python 3.10+，双击 `安装依赖.bat`（自动识别：已装好且版本正确直接跳过，缺什么装什么；检测到 offline\ 自动离线安装）。
-2. 填配置：把 `config.example.json` 复制一份改名为 `config.json`，填 `api.api_key`（大模型密钥：DeepSeek/Kimi/智谱/通义/MiniMax/豆包/ChatGPT/Claude/Gemini/Grok 任一厂商，控制台有厂商预设+按厂商存 Key）。
+2. 跑起来：登录电脑微信 4.x（小号，勾选自动登录）→ 双击「启动机器人.vbs」→ 浏览器自动打开控制台 → 首次向导：填大模型 Key → 勾选要回复的群 → 一键体检 → 完成。
 3. 跑起来：登录电脑微信 4.x（小号，勾选自动登录）→ 双击「启动机器人.vbs」→ 群里 @机器人 测试。
 
-> 详细教程（含离线安装、Web 控制台、识图/拍一拍/引用）见《使用说明.md》。
+> 详细教程（含离线安装、Web 控制台、识图/拍一拍/引用）见《使用说明.md》；界面不适/想调参都在控制台，保存即生效。
 > 实测用量与各厂商单价/充值能用多久，见《价目表.md》。
 > 运行时微信窗口可缩小，但别最小化到任务栏；机器人在群里发言时别抢鼠标键盘。
 
@@ -34,7 +34,7 @@
 
 技术来源：整合自开源项目 qq-agent（大脑）、wechat-deepseek-bot / wechatauto（微信 UIA 接入）、DeepSeek-Balance-Whale-Widget（挂件，MIT）。仅供学习交流，上游版权归原作者。
 
-## 常用配置（config.json，改完重启生效）
+## 常用配置（平时在控制台改即可，保存即生效；下面只是 config.json 底层字段速查）
 
 - api.base_url / api_key / model —— 大模型接口（必填）
 - api.use_official_price / model_prices —— 成本按内置价目/自定义单价（元/百万 token）估算
