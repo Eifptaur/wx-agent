@@ -29,6 +29,32 @@ TYPE_LABEL = {    "文本": "text",
     "系统消息": "system",
 }
 
+
+def _force_foreground(user32, hwnd: int) -> bool:
+    """把指定窗口带到前台（AttachThreadInput 提权，绕开 Windows 前台锁）。
+
+    仅靠 SetForegroundWindow 常被系统拒绝（正是"时灵时不灵"的原因之一）：
+    当前台属于其他进程时，调用方进程不能直接抢前台。先 AttachThreadInput
+    把「前台线程」与「目标窗口线程」接上再设置即可成功；结束后解绑。
+    """
+    try:
+        import ctypes as _ct
+        fg = int(user32.GetForegroundWindow() or 0)
+        tid_fg = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+        tid_target = user32.GetWindowThreadProcessId(hwnd, None)
+        if tid_fg and tid_target and tid_fg != tid_target:
+            user32.AttachThreadInput(tid_fg, tid_target, True)
+        try:
+            user32.SetForegroundWindow(hwnd)
+            user32.SetActiveWindow(hwnd)
+            user32.BringWindowToTop(hwnd)
+        finally:
+            if tid_fg and tid_target and tid_fg != tid_target:
+                user32.AttachThreadInput(tid_fg, tid_target, False)
+        return bool(user32.GetForegroundWindow() == hwnd)
+    except Exception:
+        return False
+
 _SENDER_RE = re.compile(r"^(wxid_[0-9a-zA-Z_-]+|.*@chatroom):\s*")
 
 
@@ -460,6 +486,90 @@ class WeChatAdapter:
         self._send_recent.append((key[0], key[1], now))
         return True
 
+    # ── 前台管控：整批发送只置前一次，全部发完才恢复用户窗口 ─────────────
+    _fg_depth = 0
+    _fg_before = None  # 用户窗口（发送前的前台，非微信）
+
+    def fg_hold(self):
+        """上下文管理器：批量发送期间「持有前台权」。
+
+        进入：depth=0 时记录用户当前前台窗口（若用户正在看微信则不记录别动）；
+        退出：depth 归零时恢复用户窗口 + 取消微信置顶 + 兜底放底/最小化。
+        中途任何一条发送成功/失败都会走到退出（finally）。
+        """
+        import contextlib
+
+        @contextlib.contextmanager
+        def _ctx():
+            try:
+                self._fg_enter()
+                yield
+            finally:
+                self._fg_exit()
+        return _ctx()
+
+    def _fg_enter(self):
+        if self._fg_depth == 0:
+            try:
+                gui = self._get_gui()
+                import ctypes as _ct
+                fg = int(_ct.windll.user32.GetForegroundWindow() or 0)
+                self._fg_before = None if (fg and fg in (gui.main_hwnd, gui.render_hwnd)) else fg
+            except Exception:
+                self._fg_before = None
+        self._fg_depth += 1
+
+    def _fg_exit(self):
+        self._fg_depth = max(0, self._fg_depth - 1)
+        if self._fg_depth > 0:
+            return
+        before = self._fg_before
+        self._fg_before = None
+        try:
+            self._restore_after_send(before)
+        except Exception:
+            pass
+
+    def _restore_after_send(self, before_fg):
+        """发送完成后把微信送回后台：取消置顶 → 恢复用户窗口 → 兜底放底/最小化。"""
+        gui = self._get_gui()
+        import ctypes as _ct
+        user32 = _ct.windll.user32
+        wechat_ok = (int(user32.GetForegroundWindow() or 0) in (gui.main_hwnd, gui.render_hwnd))
+        # 1) 取消置顶（prepare_screen 用了 keep_topmost=True，微信会一直压在顶上）
+        try:
+            gui.restore_zorder()
+        except Exception:
+            pass
+        time.sleep(0.15)
+        # 2) 微信仍是前台（发送成功的通常情况）→ 恢复用户之前用的窗口
+        fg = int(user32.GetForegroundWindow() or 0)
+        if fg in (gui.main_hwnd, gui.render_hwnd) and before_fg:
+            _force_foreground(user32, before_fg)
+            time.sleep(0.25)
+        # 3) 兜底：恢复失败（受前台锁/窗口已关）→ 微信放到 Z 序底层，再不行最小化
+        fg = int(user32.GetForegroundWindow() or 0)
+        if fg in (gui.main_hwnd, gui.render_hwnd):
+            user32.SetWindowPos(gui.main_hwnd, 1, 0, 0, 0, 0, 0x0002 | 0x0001)  # HWND_BOTTOM
+            time.sleep(0.2)
+            if int(user32.GetForegroundWindow() or 0) in (gui.main_hwnd, gui.render_hwnd):
+                user32.ShowWindow(gui.main_hwnd, 6)  # SW_MINIMIZE
+
+    def _send_with_foreground(self, fn, *args, **kwargs):
+        """发送包装：输入全程后台（UIA SetValue 直写），需要点击/回车的
+        阶段才瞬时置前，发送完成后立即把微信窗口放回后台。
+
+        与 fg_hold 配合：批量发送时只置前一次、整批发完才恢复；
+        单条发送则每条发完立即恢复。恢复失败有三级兜底：
+        取消置顶 → 恢复原前台窗口（AttachThreadInput 提权）→ 放底/最小化。
+        """
+        self._fg_enter()
+        try:
+            result = fn(*args, **kwargs)
+            return result
+        finally:
+            self._fg_exit()
+
     def send_text(self, chat_id: str, text: str):
         """发送文本到群。返回 (ok, message)。"""
         if not self._dedup_send(chat_id, text):
@@ -468,7 +578,8 @@ class WeChatAdapter:
         try:
             with self._send_lock:  # 所有碰微信窗口的操作统一串行（发消息/引用/拍一拍/回拍不打架）
                 gui = self._get_gui()
-                r = gui.send_msg(text, who=name, verify=False)
+                r = self._send_with_foreground(
+                    lambda g=gui: g.send_msg(text, who=name, verify=False))
                 ok = bool(getattr(r, "is_success", False))
                 if ok:
                     self._mark_sent(text)
@@ -484,7 +595,8 @@ class WeChatAdapter:
         try:
             with self._send_lock:
                 gui = self._get_gui()
-                r = gui.at_member(member_name, text, who=name, verify=False)
+                r = self._send_with_foreground(
+                    lambda g=gui: g.at_member(member_name, text, who=name, verify=False))
                 ok = bool(getattr(r, "is_success", False))
                 if ok:
                     self._mark_sent(text)
@@ -498,8 +610,12 @@ class WeChatAdapter:
         try:
             with self._send_lock:
                 gui = self._get_gui()
-                r = gui.send_image(local_path, who=name, verify=False)
-                return bool(getattr(r, "is_success", False)), str(getattr(r, "message", "") or "")
+                r = self._send_with_foreground(
+                    lambda g=gui: g.send_image(local_path, who=name))
+                ok = bool(getattr(r, "is_success", False))
+                if ok:
+                    self._mark_sent("[图片]")
+                return ok, str(getattr(r, "message", "") or "")
         except Exception as e:
             return False, str(e)
 
@@ -1133,7 +1249,7 @@ class WeChatAdapter:
 
     @staticmethod
     def _uia_quote_finish(gui, text: str) -> bool:
-        """UIA 直进输入框：粘贴 → 回车 → 读回验证（输入框被清空=已发出）。
+        """UIA 直进输入框：写入（SetValue 后台直写，失败回退粘贴）→ 回车 → 读回验证。
 
         引用模式的输入框仍是同一个 UIA Edit 控件（位置/高度变化不影响），
         因此比像素探测稳定得多。返回 False 时调用方回退坐标路径。
@@ -1145,7 +1261,9 @@ class WeChatAdapter:
             e = uia._chat_input()
             if e is None:
                 return False
-            uia._paste_into(e, text, clear=True)
+            # 优先 SetValue 后台直写（不点输入框/不抢焦点）；控件不认则回退粘贴
+            if not uia._set_value_into(e, text, clear=True):
+                uia._paste_into(e, text, clear=True)
             time.sleep(0.4)
             for _ in range(2):
                 e.SendKeys("{Enter}", waitTime=0.05)
