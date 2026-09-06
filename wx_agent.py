@@ -454,6 +454,7 @@ class Orchestrator:
             "status": status, "ok": status == "done",
             "latency_ms": int((time.time() - _t0) * 1000),
             "tokens": int(session["usage"]["total_tokens"]),
+            "reasoning_tokens": int(session["usage"].get("reasoning_tokens") or 0),
             "cost": round(_cost, 6), "calls": int(session["usage"]["calls"]),
             "model": session.get("model") or "",
             "reply": "\n".join(str(x.get("text") or "")[:200] for x in session["sent"])[:1200],
@@ -874,17 +875,23 @@ def main():
     sender = SendQueue(wechat, store)
     orch = Orchestrator(store, memory, sender, wechat)
 
+    # 启动后默认暂停：不监听群消息，控制台点「恢复」才工作（防一开机就刷群/回应积压旧消息）
+    if (cfg.get("wechat") or {}).get("start_paused", True) is not False:
+        orch.set_paused(True)
+        log.info("启动后默认暂停：请在控制台点「恢复」开始监听群消息（wechat.start_paused=false 可改为自动运行）")
+
     # ── Web 控制台 ─────────────────────────────────────────────────────
     target_wxids = {g["wxid"] for g in targets}
 
     def status_provider():
+        _cfg_live = get_config()
         gs = [{"name": g["name"], "wxid": g["wxid"], "target": g["wxid"] in target_wxids} for g in groups]
         return {
             "paused": orch.paused,
             "wechat_connected": wechat is not None,
             "wechat_version": wechat_version_info(),
             "dep_ok": len(_version_issues()) == 0,
-            "model": cfg.get("api", {}).get("model", ""),
+            "model": _cfg_live.get("api", {}).get("model", ""),
             "groups": gs,
             "running_chats": sorted(orch.running_chats),
             "stats": dict(orch.stats),
@@ -1172,13 +1179,20 @@ def main():
     except (ValueError, OSError):
         pass
 
-    poll_interval = max(1.0, float(cfg.get("wechat", {}).get("poll_interval") or 3))
-    log.info("开始监听群消息（目标群 %d 个，轮询 %.1fs）… Ctrl+C 退出", len(targets), poll_interval)
+    log.info("开始监听群消息（目标群 %d 个）… Ctrl+C 退出（轮询间隔在控制台修改保存即生效）", len(targets))
 
     while not orch.stopped:
+        poll_interval = max(1.0, float(get_config().get("wechat", {}).get("poll_interval") or 3))
         try:
             for g in targets:
                 if orch.paused:
+                    # 暂停期间不响应，但游标仍推进到最新：恢复时不会重放暂停期间的积压消息
+                    # （否则恢复瞬间会把暂停期间几十条旧消息逐批触发，表现为"每条都回"）
+                    wxid = g["wxid"]
+                    try:
+                        since_seq[wxid] = wechat.latest_seq(wxid)
+                    except Exception:
+                        pass
                     continue
                 wxid = g["wxid"]
                 chat_key = "group:" + wxid
