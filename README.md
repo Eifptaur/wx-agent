@@ -1,4 +1,4 @@
-# wx-agent —— 微信智能机器人
+# wx-agent —— 微信智能机器人（当前版本 v2.0.0 · 2026-09-06）
 
 微信群里 @机器人 即可对话：多模型大脑（DeepSeek / Kimi / 智谱 / 通义 / MiniMax / 豆包 / ChatGPT / Claude / Gemini / Grok / 自定义）+ 无注入微信接入（仅 Windows）。
 
