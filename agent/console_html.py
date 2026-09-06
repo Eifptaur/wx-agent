@@ -242,7 +242,7 @@ th{color:var(--tx2);font-weight:500}
           <tr><td><input type="checkbox" class="ck"></td><td>8. 记忆</td><td>聊天里让机器人记住一件事 → 控制台「记忆」页看</td><td>印象出现、可删除</td></tr>
           <tr><td><input type="checkbox" class="ck"></td><td>9. 挂件</td><td>看右下角鲸鱼挂件（余额/今日已用/每轮消耗）</td><td>数据变化、点击刷新、可拖拽</td></tr>
           <tr><td><input type="checkbox" class="ck"></td><td>10. 启停重启</td><td>顶部 停止/重启（无窗口）→ 双击 启动机器人.vbs</td><td>页面变「已停止」、重启后台接管</td></tr>
-          <tr><td><input type="checkbox" class="ck"></td><td>11. 多厂商切换</td><td>模型 API 切到 Kimi/智谱/ChatGPT/Claude/Gemini/Grok 等 → 保存 → 测试连通</td><td>默认弹 Key 输入，测试通过</td></tr>
+          <tr><td><input type="checkbox" class="ck"></td><td>11. 多厂商切换</td><td>模型 API 切到 Kimi/智谱/ChatGPT/Claude/Gemini/Grok/NVIDIA/OpenRouter 等 → 保存 → 测试连通</td><td>默认弹 Key 输入，测试通过</td></tr>
         </tbody>
       </table>
       <div class="btns" style="margin-top:8px"><button id="ckReset" class="ghost">重置勾选</button><span class="hint" id="ckCount" style="align-self:center"></span></div>
@@ -282,6 +282,8 @@ th{color:var(--tx2);font-weight:500}
           <option value="claude">Claude（Anthropic，OpenAI 兼容端点）</option>
           <option value="gemini">Gemini（Google）</option>
           <option value="grok">Grok（xAI）</option>
+          <option value="nvidia">NVIDIA（Nemotron）</option>
+          <option value="openrouter">OpenRouter（聚合）</option>
           <option value="custom">自定义（手动填 URL/Key/模型）</option>
         </select>
         <div class="hint">切换厂商会自动替换 Base URL，并弹窗让您填入该厂商的 API Key；模型列表现场切换。</div>
@@ -757,196 +759,31 @@ function maskClose(el){
 /* ── 模型厂商预设：切换即换 BaseURL/模型，弹窗要 Key ── */
 const PROVIDERS = {
   deepseek:{label:'DeepSeek', base:'https://api.deepseek.com/v1', keyHint:'sk-',
-    models:['deepseek-v4-flash-vision-exp','deepseek-v4-flash','deepseek-v4-pro','deepseek-v3.2','deepseek-chat','deepseek-reasoner']},
+    models:['deepseek-v4-flash-vision-exp','deepseek-v4-pro-0813','deepseek-v4-flash-0731','deepseek-v4-flash','deepseek-v4-pro','deepseek-v3.2','deepseek-chat','deepseek-reasoner']},
   moonshot:{label:'Moonshot Kimi', base:'https://api.moonshot.cn/v1', keyHint:'sk-',
-    models:['kimi-k3','kimi-k2-0905-preview','kimi-k2-0711-preview','moonshot-v1-128k','moonshot-v1-32k','moonshot-v1-8k']},
+    models:['kimi-k3','kimi-k2.6','kimi-k2-0905-preview','kimi-k2-0711-preview','moonshot-v1-128k','moonshot-v1-32k','moonshot-v1-8k']},
   zhipu:{label:'智谱 GLM', base:'https://open.bigmodel.cn/api/paas/v4', keyHint:'',
-    models:['glm-4.6','glm-4.5','glm-4.5-air','glm-4-plus','glm-4-flash','glm-4v-plus']},
+    models:['glm-5.3','glm-5.2','glm-4.6','glm-4.5','glm-4.5-air','glm-4-plus','glm-4-flash','glm-4v-plus']},
   qwen:{label:'通义千问（阿里）', base:'https://dashscope.aliyuncs.com/compatible-mode/v1', keyHint:'sk-',
-    models:['qwen3-max','qwen3-plus','qwen3-235b-a22b-instruct','qwen3-32b','qwen-max','qwen-plus','qwen-turbo','qwen-vl-max','qwen-vl-plus']},
+    models:['qwen3.8-2.4t-a95b','qwen3.7-max','qwen3-max','qwen3-plus','qwen3-235b-a22b-instruct','qwen3-32b','qwen-max','qwen-plus','qwen-turbo','qwen-vl-max','qwen-vl-plus']},
   minimax:{label:'MiniMax', base:'https://api.minimax.chat/v1', keyHint:'',
-    models:['MiniMax-M2','MiniMax-M1-80k','abab6.5s-chat']},
+    models:['MiniMax-M3','MiniMax-M2.7','MiniMax-M2','MiniMax-M1-80k','abab6.5s-chat']},
   doubao:{label:'豆包（火山方舟）', base:'https://ark.cn-beijing.volces.com/api/v3', keyHint:'',
     models:['doubao-seed-1.6-250615','doubao-1.5-pro-32k','doubao-vision-pro-32k']},
   openai:{label:'ChatGPT（OpenAI）', base:'https://api.openai.com/v1', keyHint:'sk-',
-    models:['gpt-5','gpt-5-mini','gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','o3','o3-mini','o4-mini','gpt-4-turbo']},
+    models:['gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna','gpt-5','gpt-5-mini','gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','o3','o3-mini','o4-mini','gpt-4-turbo']},
   claude:{label:'Claude（Anthropic，OpenAI 兼容端点）', base:'https://api.anthropic.com/v1', keyHint:'sk-ant-',
-    models:['claude-opus-4-1-20250805','claude-sonnet-4-5-20250929','claude-3-7-sonnet-20250219','claude-3-5-haiku-20241022']},
+    models:['claude-opus-5','claude-sonnet-5','claude-fable-5','claude-opus-4-1-20250805','claude-sonnet-4-5-20250929','claude-3-7-sonnet-20250219','claude-3-5-haiku-20241022']},
   gemini:{label:'Gemini（Google）', base:'https://generativelanguage.googleapis.com/v1beta/openai', keyHint:'AIza',
-    models:['gemini-3-pro-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-pro']},
+    models:['gemini-3.7-flash','gemini-3.6-flash','gemini-3-pro-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-pro']},
   grok:{label:'Grok（xAI）', base:'https://api.x.ai/v1', keyHint:'xai-',
-    models:['grok-4','grok-3','grok-3-mini','grok-2-latest']},
+    models:['grok-4.6','grok-4.5','grok-4','grok-3','grok-3-mini','grok-2-latest']},
+  nvidia:{label:'NVIDIA（Nemotron）', base:'https://integrate.api.nvidia.com/v1', keyHint:'nvapi-',
+    models:['nemotron-3-ultra-550b']},
+  openrouter:{label:'OpenRouter（聚合）', base:'https://openrouter.ai/api/v1', keyHint:'sk-or-',
+    models:['hy3','muse-spark-1.2','muse-spark-1.1','solar-pro-4','inkling-with-ai']},
   custom:{label:'自定义', base:'', keyHint:'', models:[]}
-};function renderModelSel(provider){
-  const sel=$('modelSel'); sel.innerHTML='';
-  const p = PROVIDERS[provider] || PROVIDERS.deepseek;
-  p.models.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
-  if(!p.models.length){
-    const o=document.createElement('option'); o.value=''; o.textContent='（无预设，请在下方手填）'; sel.appendChild(o);
-  }
-  $('modelCustom').classList.toggle('dn', p.models.length>0);
-}
-function providerSavedKey(provider){
-  // 该厂商是否存过 Key（打码也算存过）
-  try{
-    if(cfg && cfg.api && cfg.api.provider_keys && cfg.api.provider_keys[provider]) return true;
-  }catch(e){}
-  return false;
-}
-function detectProvider(base){
-  const b = String(base||'').trim();
-  for(const k of Object.keys(PROVIDERS)){
-    if(k!=='custom' && b && b.startsWith(PROVIDERS[k].base)) return k;
-  }
-  return b ? 'custom' : 'deepseek';
-}
-function applyProvider(provider, askKey){
-  const p = PROVIDERS[provider] || PROVIDERS.deepseek;
-  if(p.base){
-    const be = document.querySelector('[data-cfg="api.base_url"]');
-    if(be) be.value = p.base;
-  }
-  renderModelSel(provider);
-  // 已存过该厂商 Key → 自动回填（打码值则不回填，防误存）
-  const pk = document.querySelector('[data-cfg="api.api_key"]');
-  try{
-    const saved = cfg && cfg.api && cfg.api.provider_keys && cfg.api.provider_keys[provider];
-    if(saved && pk && !String(saved).includes('••••') && !String(saved).startsWith('sk-***')) pk.value = saved;
-  }catch(e){}
-  if(askKey && provider !== 'deepseek'){
-    // 换厂商必弹：让用户确认该公司的 API Key（预填当前值，可覆盖/跳过）
-    const have = (pk && pk.value || '').trim();
-    const m=document.createElement('div'); m.className='mask';
-    m.innerHTML='<div class="box"><h1>'+p.label+' API Key</h1><p>已切换到 '+p.label+'（Base URL：'+p.base+'）。请填写该公司的 API Key（'+(p.keyHint||'见官网')+' 开头）。</p><input type="password" id="pkCmd" placeholder="'+(p.keyHint||'')+'..." value="'+have.replace(/"/g,'')+'"><div class="btns" style="justify-content:center"><button class="pri" id="pkOk">保存 Key</button><button class="ghost" id="pkSame">沿用现有 Key</button><button class="ghost" id="pkNo">暂不填</button></div></div>';
-    document.body.appendChild(m); maskOpen(m);
-    $('pkOk').onclick=()=>{ const v=$('pkCmd').value.trim(); if(v&&pk) pk.value=v; maskClose(m); m.remove(); toast('已填入 '+p.label+' Key，记得点「保存设置」'); };
-    $('pkSame').onclick=()=>{ maskClose(m); m.remove(); };
-    $('pkNo').onclick=()=>{ maskClose(m); m.remove(); };
-  }
-}
-$('providerSel').addEventListener('change', ()=>applyProvider($('providerSel').value, true));
-/* ── 左上角 Logo：官方蓝鲸大图标 + 悬停「Q 弹跳」动画（重力轨迹，落地压扁回弹）── */
-(function(){
-  const lc = $('logoFx'), ctx = lc.getContext('2d');
-  const W = 200, H = 140;               // 物理画布（CSS 显示 100×70，比例 2:1.4）
-  lc.width = W; lc.height = H;
-  lc.style.width = '100px'; lc.style.height = '70px';
-  const img = new Image();
-  let ready = false;
-  img.onload = function(){ ready = true; drawStatic(0, 1); };
-  img.src = LOGO_URL;
-  const BASE_Y = H - 8;                 // 落脚点（画布底部留 8px）
-  const HERO_W = 106, HERO_H = 100;     // 显示尺寸（约 1.06:1，贴近原图比例）
-  const CW = HERO_W, CH = HERO_H;
-  function drawStatic(yOff, squash){
-    if(yOff === undefined) yOff = 0;
-    if(squash === undefined) squash = 1;
-    ctx.clearRect(0,0,W,H);
-    const w = CW * squash, h = CH * (2 - squash);
-    if(squash !== 1){ // 压扁时底部对齐
-      ctx.drawImage(img, (W - w)/2, BASE_Y - h + yOff, w, h);
-    } else {
-      ctx.drawImage(img, (W - w)/2, BASE_Y - h + yOff, w, h);
-    }
-  }
-  // 弹跳物理：v<0 往上，g 下坠，落地 vy=-vy*0.5，位移趋 0 停
-  let hov = false, y = 0, vy = 0, squash = 1, running = false, t0 = null;
-  function frame(ts){
-    if(t0 === null) t0 = ts;
-    const dt = Math.min(0.05, (ts - (t0 || ts)) / 1000 || 0.016);
-    t0 = ts;
-    if(hov){
-      vy += 2600 * dt;                 // 重力
-      y += vy * dt;
-      if(y >= 0){                      // 着地
-        if(vy > 520){ y = 0; vy = -vy * 0.45; squash = 0.72; }  // 反弹+压扁
-        else if(vy > 40){ y = 0; vy = -vy * 0.5; squash = 0.82; }
-        else { y = 0; vy = 0; squash += (1 - squash) * 0.25; }
-      } else {
-        squash += (1 - squash) * 0.30; // 空中恢复原形
-        // 起跳瞬间也轻微拉伸表现
-      }
-      drawStatic(-y, squash);
-      requestAnimationFrame(frame);
-    } else {
-      y += vy * dt; vy += 2600 * dt;
-      if(y >= 0){ y = 0; vy = 0; squash += (1 - squash) * 0.3; }
-      else squash += (1 - squash) * 0.3;
-      drawStatic(-y, squash);
-      if(y === 0 && Math.abs(squash - 1) < 0.01){ running = false; drawStatic(0, 1); return; }
-      requestAnimationFrame(frame);
-    }
-  }
-  lc.addEventListener('mouseenter', ()=>{ if(!ready || hov) return; hov = true; vy = -360; squash = 1; if(!running){ running = true; t0 = null; requestAnimationFrame(frame); } });
-  lc.addEventListener('mouseleave', ()=>{ hov = false; if(!running){ if(y === 0 && squash === 1){ return; } running = true; requestAnimationFrame(frame); } });
-})();
-
-/* ── 首次运行向导：Key → 检测微信+勾选群 → 一键体检 → 完成 ── */
-async function onboarding(){
-  if(!cfg) return;
-  const key = getPath(cfg,'api.api_key') || '';
-  if(key && !key.includes('在这里填') && key!=='******' && !key.includes('••••')) return;
-  const m = document.createElement('div'); m.className='mask'; m.id='onboard';
-  m.innerHTML='<div class="box">'+ICON+'<h1>欢迎使用 wx-agent · 三步上手</h1>'+
-    '<p id="obDesc">第 1 步/共 3 步：填入你的 API Key（默认 DeepSeek，sk- 开头）。保存后无需再改文件。</p>'+
-    '<input type="password" id="obKey" placeholder="sk-...">'+
-    '<div id="obBody"></div>'+
-    '<div class="btns" style="justify-content:center;margin-top:10px"><button class="pri" id="obNext">下一步</button><button class="ghost" id="obLater">跳过向导</button></div></div>';
-  document.body.appendChild(m); maskOpen(m);
-  let step = 1, picked = [];
-  $('obNext').onclick = async ()=>{
-    try{
-      if(step===1){
-        const k=$('obKey').value.trim();
-        if(k){ setPath(cfg,'api.api_key',k); await getJSON('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}); }
-        const r = await getJSON('/api/wechat-groups');
-        const groups = r.groups||[];
-        $('obDesc').textContent = '第 2 步/共 3 步：勾选需要机器人监听的群（全不勾=监听所有群）。检测到 '+groups.length+' 个群聊。';
-        $('obKey').style.display='none';
-        const body=$('obBody'); body.innerHTML='';
-        if(!groups.length){ body.innerHTML='<div class="hint">未检测到群聊——请确认微信已登录，重启机器人后再试。</div>'; }
-        groups.forEach(g=>{
-          const lab=document.createElement('label'); lab.className='opt';
-          const inp=document.createElement('input'); inp.type='checkbox'; inp.checked = (wlList||[]).includes(g.name);
-          inp.onchange=()=>{ if(inp.checked) picked.push(g.name); else picked=picked.filter(x=>x!==g.name); };
-          lab.appendChild(inp);
-          const b=document.createElement('b'); b.textContent=g.name; lab.appendChild(b);
-          const h=document.createElement('span'); h.className='hint'; h.style.marginLeft='8px'; h.textContent=g.wxid; lab.appendChild(h);
-          body.appendChild(lab);
-        });
-        $('obNext').textContent='下一步'; step=2; return;
-      }
-      if(step===2){
-        if(picked.length){ wlList = picked.slice(); setPath(cfg,'wechat.group_name_white_list', wlList.slice()); await getJSON('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}); renderChips(); }
-        $('obDesc').textContent = '第 3 步/共 3 步：一键体检（约 10~20 秒，会移动光标+真实右键测试，请勿动鼠标）。';
-        $('obBody').innerHTML='<pre class="out" id="obCheck" style="height:190px">体检中…</pre>';
-        $('obNext').textContent='完成'; step=3;
-        const r = await getJSON('/api/selfcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-        let lines=[r.summary||'',''];
-        for(const c of (r.checks||[])){
-          lines.push((c.status==='ok'?'✅':(c.status==='warn'?'⚠️':'❌'))+' '+c.name+'：'+c.detail);
-          if(c.hint) lines.push('   建议：'+c.hint);
-        }
-        $('obCheck').textContent = lines.join('\n');
-        return;
-      }
-      if(step===3){ maskClose(m); m.remove(); load(); loadMemory(''); toast('🎉 部署完成！'); }
-    }catch(e){ toast('出错：'+e.message); }
-  };
-  $('obLater').onclick = ()=>{ maskClose(m); m.remove(); };
-}
-
-/* 事件绑定 */
-$('api.temperature').addEventListener('input',()=>$('api.temperature-v').textContent=$('api.temperature').value);
-document.querySelectorAll('[data-save]').forEach(b=> b.addEventListener('click', ()=>saveAllBtn(b)));
-$('saveAll').onclick = ()=>saveAllBtn();
-$('refreshLog').onclick = loadLog;
-$('balance-badge').onclick = loadBalance;
-$('rawJsonBtn').onclick = ()=>{ window.open('/api/config'+(URL_TOKEN?('?token='+URL_TOKEN):''),'_blank'); };
-$('pauseBtn').onclick = async ()=>{
-  try{ await getJSON($('pauseBtn').textContent==='暂停'?'/api/pause':'/api/resume',{method:'POST'}); loadStatus(); }catch(e){toast(e.message)}
-};
-$('stopBtn').onclick = async ()=>{
+};$('stopBtn').onclick = async ()=>{
   if(!confirm('确定停止机器人？停止后可用「重启」按钮或双击启动机器人.vbs 恢复。')) return;
   try{
     await getJSON('/api/shutdown',{method:'POST'});
