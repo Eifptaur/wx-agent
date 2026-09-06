@@ -6,14 +6,15 @@
   "provider": "",
   "vision": true,
   "temperature": 0.8,
-  "max_rounds": 12,
+  "max_rounds": 8,
   "timeout_ms": 180000,
   "price_input_per_m": 0.0,
   "price_output_per_m": 0.0,
   "price_cached_per_m": 0.0,
   "use_official_price": true,
   "model_prices": {},
-  "provider_keys": {}
+  "provider_keys": {},
+  "thinking": "off"
  },
  "wechat": {
   "bot_nickname": "群deepseek",
@@ -22,7 +23,8 @@
   "rate_limit_per_minute": 20,
   "media_dir": "media",
   "db_dir": "",
-  "minimize_warning": true
+  "minimize_warning": true,
+  "start_paused": true
  },
  "persona": {
   "bot_name": "小鲸鱼",
@@ -101,7 +103,8 @@
   "hard_split_at": 2000,
   "quote_on_new_talk": true,
   "quote_reply_probability": 0.7,
-  "quote_new_talk_gap_s": 300
+  "quote_new_talk_gap_s": 300,
+  "uia_setvalue": true
  },
  "proactive": {
   "enabled": false,
@@ -112,14 +115,15 @@
  },
  "store": {
   "max_messages_per_chat": 0,
-  "context_tier": 4,
+  "context_tier": 3,
   "context_slider_pos": null,
   "at_count": 20,
   "keyword_count": 15,
   "keywords": [],
-  "random_percent": 10,
+  "random_percent": 60,
   "random_count": 8,
-  "all_count": 80
+  "all_count": 80,
+  "past_window_min": 30
  },
  "memory": {
   "consolidate_enabled": true,
