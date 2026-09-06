@@ -987,12 +987,15 @@ $('providerSel').addEventListener('change', ()=>applyProvider($('providerSel').v
 })();
 
 /* ── 首次运行向导：Key → 检测微信+勾选群 → 一键体检 → 完成 ── */
+// 首次向导：页面生命周期内只弹一次（完成/跳过后不再弹，防止「完成→重载→又弹」循环）
+let _onboardOnce = false;
 async function onboarding(){
-  if(!cfg) return;
+  if(!cfg || _onboardOnce) return;
   const key = getPath(cfg,'api.api_key') || '';
   // 已有真实 Key 或打码 Key（已配置）→ 不打扰；仅「无 Key/占位符」才显示向导
   if(key && key !== '******' && !key.includes('在这里填') && key.includes('••••')) return;  // 打码=已配置
   if(key && !key.includes('在这里填') && key !== '******' && !key.includes('••••')) return;  // 真实=已配置
+  _onboardOnce = true;
   const m = document.createElement('div'); m.className='mask'; m.id='onboard';
   m.innerHTML='<div class="box">'+ICON+'<h1>欢迎使用 wx-agent · 三步上手</h1>'+
     '<p id="obDesc">第 1 步/共 3 步：填入你的 API Key（默认 DeepSeek，sk- 开头）。保存后无需再改文件。</p>'+
@@ -1037,10 +1040,16 @@ async function onboarding(){
         $('obCheck').textContent = lines.join('\n');
         return;
       }
-      if(step===3){ maskClose(m); m.remove(); load(); loadMemory(''); toast('🎉 部署完成！'); }
+      if(step===3){
+        maskClose(m); m.remove();
+        _onboardOnce = true;  // 完成：不再弹（即便 Key 仍空也不再打扰）
+        loadStatus();
+        try{ cfg = await getJSON('/api/config'); syncToForm(); }catch(e){}
+        loadMemory(''); toast('🎉 部署完成！');
+      }
     }catch(e){ toast('出错：'+e.message); }
   };
-  $('obLater').onclick = ()=>{ maskClose(m); m.remove(); };
+  $('obLater').onclick = ()=>{ maskClose(m); m.remove(); _onboardOnce = true; };
 }
 
 /* 事件绑定 */
