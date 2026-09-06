@@ -279,8 +279,11 @@ th{color:var(--tx2);font-weight:500}
       <div class="row"><label>API Key</label>
         <div class="grow">
           <input type="password" id="apiKeyInput" data-cfg="api.api_key" placeholder="sk-...">
-          <div class="btns" style="margin-top:6px"><button id="keyReset" class="ghost">重置 Key（重新填写）</button></div>
-          <div class="hint">默认只显示打码值（sk-***…尾4位），真实密钥只保存在服务器 config.json。</div>
+          <div class="btns" style="margin-top:6px">
+            <button id="keySave" class="pri">保存 Key</button>
+            <button id="keyReset" class="ghost">重置 Key（重新填写）</button>
+          </div>
+          <div class="hint">点「保存 Key」立即生效（无需滚到底）；空 Key 会保留当前值。打码值只显示在页面上，真实密钥仅存服务器 config.json。</div>
         </div></div>
       <div class="row"><label>模型厂商</label>
         <div class="grow"><select id="providerSel">
@@ -625,6 +628,30 @@ $('customGroup').addEventListener('keydown',e=>{
   }
 });
 $('keyReset').onclick = ()=>{ const k=$('apiKeyInput'); k.value=''; k.focus(); };
+$('keySave').onclick = async ()=>{
+  try{
+    // 只保存 Key（不覆盖其它字段），并与当前厂商关联
+    const k = ($('apiKeyInput')||{}).value || '';
+    if(!k || k.includes('••••') || k.startsWith('sk-***')){
+      toast('Key 为空或仍是打码值，未保存'); return;
+    }
+    const prov = $('providerSel').value;
+    if(!cfg) return;
+    setPath(cfg,'api.api_key', k);
+    if(prov && prov!=='custom'){
+      if(!cfg.api.provider_keys) cfg.api.provider_keys = {};
+      cfg.api.provider_keys[prov] = k;
+    }
+    await getJSON('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+    toast('✅ API Key 已保存（'+prov+'）');
+    cfg = await getJSON('/api/config'); syncToForm();
+    // 保存后立即测试连通（可选，让用户看到能不能跑）
+    try{
+      const t = await getJSON('/api/test-api',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      toast(t.ok ? ('✅ Key 已保存，测试连通成功（'+t.latency_ms+'ms）') : ('Key 已保存，但测试失败：'+(t.error||'')));
+    }catch(e){ /* 测试失败不打断保存成功提示 */ }
+  }catch(e){ toast('保存失败：'+e.message); }
+};
 $('pickGroups').onclick = async ()=>{
   try{
     const r = await getJSON('/api/wechat-groups');
@@ -651,7 +678,7 @@ $('pickGroups').onclick = async ()=>{
 };
 
 async function load(){
-  try{ cfg = await getJSON('/api/config'); syncToForm(); }catch(e){ toast('加载配置失败：'+e.message) }
+  try{ cfg = await getJSON('/api/config'); syncToForm(); onboarding(); }catch(e){ toast('加载配置失败：'+e.message) }
   loadStatus(); loadLog(); loadBalance();
 }
 
@@ -886,13 +913,18 @@ function applyProvider(provider, askKey){
     const saved = cfg && cfg.api && cfg.api.provider_keys && cfg.api.provider_keys[provider];
     if(saved && pk && !String(saved).includes('••••') && !String(saved).startsWith('sk-***')) pk.value = saved;
   }catch(e){}
-  if(askKey && provider !== 'deepseek'){
-    // 换厂商必弹：让用户确认该公司的 API Key（预填当前值，可覆盖/跳过）
+  if(askKey){
+    // 换厂商必弹（含 deepseek）：让用户确认该公司的 API Key（预填当前值，可覆盖/跳过）
+    // 例外：若该厂商已有真实 Key 且与输入框一致，则不打扰
     const have = (pk && pk.value || '').trim();
+    const isMasked = have.includes('••••') || have.startsWith('sk-***') || !have;
+    const saved = cfg && cfg.api && cfg.api.provider_keys && cfg.api.provider_keys[provider];
+    // deepseek 默认：首次（无真实 Key 时）必须让用户知道要填 Key——非打码且已有值才跳过
+    if(!isMasked && (provider!=='deepseek' || saved)) return;
     const m=document.createElement('div'); m.className='mask';
     m.innerHTML='<div class="box"><h1>'+p.label+' API Key</h1><p>已切换到 '+p.label+'（Base URL：'+p.base+'）。请填写该公司的 API Key（'+(p.keyHint||'见官网')+' 开头）。</p><input type="password" id="pkCmd" placeholder="'+(p.keyHint||'')+'..." value="'+have.replace(/"/g,'')+'"><div class="btns" style="justify-content:center"><button class="pri" id="pkOk">保存 Key</button><button class="ghost" id="pkSame">沿用现有 Key</button><button class="ghost" id="pkNo">暂不填</button></div></div>';
     document.body.appendChild(m); maskOpen(m);
-    $('pkOk').onclick=()=>{ const v=$('pkCmd').value.trim(); if(v&&pk) pk.value=v; maskClose(m); m.remove(); toast('已填入 '+p.label+' Key，记得点「保存设置」'); };
+    $('pkOk').onclick=()=>{ const v=$('pkCmd').value.trim(); if(v&&pk) pk.value=v; maskClose(m); m.remove(); toast('已填入 '+p.label+' Key，点「保存 Key」或「保存设置」生效'); };
     $('pkSame').onclick=()=>{ maskClose(m); m.remove(); };
     $('pkNo').onclick=()=>{ maskClose(m); m.remove(); };
   }
@@ -958,7 +990,9 @@ $('providerSel').addEventListener('change', ()=>applyProvider($('providerSel').v
 async function onboarding(){
   if(!cfg) return;
   const key = getPath(cfg,'api.api_key') || '';
-  if(key && !key.includes('在这里填') && key!=='******' && !key.includes('••••')) return;
+  // 已有真实 Key 或打码 Key（已配置）→ 不打扰；仅「无 Key/占位符」才显示向导
+  if(key && key !== '******' && !key.includes('在这里填') && key.includes('••••')) return;  // 打码=已配置
+  if(key && !key.includes('在这里填') && key !== '******' && !key.includes('••••')) return;  // 真实=已配置
   const m = document.createElement('div'); m.className='mask'; m.id='onboard';
   m.innerHTML='<div class="box">'+ICON+'<h1>欢迎使用 wx-agent · 三步上手</h1>'+
     '<p id="obDesc">第 1 步/共 3 步：填入你的 API Key（默认 DeepSeek，sk- 开头）。保存后无需再改文件。</p>'+
@@ -1189,7 +1223,6 @@ async function checkAlive(){
 }
 
 load();
-onboarding();
 loadMemory('');
 loadPokeGroups();
 ckInit();
