@@ -210,7 +210,9 @@ th{color:var(--tx2);font-weight:500}
         <div class="s"><b id="st-pcost">—</b><span id="st-plabel">本周期</span></div>
         <div class="s"><b id="st-groups">0</b><span>目标群</span></div>
       </div>
-      <table id="group-table"><thead><tr><th>群名</th><th>目标</th></tr></thead><tbody></tbody></table>
+      <div class="group-box" style="max-height:240px">
+        <table id="group-table" style="margin:0"><thead><tr><th>群名</th><th>目标</th></tr></thead><tbody></tbody></table>
+      </div>
       <div class="btns">
         <button id="testApi" class="pri">测试 API 连通</button>
         <span class="hint" id="testResult" style="align-self:center"></span>
@@ -1266,9 +1268,12 @@ async function checkAlive(){
     const ov=document.createElement('div'); ov.className='mask';
     ov.innerHTML='<div class="box">'+ICON+'<h1>机器人已停止</h1>'+
       '<p>后台进程已退出。可双击「启动机器人.vbs」（完全无窗口）或在有运行实例时点「重启」恢复。</p>'+
-      '<div class="hint">浏览器可能拦截自动关闭——请手动关闭本标签页（页面不会自己关掉属正常现象）。</div></div>';
+      '<div class="hint">正在尝试自动关闭本标签页；约 3 秒后关不掉就请手动关闭（浏览器会拦截脚本关闭，属正常现象）。</div></div>';
     document.body.appendChild(ov); maskOpen(ov);
-    setTimeout(()=>{ try{window.close();}catch(_e){} }, 5000);
+    // 稳定关闭：先 window.open 建立「脚本可关」的同源窗口再 close（绕过浏览器限制）
+    setTimeout(()=>{ try{ window.open('', '_self'); setTimeout(()=>{ try{window.close();}catch(_e){} }, 800); }catch(_e){} }, 3000);
+    // 兜底：仍未关闭（浏览器强拦 close）→ 替换为空白页，避免残留旧界面
+    setTimeout(()=>{ try{ if(!window.closed) location.replace('about:blank'); }catch(_e){} }, 6000);
   }
 }
 
