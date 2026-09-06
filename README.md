@@ -59,7 +59,7 @@
 - 启动机器人.vbs —— 启动（pyw 隐藏跑 watchdog.py → pythonw 跑主程序，崩溃自动重启）
 - 停止机器人.vbs —— 停止（按 PID 文件静默结束机器人+看门狗）
 - scripts\watchdog.py / stop_bot.py —— 看门狗 / 停止器本体
-- 安装依赖.bat / scripts\自检.bat / scripts\备份配置.bat —— 装依赖（已装自动跳过）/ 环境自检 / 备份
+- 安装依赖.bat / 自检.bat / scripts\备份配置.bat —— 装依赖（已装自动跳过）/ 环境自检 / 备份
 - scripts\开机自启.bat / 取消开机自启.bat —— 注册/取消登录自启
 
 离线部署：仓库已含 offline\（依赖 wheels + 绿色版 Python 3.10 + 微信 4.1.13 安装包，微信版权归腾讯），目标电脑没网时：解压主体包 → 把 offline\ 放进去 → 双击 安装依赖.bat（已装好自动跳过）→ 没装微信就装 offline\wechat 里的微信 4.1.13 → 运行 自检.bat 收尾。
@@ -72,7 +72,7 @@
 - 启动机器人.vbs / 停止机器人.vbs —— 无窗口启动 / 停止
 - requirements.txt —— Python 依赖清单
 - agent\ —— 核心代码：llm 模型调用、wechat 微信操作（读/发/引用/拍一拍）、tools 工具集、sender 发送队列、prompt 提示词、store 存档、memory 记忆、webui 控制台服务、whale 余额挂件、ui_adapt 界面适配、stats 用量统计、session_log 运行明细、config 配置、util 工具、safe_fetch 安全抓取
-- scripts\ —— 辅助脚本：watchdog 看门狗、stop_bot 停止器、selftest 自检、备份 / 开机自启
+- scripts\ —— 辅助脚本：watchdog 看门狗、stop_bot 停止器、selftest 自检、备份 / 开机自启（自检.bat 在根目录）
 - whale-widget\ —— 小鲸鱼余额挂件的浏览器脚本与素材（client\widget.js + assets\）
 - offline\ —— 离线部署包（依赖 wheels + 绿色版 Python 3.10 + 微信 4.1.13 安装包，目标电脑没网也能装）
 - data\ logs\ media\ —— 运行时生成：记忆/聊天存档/运行明细/账单/日志/下载图片（含隐私，勿上传）
