@@ -20,6 +20,7 @@ offline/*
 !offline/python/
 !offline/wheels/**
 !offline/python/**
+offline/wechat/
 
 # ── 系统 / 编辑器 ──
 .DS_Store
