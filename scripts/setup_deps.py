@@ -1,0 +1,66 @@
+# -*- coding: utf-8 -*-
+r"""一键依赖安装（带已装检测与跳过）：运行根目录 安装依赖.bat 或 py -3 -X utf8 scripts\setup_deps.py。
+
+行为：
+  · 依赖全部就绪且版本正确 → 打印"已满足，跳过安装"，直接建议下一步（运行自检）；
+  · 有缺失/版本不符 → 自动识别离线（offline\wheels 存在）或联网模式安装，装完复查；
+  · 微信安装包在 offline\wechat\（离线重装用），不随 pip 安装流程处理。
+"""
+import os
+import subprocess
+import sys
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from agent.wechat import dep_check
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def main():
+    print("=" * 52)
+    print(" wx-agent 依赖检查 / 安装")
+    print("=" * 52)
+    rows, ok = dep_check()
+    for pkg, inst, req, good in rows:
+        print("  %s %-20s 已装 %-12s 需 >= %s" % (
+            "OK  " if good else "MISS", pkg, (inst or "-"), req))
+    if ok:
+        print("-" * 52)
+        print("全部依赖已就绪且版本正确，跳过安装 ✔")
+        print("下一步：运行 scripts\自检.bat 验证，然后双击 启动机器人.vbs。")
+        return 0
+
+    py_exe = sys.executable or "py"
+    wheels = os.path.join(ROOT, "offline", "wheels")
+    offline = os.path.exists(os.path.join(wheels, "wechatauto_replica-1.1.5.1-py3-none-any.whl"))
+    print("-" * 52)
+    print("[%s] 开始安装缺失/需升级的依赖 ..." % ("离线" if offline else "联网"))
+    try:
+        if offline:
+            cmd = [py_exe, "-m", "pip", "install", "--no-index", "--find-links", wheels,
+                   "-r", os.path.join(ROOT, "requirements.txt")]
+        else:
+            cmd = [py_exe, "-m", "pip", "install", "-U", "wechatauto-replica", "psutil",
+                   "uiautomation", "comtypes", "pywin32", "zstandard", "Pillow", "requests",
+                   "urllib3", "cryptography", "pyperclip", "colorama", "winsdk", "imageio-ffmpeg"]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+        out = (r.stdout or "")[-1200:] or (r.stderr or "")[-600:]
+        print(out)
+        if r.returncode != 0:
+            print("[失败] 安装失败，见上方日志。")
+            return 1
+    except Exception as e:
+        print("[失败] 安装异常：%s" % e)
+        return 1
+
+    rows2, ok2 = dep_check()
+    print("-" * 52)
+    print("复查：" + ("全部满足 ✔" if ok2 else "仍有缺失: " + ", ".join(r[0] for r in rows2 if not r[3])))
+    print("下一步：运行 scripts\自检.bat 验证，然后双击 启动机器人.vbs。")
+    return 0 if ok2 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
