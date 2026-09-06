@@ -1,6 +1,6 @@
 # wx-agent —— 微信智能机器人
 
-微信群里 @机器人 即可对话：多模型大脑（DeepSeek / Kimi / 智谱 / 通义 / MiniMax / 豆包 / ChatGPT / Claude / Gemini / Grok / 自定义）+ wechatauto UIA 无注入微信接入（仅 Windows）。
+微信群里 @机器人 即可对话：多模型大脑（DeepSeek / Kimi / 智谱 / 通义 / MiniMax / 豆包 / ChatGPT / Claude / Gemini / Grok / 自定义）+ 无注入微信接入（仅 Windows）。
 
 ## ⚠️ 风险提示
 
@@ -32,7 +32,7 @@
 - 小鲸鱼余额挂件：右下角常驻（余额刷新、今日已用、每轮消耗泡泡、拖拽吸附、Q 弹、音效台词）
 - 界面适配：DPI 缩放自动检测 + 手动覆盖、点击前自动清理遮挡、点击归属校验、自检按钮——换电脑无需逐个适配
 
-技术来源：整合自开源项目 qq-agent（大脑）、wechat-deepseek-bot / wechatauto（微信 UIA 接入）、DeepSeek-Balance-Whale-Widget（挂件，MIT）。仅供学习交流，上游版权归原作者。
+鸣谢：本作品整合自开源项目 qq-agent（大脑）、wechat-deepseek-bot / wechatauto（微信接入）、DeepSeek-Balance-Whale-Widget（余额挂件），仅供学习交流；上游版权归原作者，许可证随包附送。
 
 ## 常用配置（平时在控制台改即可，保存即生效；下面只是 config.json 底层字段速查）
 
