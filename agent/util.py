@@ -22,10 +22,6 @@ def rand_int(min_v: float, max_v: float) -> int:
     return random.randint(lo, hi)
 
 
-def now_ms() -> int:
-    return int(time.time() * 1000)
-
-
 # ── 密钥脱敏（控制台/日志不暴露完整 API Key）─────────────────────────────
 
 _SECRET_RE = re.compile(r"(sk-[A-Za-z0-9_\-]{8,})")
@@ -89,17 +85,6 @@ def today_key(ts: float | None = None) -> str:
 
 
 # ── 文本处理 ─────────────────────────────────────────────────────────────
-
-def sanitize_user_text(text: str) -> str:
-    """防提示注入/泄露：把疑似系统标记的方括号弱化，避免群友伪装成系统段骗模型。"""
-    s = str(text or "")
-    return re.sub(
-        r"\[(本次唤醒|系统|管理员|owner|角色扮演|会话令牌|当前时间)[^\]]*\]",
-        r"(\1)",
-        s,
-        flags=re.IGNORECASE,
-    )
-
 
 def unquote_json_string(value):
     """兼容模型把单条消息序列化成 JSON 字符串的情况：'"你好"' -> '你好'。"""

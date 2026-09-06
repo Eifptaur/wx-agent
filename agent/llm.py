@@ -152,15 +152,7 @@ def add_usage(target: dict, usage) -> dict:
     return target
 
 
-def cache_hit_rate(usage: dict) -> float:
-    p = int(usage.get("prompt_tokens") or 0)
-    if not p:
-        return 0.0
-    return min(1.0, max(0.0, int(usage.get("cached_tokens") or 0) / p))
-
-
-# 内置官方价格表（DeepSeek 常用模型，单位：元 / 百万 token，仅供参考——价格会变，
-# 最新以 DeepSeek 官网定价页为准；可随时在 config.json 的 api.model_prices 里覆盖）
+# 内置官方价格表
 _OFFICIAL_PRICES = {
     "deepseek-chat": {"in": 2.0, "out": 8.0, "cached": 0.2},
     "deepseek-reasoner": {"in": 4.0, "out": 16.0, "cached": 1.0},
