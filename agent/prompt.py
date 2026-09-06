@@ -281,7 +281,11 @@ def resolve_context_tier(trigger_entries, self_nickname="", bot_name="", self_id
 
 
 def build_past_state(store, chat_key, exclude_ids=None, limit=None):
-    """组装"过去状态"文本：消息 JSON 的最近一段。读取条数由上下文档位决定。"""
+    """组装"过去状态"文本：消息 JSON 的最近一段。读取条数由上下文档位决定。
+
+    时间窗：默认只带最近 past_window_min 分钟内的消息（0=不限），
+    避免模型把很久之前的艾特/旧话题误当成"现在要回答"的内容。
+    """
     cfg = get_config().get("store", {})
     max_limit = 80 if limit is None else max(0, int(limit or 0))
     if limit is None:
@@ -289,10 +293,17 @@ def build_past_state(store, chat_key, exclude_ids=None, limit=None):
             max_limit = max(1, int(cfg.get("all_count") or 80))
         except (TypeError, ValueError):
             max_limit = 80
+    try:
+        window_min = max(0, int(float(cfg.get("past_window_min") or 0)))
+    except (TypeError, ValueError):
+        window_min = 0
     exclude = set(exclude_ids or [])
     if max_limit <= 0:
         return {"text": "", "count": 0, "messages": []}
     messages = [m for m in store.recent(chat_key, limit=max_limit + len(exclude)) if m.get("id") not in exclude]
+    if window_min > 0:
+        cutoff = int(__import__("time").time() * 1000) - window_min * 60000
+        messages = [m for m in messages if int(m.get("ts") or 0) >= cutoff]
     messages = messages[-max_limit:]
     lines = [_format_entry(m, with_id=bool((m.get("media") or []))) for m in messages]
     return {"text": "\n".join(lines), "count": len(lines), "messages": messages}
