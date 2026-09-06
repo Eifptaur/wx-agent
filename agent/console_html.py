@@ -242,7 +242,7 @@ th{color:var(--tx2);font-weight:500}
           <tr><td><input type="checkbox" class="ck"></td><td>8. 记忆</td><td>聊天里让机器人记住一件事 → 控制台「记忆」页看</td><td>印象出现、可删除</td></tr>
           <tr><td><input type="checkbox" class="ck"></td><td>9. 挂件</td><td>看右下角鲸鱼挂件（余额/今日已用/每轮消耗）</td><td>数据变化、点击刷新、可拖拽</td></tr>
           <tr><td><input type="checkbox" class="ck"></td><td>10. 启停重启</td><td>顶部 停止/重启（无窗口）→ 双击 启动机器人.vbs</td><td>页面变「已停止」、重启后台接管</td></tr>
-          <tr><td><input type="checkbox" class="ck"></td><td>11. 多厂商切换</td><td>模型 API 切到 Kimi/智谱/ChatGPT/Claude/Gemini 等 → 保存 → 测试连通</td><td>默认弹 Key 输入，测试通过</td></tr>
+          <tr><td><input type="checkbox" class="ck"></td><td>11. 多厂商切换</td><td>模型 API 切到 Kimi/智谱/ChatGPT/Claude/Gemini/Grok 等 → 保存 → 测试连通</td><td>默认弹 Key 输入，测试通过</td></tr>
         </tbody>
       </table>
       <div class="btns" style="margin-top:8px"><button id="ckReset" class="ghost">重置勾选</button><span class="hint" id="ckCount" style="align-self:center"></span></div>
@@ -281,6 +281,7 @@ th{color:var(--tx2);font-weight:500}
           <option value="openai">ChatGPT（OpenAI）</option>
           <option value="claude">Claude（Anthropic，OpenAI 兼容端点）</option>
           <option value="gemini">Gemini（Google）</option>
+          <option value="grok">Grok（xAI）</option>
           <option value="custom">自定义（手动填 URL/Key/模型）</option>
         </select>
         <div class="hint">切换厂商会自动替换 Base URL，并弹窗让您填入该厂商的 API Key；模型列表现场切换。</div>
@@ -756,26 +757,27 @@ function maskClose(el){
 /* ── 模型厂商预设：切换即换 BaseURL/模型，弹窗要 Key ── */
 const PROVIDERS = {
   deepseek:{label:'DeepSeek', base:'https://api.deepseek.com/v1', keyHint:'sk-',
-    models:['deepseek-v4-flash-vision-exp','deepseek-v4-flash','deepseek-v4-pro','deepseek-chat','deepseek-reasoner']},
+    models:['deepseek-v4-flash-vision-exp','deepseek-v4-flash','deepseek-v4-pro','deepseek-v3.2','deepseek-chat','deepseek-reasoner']},
   moonshot:{label:'Moonshot Kimi', base:'https://api.moonshot.cn/v1', keyHint:'sk-',
-    models:['kimi-k2-0711-preview','kimi-k2-0905-preview','moonshot-v1-128k','moonshot-v1-32k','moonshot-v1-8k']},
+    models:['kimi-k3','kimi-k2-0905-preview','kimi-k2-0711-preview','moonshot-v1-128k','moonshot-v1-32k','moonshot-v1-8k']},
   zhipu:{label:'智谱 GLM', base:'https://open.bigmodel.cn/api/paas/v4', keyHint:'',
-    models:['glm-4.5','glm-4.5-air','glm-4-plus','glm-4-flash','glm-4v-plus']},
+    models:['glm-4.6','glm-4.5','glm-4.5-air','glm-4-plus','glm-4-flash','glm-4v-plus']},
   qwen:{label:'通义千问（阿里）', base:'https://dashscope.aliyuncs.com/compatible-mode/v1', keyHint:'sk-',
-    models:['qwen-max','qwen-plus','qwen-turbo','qwen-vl-max','qwen2.5-72b-instruct']},
+    models:['qwen3-max','qwen3-plus','qwen3-235b-a22b-instruct','qwen3-32b','qwen-max','qwen-plus','qwen-turbo','qwen-vl-max','qwen-vl-plus']},
   minimax:{label:'MiniMax', base:'https://api.minimax.chat/v1', keyHint:'',
-    models:['MiniMax-M1-80k','abab6.5s-chat']},
+    models:['MiniMax-M2','MiniMax-M1-80k','abab6.5s-chat']},
   doubao:{label:'豆包（火山方舟）', base:'https://ark.cn-beijing.volces.com/api/v3', keyHint:'',
     models:['doubao-seed-1.6-250615','doubao-1.5-pro-32k','doubao-vision-pro-32k']},
   openai:{label:'ChatGPT（OpenAI）', base:'https://api.openai.com/v1', keyHint:'sk-',
-    models:['gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','gpt-4.1-nano','o3-mini','gpt-4-turbo']},
+    models:['gpt-5','gpt-5-mini','gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','o3','o3-mini','o4-mini','gpt-4-turbo']},
   claude:{label:'Claude（Anthropic，OpenAI 兼容端点）', base:'https://api.anthropic.com/v1', keyHint:'sk-ant-',
-    models:['claude-sonnet-4-20250514','claude-3-7-sonnet-20250219','claude-3-5-haiku-20241022']},
+    models:['claude-opus-4-1-20250805','claude-sonnet-4-5-20250929','claude-3-7-sonnet-20250219','claude-3-5-haiku-20241022']},
   gemini:{label:'Gemini（Google）', base:'https://generativelanguage.googleapis.com/v1beta/openai', keyHint:'AIza',
-    models:['gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-pro']},
+    models:['gemini-3-pro-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-pro']},
+  grok:{label:'Grok（xAI）', base:'https://api.x.ai/v1', keyHint:'xai-',
+    models:['grok-4','grok-3','grok-3-mini','grok-2-latest']},
   custom:{label:'自定义', base:'', keyHint:'', models:[]}
-};
-function renderModelSel(provider){
+};function renderModelSel(provider){
   const sel=$('modelSel'); sel.innerHTML='';
   const p = PROVIDERS[provider] || PROVIDERS.deepseek;
   p.models.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
