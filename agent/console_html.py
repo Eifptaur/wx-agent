@@ -766,7 +766,7 @@ const PROVIDERS = {
     models:['glm-5.3','glm-5.2','glm-4.6','glm-4.5','glm-4.5-air','glm-4-plus','glm-4-flash','glm-4v-plus']},
   qwen:{label:'通义千问（阿里）', base:'https://dashscope.aliyuncs.com/compatible-mode/v1', keyHint:'sk-',
     models:['qwen3.8-2.4t-a95b','qwen3.7-max','qwen3-max','qwen3-plus','qwen3-235b-a22b-instruct','qwen3-32b','qwen-max','qwen-plus','qwen-turbo','qwen-vl-max','qwen-vl-plus']},
-  minimax:{label:'MiniMax', base:'https://api.minimax.chat/v1', keyHint:'',
+  minimax:{label:'MiniMax', base:'https://api.minimaxi.com/v1', keyHint:'',
     models:['MiniMax-M3','MiniMax-M2.7','MiniMax-M2','MiniMax-M1-80k','abab6.5s-chat']},
   doubao:{label:'豆包（火山方舟）', base:'https://ark.cn-beijing.volces.com/api/v3', keyHint:'',
     models:['doubao-seed-1.6-250615','doubao-1.5-pro-32k','doubao-vision-pro-32k']},
