@@ -238,11 +238,14 @@ def hit_keyword(text, keywords=None):
     return False
 
 
-def resolve_context_tier(trigger_entries, self_nickname="", bot_name="", self_id="", roll=None):
+def resolve_context_tier(trigger_entries, self_nickname="", bot_name="", self_id="", roll=None,
+                         wechat_nickname=""):
     """决定这批消息是否值得回应，以及回应时带多少条已读历史。
 
     返回 {tier, count, reason, should_respond}。
     档位是累积生效的（4→3→2→1 顺序检查），实际触发原因决定读条数。
+    wechat_nickname：微信实际昵称（数据库读取），群里 @ 的通常是它——
+    用户自设 persona.self_nickname 后若与微信昵称不同，单独用它会漏识别。
     """
     c = get_config().get("store", {})
     raw_tier = c.get("context_tier")
@@ -258,7 +261,14 @@ def resolve_context_tier(trigger_entries, self_nickname="", bot_name="", self_id
     tier = 4 if (raw_tier is None or raw_tier != raw_tier) else min(4, max(1, round(raw_tier)))
 
     texts = [str(e.get("text") or "") for e in (trigger_entries or [])]
-    at_me = any(is_at_me(t, self_nickname, bot_name, self_id) for t in texts)
+    at_me = False
+    for t in texts:
+        if is_at_me(t, self_nickname, bot_name, self_id):
+            at_me = True
+            break
+        if wechat_nickname and is_at_me(t, wechat_nickname, "", ""):
+            at_me = True
+            break
     keyword = hit_keyword("\n".join(texts), c.get("keywords") or [])
     roll_value = random.random() * 100 if roll is None else float(roll)
     random_hit = roll_value < max(0, min(100, float(c.get("random_percent") or 0)))

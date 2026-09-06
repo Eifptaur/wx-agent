@@ -245,8 +245,14 @@ class Orchestrator:
         self_nickname = cfg.get("persona", {}).get("self_nickname") or cfg.get("wechat", {}).get("bot_nickname") or ""
         bot_name = cfg.get("persona", {}).get("bot_name") or ""
         self_id = self.wechat.self_wxid
+        # 微信实际昵称（数据库读取，群里 @ 的一般是它）——防止自设自我昵称后漏识别
+        try:
+            wechat_nick = self.wechat.self_nickname
+        except Exception:
+            wechat_nick = ""
 
-        tier_result = resolve_context_tier(pending, self_nickname, bot_name, self_id)
+        tier_result = resolve_context_tier(pending, self_nickname, bot_name, self_id,
+                                           wechat_nickname=wechat_nick)
         if not tier_result["should_respond"]:
             marked = self.store.mark_all_read(chat_key)
             if marked:
