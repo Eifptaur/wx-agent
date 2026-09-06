@@ -2,6 +2,14 @@
 
 微信群里 @机器人 即可对话：多模型大脑（DeepSeek / Kimi / 智谱 / 通义 / MiniMax / 豆包 / ChatGPT / Claude / Gemini / Grok / 自定义）+ 无注入微信接入（仅 Windows）。
 
+## 致谢
+
+本作品整合自以下开源项目（经二次开发整合，仅供学习交流；上游版权归原作者，许可证随包附送）：
+
+- QQ Agent（智能大脑）：由 B 站网友 Kondius 基于 qq-bridge（https://github.com/Derpyu520/qq-bridge）修改而来。相关 B 站视频 BV1ss8R6zERG；修改版下载地址 https://t.bilibili.com/1244553403559837713
+- wechat-deepseek-bot（微信接入层，底层 wechatauto UIA 无注入）：B 站视频 BV1Mz4267EHQ，GitHub https://github.com/bdydgz114514/wechat-deepseek-bot
+- DeepSeek-Balance-Whale-Widget（小鲸鱼余额挂件）
+
 ## ⚠️ 风险提示（基于公开案例与社区实测数据查证，2026-09）
 
 微信官方协议禁止非官方客户端/自动化程序。公开调查（腾讯云开发者社区 2025-04，微信机器人框架作者对 200+ 用户的统计）显示：Hook/进程注入类机器人是封号重灾区（接近"用了必中"），官方打击清单还包括自动加好友、批量点赞/转发、抢红包插件；同一调查约 15% 机器人用户从未被处理；后果分档为 功能限制 → 短期封禁 → 永久封禁。
@@ -12,7 +20,7 @@
 
 1. 装环境：Windows 10/11（64 位）+ Python 3.10+，双击 `安装依赖.bat`（自动识别：已装好且版本正确直接跳过，缺什么装什么；检测到 offline\ 自动离线安装）。
 2. 跑起来：登录电脑微信 4.x（小号，勾选自动登录）→ 双击「启动机器人.vbs」→ 浏览器自动打开控制台 → 首次向导：填大模型 Key → 勾选要回复的群 → 一键体检 → 完成。
-3. 跑起来：登录电脑微信 4.x（小号，勾选自动登录）→ 双击「启动机器人.vbs」→ 群里 @机器人 测试。
+3. 测试：群里 @机器人 说句话即可（全程不用改任何文件，之后都在控制台改）。
 
 > 详细教程（含离线安装、Web 控制台、识图/拍一拍/引用）见《使用说明.md》；界面不适/想调参都在控制台，保存即生效。
 > 实测用量与各厂商单价/充值能用多久，见《价目表.md》。
@@ -34,17 +42,21 @@
 - 小鲸鱼余额挂件：右下角常驻（余额刷新、今日已用、每轮消耗泡泡、拖拽吸附、Q 弹、音效台词）
 - 界面适配：DPI 缩放自动检测 + 手动覆盖、点击前自动清理遮挡、点击归属校验、自检按钮——换电脑无需逐个适配
 
-鸣谢：本作品整合自开源项目 qq-agent（大脑）、wechat-deepseek-bot / wechatauto（微信接入）、DeepSeek-Balance-Whale-Widget（余额挂件），仅供学习交流；上游版权归原作者，许可证随包附送。
+鸣谢：本作品整合自开源项目 qq-agent（大脑）、wechat-deepseek-bot / wechatauto（微信接入）、DeepSeek-Balance-Whale-Widget（余额挂件），仅供学习交流；上游版权归原作者，许可证随包附送。具体下载地址与 B 站视频号见开头「致谢」一节。
 
 ## 常用配置（平时在控制台改即可，保存即生效；下面只是 config.json 底层字段速查）
 
 - api.base_url / api_key / model —— 大模型接口（必填）
+- api.thinking —— 思考模式 auto/on/off（默认 off；推理文本是模型生成的链式输出而非真实思维，按输出价计费，off 省 50~90% token）
 - api.use_official_price / model_prices —— 成本按内置价目/自定义单价（元/百万 token）估算
 - wechat.bot_nickname —— 机器人微信昵称（群里 @ 这个触发）
+- wechat.start_paused —— 启动后默认暂停（true=控制台点「恢复」才监听，防开机刷群/回应积压旧消息）
 - wechat.group_name_white_list —— 允许回复的群名；空 = 所有群
 - wechat.poll_interval —— 消息轮询秒数
 - persona.bot_name / role_text / participation —— 人设名 / 人设文本 / 参与度
-- store.context_tier / keywords —— 响应档位 1~4 / 关键词
+- store.context_tier / keywords —— 响应档位 1~4 / 关键词（保存后真实生效：一档只回艾特，二档加关键词，三档再按概率随机，四档全响应）
+- store.random_percent —— 3 档随机回复概率（默认 60%）
+- store.past_window_min —— 历史上下文时间窗（只把最近 N 分钟消息给模型，默认 30；0=不限，防回应很久前的艾特/旧话题）
 - send.max_per_minute / max_per_hour —— 发送限频
 - send.quote_on_new_talk / quote_reply_probability / quote_new_talk_gap_s —— 新对话自动引用规则
 - poke.reply_probability / cooldown_seconds / active_probability / active_daily_limit —— 拍一拍概率
