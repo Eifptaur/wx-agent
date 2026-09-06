@@ -32,14 +32,6 @@ def _mid_hint(ctx) -> str:
         else "聊天记录里还没有带 #id 的消息"
 
 
-def _member_hint(ctx) -> str:
-    members = ctx["store"].active_members(ctx["chat_key"], 8)
-    if not members:
-        return "当前没有可用的成员列表，请先等有群友发言后再试"
-    lines = ["- %s：%s" % (m["name"], m["user_id"]) for m in members]
-    return "请从当前会话成员里选一个 wxid 填进去：\n%s" % "\n".join(lines)
-
-
 def _image_parts(text, data_urls):
     parts = [{"type": "text", "text": text}]
     for url in data_urls:
