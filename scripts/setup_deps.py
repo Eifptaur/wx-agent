@@ -42,9 +42,8 @@ def main():
             cmd = [py_exe, "-m", "pip", "install", "--no-index", "--find-links", wheels,
                    "-r", os.path.join(ROOT, "requirements.txt")]
         else:
-            cmd = [py_exe, "-m", "pip", "install", "-U", "wechatauto-replica", "psutil",
-                   "uiautomation", "comtypes", "pywin32", "zstandard", "Pillow", "requests",
-                   "urllib3", "cryptography", "pyperclip", "colorama", "winsdk", "imageio-ffmpeg"]
+            cmd = [py_exe, "-m", "pip", "install", "-U",
+                   "-r", os.path.join(ROOT, "requirements.txt")]
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
         out = (r.stdout or "")[-1200:] or (r.stderr or "")[-600:]
         print(out)
