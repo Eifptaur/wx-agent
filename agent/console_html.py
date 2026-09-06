@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Web 控制台界面（独立模板，便于大改样式而不动逻辑）。
 
 设计（参考 DeepSeek 品牌蓝 + 现代蓝白后台方案）：
@@ -281,6 +281,9 @@ th{color:var(--tx2);font-weight:500}
           <option value="openai">ChatGPT（OpenAI）</option>
           <option value="claude">Claude（Anthropic，OpenAI 兼容端点）</option>
           <option value="gemini">Gemini（Google）</option>
+          <option value="grok">Grok（xAI）</option>
+          <option value="nvidia">NVIDIA（Nemotron）</option>
+          <option value="openrouter">OpenRouter（聚合）</option>
           <option value="custom">自定义（手动填 URL/Key/模型）</option>
         </select>
         <div class="hint">切换厂商会自动替换 Base URL，并弹窗让您填入该厂商的 API Key；模型列表现场切换。</div>
