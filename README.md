@@ -1,6 +1,6 @@
 # wx-agent —— 微信智能机器人
 
-微信群里 @机器人 即可对话：多模型大脑（DeepSeek / Kimi / 智谱 / 通义 / MiniMax / 豆包 / ChatGPT / Claude / Gemini / 自定义）+ wechatauto UIA 无注入微信接入（仅 Windows）。
+微信群里 @机器人 即可对话：多模型大脑（DeepSeek / Kimi / 智谱 / 通义 / MiniMax / 豆包 / ChatGPT / Claude / Gemini / Grok / 自定义）+ wechatauto UIA 无注入微信接入（仅 Windows）。
 
 ## ⚠️ 风险提示
 
@@ -9,7 +9,7 @@
 ## 快速安装（三步）
 
 1. 装环境：Windows 10/11（64 位）+ Python 3.10+，双击 `安装依赖.bat`（自动识别：已装好且版本正确直接跳过，缺什么装什么；检测到 offline\ 自动离线安装）。
-2. 填配置：把 `config.example.json` 复制一份改名为 `config.json`，填 `api.api_key`（大模型密钥：DeepSeek/Kimi/智谱/通义/MiniMax/豆包/ChatGPT/Claude/Gemini 任一厂商，控制台有厂商预设+按厂商存 Key）。
+2. 填配置：把 `config.example.json` 复制一份改名为 `config.json`，填 `api.api_key`（大模型密钥：DeepSeek/Kimi/智谱/通义/MiniMax/豆包/ChatGPT/Claude/Gemini/Grok 任一厂商，控制台有厂商预设+按厂商存 Key）。
 3. 跑起来：登录电脑微信 4.x（小号，勾选自动登录）→ 双击「启动机器人.vbs」→ 群里 @机器人 测试。
 
 > 详细教程（含离线安装、Web 控制台、识图/拍一拍/引用）见《使用说明.md》。
@@ -18,7 +18,7 @@
 
 ## 功能一览
 
-- 多模型：DeepSeek / Kimi / 智谱 / 通义 / MiniMax / 豆包 / ChatGPT·OpenAI / Claude·Anthropic / Gemini·Google / 自定义 BaseURL，控制台一键切换、按厂商存 Key（api.provider_keys）
+- 多模型（10 家厂商 60+ 型号）：DeepSeek / Kimi（含 K3）/ 智谱 / 通义 / MiniMax / 豆包 / ChatGPT·OpenAI（含 GPT-5）/ Claude / Gemini / Grok·xAI / 自定义 BaseURL，控制台一键切换、按厂商存 Key（api.provider_keys）
 - 无状态会话：每次唤醒独立会话，提示词 = 静态人设 + 存档摘要 + 最新消息，成本不随历史膨胀
 - 响应档位：4 档（仅艾特 / +关键词 / +随机 / 全响应），没命中不调模型（零 token）
 - 工具集：发消息（分条 / @ / 引用）、看图、发图、翻历史、查活跃成员、记忆增删查、联网搜索/抓网页、拍一拍（别人拍自动回拍 90% + 30 分钟冷却，主动皮一下低频）
