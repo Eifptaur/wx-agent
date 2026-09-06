@@ -9,18 +9,10 @@ import copy
 import json
 import os
 
-from .persona import PERSONAS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.environ.get("WX_AGENT_CONFIG") or os.path.join(ROOT, "config.json")
 DATA_DIR = os.environ.get("WX_AGENT_DATA_DIR") or os.path.join(ROOT, "data")
-
-
-def _default_persona_text() -> str:
-    try:
-        return PERSONAS["xiaojingyu"]["text"]
-    except Exception:
-        return ""
 
 
 DEFAULT_CONFIG = {
@@ -32,7 +24,8 @@ DEFAULT_CONFIG = {
         "provider": "",              # 多提供商目录当前选中项（可选）
         "vision": True,              # 模型是否支持图片输入（关掉则移除看图工具）
         "temperature": 0.8,
-        "max_rounds": 12,            # 单次运行最多工具轮数
+        "max_rounds": 8,             # 单次运行最多工具轮数（每轮都重发上下文，调低更省 token）
+        "thinking": "off",           # 思考模式：auto=跟随模型默认 | on=强制思考 | off=关闭思考（默认，推理文本按输出价计费且占大头）
         "timeout_ms": 180000,
         # 成本核算（仅本地估算展示，不参与任何请求）
         "price_input_per_m": 0.0,    # 输入单价（元/百万 token）
@@ -50,6 +43,7 @@ DEFAULT_CONFIG = {
         "media_dir": "media",               # 下载图片保存目录（相对项目根）
         "db_dir": "",                       # 微信数据库目录（留空自动探测）
         "minimize_warning": True,           # 提醒不要最小化微信窗口（日志）
+        "start_paused": True,               # 启动后默认暂停（控制台点「恢复」才开始监听）
     },
     # ── 人设与行为 ─────────────────────────────────────────────────────
     "persona": {
@@ -96,6 +90,7 @@ DEFAULT_CONFIG = {
         "max_per_minute": 20,
         "max_per_hour": 500,
         "hard_split_at": 2000,     # 微信单条消息安全切分长度
+        "uia_setvalue": True,      # 输入用 UIA SetValue 后台直写（不点输入框/不粘贴），发送回车仍需瞬时置前
     },
     # ── 主动开话题（可选）──────────────────────────────────────────────
     "proactive": {
@@ -113,9 +108,10 @@ DEFAULT_CONFIG = {
         "at_count": 20,
         "keyword_count": 15,
         "keywords": [],
-        "random_percent": 10,
+        "random_percent": 60,         # 3 档随机回复概率（3 档=艾特/关键词必回 + 普通消息按此概率回，60% 适中活跃）
         "random_count": 8,
         "all_count": 80,
+        "past_window_min": 30,        # 历史上下文只带最近 N 分钟（0=不限，防回应很久前的旧艾特/旧话题）
     },
     # ── 记忆 ───────────────────────────────────────────────────────────
     "memory": {
