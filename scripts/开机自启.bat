@@ -1,10 +1,9 @@
 @echo off
-chcp 65001 >nul
-set "VBS=%~dp0..\å¯åŠ¨æœºå™¨äºº.vbs"
+set "VBS=%~dp0..\Æô¶¯»úÆ÷ÈË.vbs"
 schtasks /create /tn "wx-agent" /tr "\"wscript.exe\" \"%VBS%\"" /sc onlogon /rl limited /f
 if errorlevel 1 (
-  echo æ³¨å†Œå¼€æœºè‡ªå¯å¤±è´¥ï¼ˆå¯èƒ½éœ€è¦ç®¡ç†å‘˜æƒé™ï¼‰
+  echo ×¢²á¿ª»ú×ÔÆôÊ§°Ü£¨¿ÉÄÜĞèÒª¹ÜÀíÔ±È¨ÏŞ£©
 ) else (
-  echo å·²æ³¨å†Œå¼€æœºè‡ªå¯ï¼šwx-agentï¼ˆwscript æ— çª—å£æ–¹å¼ï¼‰
+  echo ÒÑ×¢²á¿ª»ú×ÔÆô£ºwx-agent£¨wscript ÎŞ´°¿Ú·½Ê½£©
 )
 pause
