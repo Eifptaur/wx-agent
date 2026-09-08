@@ -150,10 +150,10 @@ body.custom-bg::before{opacity:1!important}
   0%,100%{transform:translateY(0)}
   50%{transform:translateY(-3px)}
 }
-/* 水光波纹 v12「模块内投石入水」：透镜=光标所在整个模块（顶栏/导航栏/功能卡），
-   波纹环从鼠标位置一波一波扩散到模块边缘（mask 环带，到达边缘自然衰减），绝不越过模块边界。
-   尺寸/位置/圆角由 JS 按模块 rect 实时设置。 */
-#waveLens{position:fixed;left:0;top:0;pointer-events:none;z-index:9999;opacity:0;
+/* 水光波纹 v13「模块内投石入水」：透镜=光标所在整个模块（顶栏/导航栏/功能卡），
+   单一窄环带从鼠标处一波波向外扩散（有肉眼可见时间差），到模块边缘极强衰减，绝不越过模块边界。
+   z-index 40 < 顶栏50：功能栏滚到顶栏下方时，波纹只作用于下层内容，顶栏始终置顶不受扭曲。 */
+#waveLens{position:fixed;left:0;top:0;pointer-events:none;z-index:40;opacity:0;
   -webkit-backdrop-filter:url(#cardWave2) saturate(1.02);
   backdrop-filter:url(#cardWave2) saturate(1.02);
   transform:translate3d(-9999px,-9999px,0)}
@@ -982,16 +982,16 @@ th{color:var(--tx2);font-weight:500}
 
     <section id="sec-wavefx" class="card" data-sec>
       <h2>🌊 水光波纹（鼠标投石入水）</h2>
-      <div class="desc">鼠标像石子投入湖面：扭曲从鼠标处一波波荡开，扩散范围=光标所在的整个模块（顶栏/导航栏/功能卡），沿模块边缘自然衰减，绝不越界；中心最强、边缘最弱，拖动越快荡得越快。所有参数即时生效。</div>
+      <div class="desc">鼠标像石子投入湖面：一道波纹从鼠标处肉眼可见地一波波荡开，扩散范围=光标所在的整个模块（顶栏/导航栏/功能卡），到模块边缘极强衰减、绝不越界；拖动越快荡得越快。所有参数即时生效。</div>
       <div class="row"><label>启用水光波纹</label><input type="checkbox" data-cfg="ui.wave_fx.enabled"><span class="hint">关闭后完全无扭曲</span></div>
       <div class="row"><label>扭曲强度</label><input type="number" min="0" max="40" step="1" data-cfg="ui.wave_fx.scale"><span class="hint">核心位移量（0=无扭曲；建议 8~24）</span></div>
-      <div class="row"><label>基础波速</label><input type="number" min="1" max="20" step="0.2" data-cfg="ui.wave_fx.speed"><span class="hint">静止时的波动速度（越大越急促）</span></div>
+      <div class="row"><label>基础波速</label><input type="number" min="1" max="20" step="0.2" data-cfg="ui.wave_fx.speed"><span class="hint">波前内部的频闪速度（越大越急促）</span></div>
       <div class="row"><label>鼠标提速</label><input type="number" min="0" max="0.1" step="0.005" data-cfg="ui.wave_fx.mouse_gain"><span class="hint">拖动越快波光越快的增益（0=不联动）</span></div>
       <div class="row"><label>提速上限</label><input type="number" min="0" max="20" step="0.5" data-cfg="ui.wave_fx.max_gain"><span class="hint">鼠标带动额外速度上限 rad/s</span></div>
-      <div class="row"><label>覆盖半径</label><input type="number" min="100" max="600" step="10" data-cfg="ui.wave_fx.radius"><span class="hint">透镜作用范围 px（越大波及越远）</span></div>
-      <div class="row"><label>距离衰减</label><input type="number" min="0.5" max="6" step="0.1" data-cfg="ui.wave_fx.falloff"><span class="hint">边缘减弱指数，越大边缘越接近无扭曲（推荐 ≥2）</span></div>
-      <div class="row"><label>扩散波纹环数</label><input type="number" min="1" max="6" step="1" data-cfg="ui.wave_fx.rings"><span class="hint">同时可见的荡开环数</span></div>
-      <div class="row"><label>波纹荡开速度</label><input type="number" min="0.2" max="1.5" step="0.05" data-cfg="ui.wave_fx.ring_speed"><span class="hint">涟漪一圈圈向外扩散的快慢</span></div>
+      <div class="row"><label>扩散圈大小</label><input type="number" min="100" max="600" step="10" data-cfg="ui.wave_fx.radius"><span class="hint">空白处回退用（模块内仍以模块为界）</span></div>
+      <div class="row"><label>衰减强度</label><input type="number" min="1" max="8" step="0.5" data-cfg="ui.wave_fx.falloff"><span class="hint">扩散衰减指数，越大越强（边缘几乎无影响；推荐 4+）</span></div>
+      <div class="row"><label>可见波纹环数</label><input type="number" min="1" max="3" step="1" data-cfg="ui.wave_fx.rings"><span class="hint">1=单环一波接一波（时间差最清晰）</span></div>
+      <div class="row"><label>波纹荡开速度</label><input type="number" min="0.1" max="1.5" step="0.05" data-cfg="ui.wave_fx.ring_speed"><span class="hint">一圈≈1/速度 秒（0.4≈2.5s 一波，肉眼可见）</span></div>
       <div class="btns"><button class="pri" id="wavefxApply" style="background:linear-gradient(135deg,#30B0C8,#0E8FB0)">应用水光波纹设置</button></div>
     </section>
 
@@ -2810,7 +2810,7 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
 
   /* ① 参数（默认与 agent/config.py ui.wave_fx 一致；从 cfg 读，保留未设置的默认值） */
   const DEFAULTS = {enabled:true, scale:17, speed:5.2, mouse_gain:0.02, max_gain:8.0,
-                    radius:260, falloff:2.6, rings:3, ring_speed:0.55};
+                    radius:260, falloff:4.0, rings:1, ring_speed:0.40};
   let W = Object.assign({}, DEFAULTS);
   function readParams(){
     try{
@@ -2850,20 +2850,19 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
     _lastEv = {x: ev.clientX, y: ev.clientY}; _lastEvT = now;
   }, {passive:true});
 
-  /* ③ 模块内投石入水 mask：中心=鼠标（相对透镜的 x/y 由 --wx/--wy 传入）、
-     半径=鼠标到模块四边最远距离（波纹到边缘即止）。环带相位 ringPhase：0→1 = 一波从中心荡到边缘。 */
+  /* ③ 模块内投石入水 mask：中心=鼠标（--wx/--wy）。
+     单环带模型：环位置 phase 随时间 0→1 缓慢推进（一圈≈2.5s，肉眼可见时间差）；
+     环带宽窄(0.028)，环带强度随半径极强衰减(pow 4)——只有面前这一圈在动，扩散到边缘即消失。 */
   function waveMaskAt(now){
-    const ringPhase = ((now / 1000) * W.ring_speed) % 1;
-    const N = 48;
+    const phase = ((now / 1000) * W.ring_speed) % 1;
+    const N = 64;
     const stops = [];
     for(let i=0;i<=N;i++){
       const r = i / N;
-      let a = Math.pow(1 - r, W.falloff);                 // 中心最强、向外强衰减
-      for(let k=0;k<W.rings;k++){
-        const rk = (((k + ringPhase) % W.rings) / W.rings);   // 环位置 0→1（越外越弱）
-        const g = Math.exp(-Math.pow((r - rk) / 0.05, 2));    // 环带
-        a += g * 0.9 * Math.pow(1 - rk, W.falloff * 0.8) * (1 - r);
-      }
+      // 环带：高斯（低频噪波经位移后呈现为柔和的波前）
+      const g = Math.exp(-Math.pow((r - phase) / 0.028, 2));
+      // 极强衰减：环带 + 与半径平方衰减；只有中心附近的环强，走远就淡出
+      let a = g * 1.0 * Math.pow(1 - phase, 4.0) + Math.pow(1 - r, 8.0) * 0.35;
       stops.push(Math.min(1, a).toFixed(3) + ' ' + (i*100/N).toFixed(1) + '%');
     }
     return 'radial-gradient(circle at var(--wx,50%) var(--wy,50%),' + stops.join(',') + ')';
@@ -2907,6 +2906,10 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
     let br = '0';
     try{ br = getComputedStyle(el).borderRadius || '0'; }catch(e){}
     lens.style.borderRadius = br;
+    // 顶栏置顶（40 < 顶栏50）：功能栏滚到顶栏下方的波纹不穿透顶栏；
+    // 但宿主本身是顶栏/弹层/遮罩时给 9999，保证宿主自身区域也能被扭曲。 */
+    const isTop = el.classList.contains('topbar');
+    lens.style.zIndex = (isTop || el.closest('.mask') || el.classList.contains('menu')) ? '9999' : '40';
     lens.style.transform = 'translate3d(' + r.left + 'px,' + r.top + 'px,0)';
     lens.style.setProperty('--wx', (ev.clientX - r.left) + 'px');
     lens.style.setProperty('--wy', (ev.clientY - r.top) + 'px');
