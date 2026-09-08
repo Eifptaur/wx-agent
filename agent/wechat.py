@@ -1475,22 +1475,22 @@ class WeChatAdapter:
                 need = _norm(db_text[:12])
                 if need:
                     needle = need
-            best_y = None
+            best = None
             for t, x, y, w, h in items:
                 tn = _norm(t or "")
                 if not tn or len(tn) > 120:
                     continue
                 if needle:
                     if needle in tn or tn[:12] in needle:
-                        best_y = y + h // 2
+                        best = (x + w // 2, y + h // 2)      # 自己消息在右、对方在左，用行中心自动区分
                         break
                 else:
                     yc = y + h // 2
                     if 6 < h < 60 and abs(yc - ay) < 90:
-                        if best_y is None or abs(yc - ay) < abs(best_y - ay):
-                            best_y = yc
-            if best_y is not None:
-                return base_x, best_y
+                        if best is None or abs(yc - ay) < abs(best[1] - ay):
+                            best = (x + w // 2, yc)
+            if best is not None:
+                return best
         except Exception:
             pass
         return ax + 70, ay + 30
