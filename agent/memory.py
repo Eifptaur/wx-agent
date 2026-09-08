@@ -196,7 +196,7 @@ class MemoryStore:
                     merged[ident] = {
                         "userId": mem.get("userId") or "",
                         "name": str(mem.get("name") or mem.get("userId") or "某人"),
-                        "impressions": [],
+                        "impressions": list(mem.get("impressions") or []),
                         "updatedAt": mem.get("updatedAt") or 0,
                         "lastConsolidatedAt": mem.get("lastConsolidatedAt") or 0,
                     }
