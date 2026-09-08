@@ -276,6 +276,7 @@ button.tiny{padding:3px 10px;font-size:12px;border-radius:7px}
 .bill-list{max-height:340px;overflow:auto;border:1px solid rgba(148,196,255,.18);border-radius:10px;padding:6px;background:rgba(10,16,28,.6)}
 .bill-list .row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid rgba(148,196,255,.08);margin:0;font-size:13px;border-radius:8px}
 .bill-list .row:hover{background:rgba(63,168,240,.08)}
+.bill-list .row.hi{background:rgba(63,168,240,.28)!important;outline:1px solid rgba(63,168,240,.7)}
 .bill-list .row:last-child{border-bottom:none}
 .bill-list .row label{display:flex;gap:6px;align-items:center;flex:1;margin:0}
 .bill-list .row b{min-width:112px;font-weight:600}
@@ -1696,6 +1697,14 @@ function openBillDlg(bills){
     +b.tokens+' tok · ¥'+b.cost.toFixed(4)+' · '+b.calls+' 次 · '+b.sessions+' 会话</span>'
     +'</label></div>'
   ).join('');
+  const _now = new Date();
+  const _pad = n=>String(n).padStart(2,'0');
+  const _years = [];
+  bills.forEach(b=>{ const y=parseInt(String(b.day||'').slice(0,4),10); if(y && _years.indexOf(y)<0) _years.push(y); });
+  if(!_years.length) _years.push(_now.getFullYear());
+  _years.sort((a,b)=>b-a);
+  const _yOpts = _years.map(y=>'<option value="'+y+'">'+y+'年</option>').join('');
+  const _selStyle = 'background:var(--input-bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:3px 8px;font-size:12.5px';
   box.innerHTML =
     '<div class="bd-head"><b class="whale-tag">🗑 勾选删除计费日志</b><span class="hint">共 '+bills.length+' 天，精确到年月日；删除后概览自动刷新</span>'
     +'<span class="sp" style="flex:1"></span><button class="ghost tiny" id="bdClose">✕</button></div>'
@@ -1705,6 +1714,14 @@ function openBillDlg(bills){
       +'<button class="ghost" id="bdSelNone">清空勾选</button>'
       +'<button class="ghost" id="bdSelDay">✔ 勾选今日</button>'
       +'<button class="ghost" id="bdSelMonth">✔ 勾选本月</button>'
+    +'</div>'
+    +'<div class="bd-find" style="display:flex;align-items:center;gap:6px;margin:0 0 8px;flex-wrap:wrap">'
+      +'<b style="font-size:12.5px;color:var(--blue)">📅 按日期定位</b>'
+      +'<select id="bdY" style="'+_selStyle+'">'+_yOpts+'</select>'
+      +'<select id="bdM" style="'+_selStyle+'"></select>'
+      +'<select id="bdD" style="'+_selStyle+'"></select>'
+      +'<button class="ghost tiny" id="bdFind">定位到该日</button>'
+      +'<span class="hint" id="bdFindRst" style="font-size:12px;color:var(--tx2);word-break:break-all"></span>'
     +'</div>'
     +'<div class="bill-list">'+listHtml+'</div>'
     +'<div class="hint" id="bdSum" style="margin-top:8px"></div>'
@@ -1737,6 +1754,36 @@ function openBillDlg(bills){
     const t=new Date(); const m=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
     box.querySelectorAll('.billDay').forEach(c=>{ if(c.dataset.day.startsWith(m)) c.checked=true; });
     sum();
+  };
+  /* 按年月日定位：选年/月/日 → 找到则列表滚动+高亮+显示记录；没有则提示"没有计费记录" */
+  const selY = box.querySelector('#bdY'), selM = box.querySelector('#bdM'), selD = box.querySelector('#bdD');
+  const rst = box.querySelector('#bdFindRst');
+  function fillDays(){
+    const y=parseInt(selY.value,10), m=parseInt(selM.value,10)||1;
+    const days=new Date(y,m,0).getDate();
+    const cur=parseInt(selD.value,10)||_now.getDate();
+    selD.innerHTML = Array.from({length:days},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+'日</option>').join('');
+    selD.value = Math.min(cur, days);
+  }
+  selM.innerHTML = Array.from({length:12},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+'月</option>').join('');
+  selM.value = _now.getMonth()+1;
+  fillDays();
+  selY.addEventListener('change', fillDays);
+  selM.addEventListener('change', fillDays);
+  box.querySelector('#bdFind').onclick = ()=>{
+    const day = selY.value+'-'+_pad(selM.value)+'-'+_pad(selD.value);
+    box.querySelectorAll('.row.hi').forEach(r=>r.classList.remove('hi'));
+    const chk = box.querySelector('.billDay[data-day="'+day+'"]');
+    if(chk){
+      const row = chk.closest('.row');
+      row.scrollIntoView({block:'center', behavior:'smooth'});
+      row.classList.add('hi');
+      setTimeout(()=>row.classList.remove('hi'), 1800);
+      const b = bills.find(x=>x.day===day) || {tokens:0, cost:0, calls:0, sessions:0};
+      rst.innerHTML = '✅ '+day+'：'+b.tokens+' tok · ¥'+b.cost.toFixed(4)+' · '+b.calls+' 次 · '+b.sessions+' 会话 <span style="color:var(--tx2)">（已在列表定位）</span>';
+    } else {
+      rst.innerHTML = '⚠️ '+day+' 没有计费记录';
+    }
   };
   const close = ()=>{ maskClose(mm); mm.remove(); };
   box.querySelector('#bdClose').onclick = close;
