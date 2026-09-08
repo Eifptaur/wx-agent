@@ -46,11 +46,17 @@ def _compile_all():
 
 
 def run(verbose_deps: bool = False) -> dict:
-    """执行全部代码层检查；返回 {"ok"， "checks": [...]}。约 10~20 秒。"""
+    """执行全部代码层检查；返回 {"ok", "checks": [...]}。约 0.2~1 秒。"""
     checks = []
+    run._prog = {"done": 0, "total": 0, "current": ""}
+    run._total = 0   # 待后面统计
 
     def add(name, status, detail="", hint=""):
         checks.append({"name": name, "status": status, "detail": detail[:120], "hint": hint[:160]})
+        run._prog["done"] = len(checks)
+        run._prog["current"] = name
+        run._prog["total"] = max(run._prog["total"], run._prog["done"] + 1)
+        run._check_count = len(checks)
 
     # 1) Python 编译检查（内联全量）
     ok, detail = _compile_all()

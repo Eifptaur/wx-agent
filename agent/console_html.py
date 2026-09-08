@@ -2289,11 +2289,21 @@ $('codeCheck').onclick = async ()=>{
     document.getElementById('selfCheckResult').insertAdjacentElement('beforebegin', p2);
     return p2; })();
   pre.classList.remove('dn');
-  $('codeCheckTip').textContent='代码检测中（约 1~3 秒，不动鼠标）…';
+  $('codeCheckTip').textContent='代码检测启动中…';
   try{
-    const r = await getJSON('/api/code-check',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:200000});
-    let lines=['===== 代码检测 =====', r.summary||'', ''];
-    for(const c of (r.checks||[])){
+    await getJSON('/api/code-check',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:15000});
+    // 轮询进度（每项显示百分比 + 当前项）
+    let done=false, r=null;
+    for(let i=0;i<400 && !done;i++){
+      const pr = await getJSON('/api/code-check/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:10000});
+      const prg = (pr&&pr.progress)||{};
+      const d=prg.done||0, t=prg.total||0, cur=prg.current||'';
+      if(pr && pr.done){ done=true; r=pr.result; }
+      $('codeCheckTip').textContent = done ? '代码检测完成' : ('检测中 '+(t?Math.round(d/t*100):0)+'% · '+cur);
+      await new Promise(res=>setTimeout(res,120));
+    }
+    let lines = r ? ['===== 代码检测 =====', r.summary||'', ''] : ['===== 代码检测 =====','（仍检测中，请稍后再点）'];
+    for(const c of (r&&r.checks||[])){
       const mark = c.status==='ok'?'✅':(c.status==='warn'?'⚠️':(c.status==='fail'?'❌':'ℹ️'));
       lines.push(mark+' '+c.name+'：'+c.detail);
       if(c.hint) lines.push('    建议：'+c.hint);
@@ -2305,7 +2315,7 @@ $('codeCheck').onclick = async ()=>{
 };
 if($('codeCheckDeps')) $('codeCheckDeps').onclick = async ()=>{
   const btn=$('codeCheckDeps'); btn.disabled=true; if($('codeCheck')) $('codeCheck').disabled=true;
-  $('codeCheckTip').textContent='依赖详细核对中（55 项，稍慢）…';
+  $('codeCheckTip').textContent='依赖详细核对（含依赖版本，与代码检测合并跑并显示进度）…';
   $('codeCheck').click();
 };
 

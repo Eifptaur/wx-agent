@@ -720,12 +720,34 @@ class WebUI:
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                 elif path == "/api/code-check":
-                    # 代码检测（POST；纯代码层检查，不接管鼠标）
+                    # 代码检测（POST；纯代码层检查，不接管鼠标）。改为后台线程跑，前端轮询进度。
+                    try:
+                        import threading
+                        from agent.code_check import run as _code_run
+                        def _bg():
+                            try:
+                                _code_run._res = _code_run(bool(data.get("deps")))
+                            except Exception as e:
+                                _code_run._res = {"ok": False, "checks": [], "summary": "代码检测失败：%s" % e}
+                            _code_run._done = True
+                        # 若上一次已彻底完成，则清掉旧结果以便重跑
+                        if getattr(_code_run, "_done", False) or getattr(_code_run, "_res", None):
+                            _code_run._done = False
+                            _code_run._res = None
+                        threading.Thread(target=_bg, daemon=True).start()
+                        self._json({"ok": True, "started": True})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
+                elif path == "/api/code-check/progress":
+                    # 代码检测进度（GET/POST）：{done, progress:{done,total,current}, result?}
                     try:
                         from agent.code_check import run as _code_run
-                        self._json(_code_run(bool(data.get("deps"))))
+                        done = bool(getattr(_code_run, "_done", False))
+                        self._json({"ok": True, "done": done,
+                                    "progress": getattr(_code_run, "_prog", None),
+                                    "result": getattr(_code_run, "_res", None) if done else None})
                     except Exception as e:
-                        self._json({"ok": False, "checks": [], "summary": "代码检测失败：%s" % e})
+                        self._json({"ok": False, "error": str(e)})
                 elif path == "/api/persona/cats/save":
                     # 新建/更新分区（POST {name, desc?}）
                     try:
