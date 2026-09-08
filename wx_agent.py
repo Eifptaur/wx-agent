@@ -1317,6 +1317,44 @@ def main():
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    def _persona_llm_score(card, name=""):
+        """统一严格评分器（唯一权威细则 RULES_TEXT，含贴合度判定/网梗重罚/精度铁律/从严基线/缺陷压分）。
+        返回 {ok, score, dims, reason, content} 或 {ok:False, error}。"""
+        try:
+            from agent.persona_rating import WEIGHTS as _W2, RULES_TEXT, compute as _compute
+            from agent.llm import chat_completion
+            prompt = (
+                "你是角色设定严格评审员。按细则给分（细则如下），每维 0~100.00（精确 0.01）。\n"
+                + RULES_TEXT +
+                "\n第一行输出：{\"dims\":{\"style\":<估>,\"fit\":<估>,\"coher\":<估>,\"natural\":<估>,\"usable\":<估>}}"
+                "（0.01 精度，如 84.37）\n"
+                "第二行输出：{\"reason\":\"一句话指出人设层面最大缺点（必须针对该卡）\"}\n"
+                "重要：数值必须根据卡片内容独立评估（0.01 精度），禁止整十/整五整分，禁止抄示例；"
+                "评语指出的缺陷必须如实压分。\n\n"
+                "角色名：%s\n角色设定卡(节选 2600 字)：\n%s" % (name or "（未署名）", str(card or "")[:2600])
+            )
+            r = chat_completion([{"role": "user", "content": prompt}])
+            _tool_llm_count(r.get("usage"))
+            content = (r.get("message") or {}).get("content") or ""
+            import json as _json
+            import re as _re
+            m = _re.search(r'"dims"\s*:\s*\{([^}]*)\}', content, _re.S)
+            rm = _re.search(r'"reason"\s*:\s*"([^"]*)"', content, _re.S)
+            if not m:
+                return {"ok": False, "error": "模型未输出维度分：" + content[:120]}
+            d = {}
+            for pair in _re.findall(r'"(\w+)"\s*:\s*([\d.]+)', m.group(1)):
+                d[pair[0]] = float(pair[1])
+            if not d:
+                return {"ok": False, "error": "模型未输出维度分：" + content[:120]}
+            score = round(_compute(d), 2)
+            return {"ok": True, "score": score,
+                    "dims": {k: round(float(d.get(k, 0)), 2) for k in _W2},
+                    "reason": (rm.group(1) if rm else "（模型未给出原因）")[:200],
+                    "content": content}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:150]}
+
     def persona_score_custom_fn(text, llm=False):
         """自定义角色卡评分：默认本地（零 token）；llm=True 时交给模型结合角色设定评分。
         分数全部来自对卡文本的实际分析（口头禅/口吻/AI 腔/占位符等），非凭空。"""
@@ -1324,52 +1362,30 @@ def main():
             if not (text or "").strip():
                 return {"ok": False, "error": "角色文本为空"}
             if llm:
-                from agent.persona_rating import WEIGHTS as _W2, RULES_TEXT, compute as _compute
-                prompt = (
-                    "你是角色设定严格评审员。按细则给分（细则如下），每维 0~100.00（精确 0.01）。\n"
-                    + RULES_TEXT +
-                    "\n第一行输出：{\"dims\":{\"style\":<估>,\"fit\":<估>,\"coher\":<估>,\"natural\":<估>,\"usable\":<估>}}"
-                    "（0.01 精度，如 84.37）\n"
-                    "第二行输出：{\"reason\":\"一句话指出人设层面最大缺点（必须针对该卡）\"}\n"
-                    "重要：数值必须根据卡片内容独立评估（0.01 精度），禁止整十/整五整分，禁止抄示例。\n\n"
-                    "角色设定卡(节选 2600 字)：\n" + text[:2600]
-                )
-                from agent.llm import chat_completion
-                r = chat_completion([{"role": "user", "content": prompt}])
-                _tool_llm_count(r.get("usage"))
-                content = (r.get("message") or {}).get("content") or ""
-                import json as _json
-                import re as _re
-                m = _re.search(r'"dims"\s*:\s*\{([^}]*)\}', content, _re.S)
-                rm = _re.search(r'"reason"\s*:\s*"([^"]*)"', content, _re.S)
-                if m:
-                    d = {}
-                    for pair in _re.findall(r'"(\w+)"\s*:\s*([\d.]+)', m.group(1)):
-                        d[pair[0]] = float(pair[1])
-                    if not d:
-                        return {"ok": False, "error": "模型未输出维度分：" + content[:120]}
-                    score = _compute(d)
-                    reason = rm.group(1) if rm else "（模型未给出原因）"
-                    # 写回评分表（模型分独立字段，UI 卡片显示）
+                sc = _persona_llm_score(text)
+                if not sc.get("ok"):
+                    return {"ok": False, "error": sc.get("error", "评分失败")}
+                score = sc["score"]
+                reason = sc["reason"]
+                # 写回评分表（模型分独立字段，UI 卡片显示）
+                try:
+                    import json as _j2
+                    _rp = os.path.join(ROOT, "data", "persona_ratings.json")
                     try:
-                        import json as _j2
-                        _rp = os.path.join(ROOT, "data", "persona_ratings.json")
-                        try:
-                            with open(_rp, "r", encoding="utf-8") as f:
-                                _rts = _j2.load(f)
-                        except Exception:
-                            _rts = {}
-                        _cur = dict(_rts.get("__custom__") or {})
-                        _cur["model"] = score
-                        _cur["model_reason"] = reason
-                        _rts["__custom__"] = _cur
-                        with open(_rp, "w", encoding="utf-8") as f:
-                            _j2.dump(_rts, f, ensure_ascii=False, indent=1)
+                        with open(_rp, "r", encoding="utf-8") as f:
+                            _rts = _j2.load(f)
                     except Exception:
-                        pass
-                    return {"ok": True, "score": score, "reason": reason,
-                            "dims": {k: round(float(d.get(k, 0)), 2) for k in _W2}, "via": "llm"}
-                return {"ok": False, "error": "模型返回无法解析：" + content[:120]}
+                        _rts = {}
+                    _cur = dict(_rts.get("__custom__") or {})
+                    _cur["model"] = score
+                    _cur["model_reason"] = reason
+                    _rts["__custom__"] = _cur
+                    with open(_rp, "w", encoding="utf-8") as f:
+                        _j2.dump(_rts, f, ensure_ascii=False, indent=1)
+                except Exception:
+                    pass
+                return {"ok": True, "score": score, "reason": reason,
+                        "dims": sc["dims"], "via": "llm"}
             from scripts import persona_check
             r = persona_check.score_text(text)
             return {"ok": True, "score": r["score"], "reason": persona_check.fit_desc(r), "via": "local",
@@ -1379,13 +1395,13 @@ def main():
             return {"ok": False, "error": str(e)}
 
     def persona_ai_enrich_fn(name, text="", rounds=1):
-        """模型补足（轮数可调）：每轮=「先确认角色本人 + 引用角色真实原话」→按人设重写→模型评分→分升则下一轮。
-        目标：让模型输出更贴近本人（人设导向，绝不围绕打分维度/分数调整）。"""
+        """模型补足（轮数可调）：每轮=「先确认角色本人 + 引用角色真实原话」→按人设重写→严格评分→分升则下一轮。
+        评分与"模型评分"按钮同一把尺子（RULES_TEXT 唯一权威细则，含网梗重罚/精度铁律/从严基线/缺陷压分）；
+        最终文本再做 3 次严格复评取中位（抑制忽高忽低），分数永不虚高。"""
         try:
             if not (name or "").strip():
                 return {"ok": False, "error": "请先填角色名"}
             from agent.llm import chat_completion
-            from agent.persona_rating import compute as _compute
             cur = (text or "").strip()
             last_score = None
             trace = []
@@ -1400,7 +1416,7 @@ def main():
                     "② 按该角色的说话习惯重写「说话规则」（短句/分条/被@必回/不用Markdown）；\n"
                     "③ 重写 3 个对话示例（群友在吗/今天好累/再来一句），每句像本人原话口吻。\n"
                     "禁止：不要围绕夸奖/评分/逐条打分做优化；不要把角色改得不像本人以迎合任何标准；"
-                    "不要写通用套话；不要给古装/名著/严肃角色塞当代网络梗。直接输出完整新角色卡（纯文本，含 # 角色卡：<名>）。\n\n"
+                    "不要写通用套话；不要给古装/名著/严肃/沉重角色塞当代网络梗（V我50/6/草/yyds/退钱/先吃饭 等任何流行语都不行）。直接输出完整新角色卡（纯文本，含 # 角色卡：<名>）。\n\n"
                     "角色名：%s\n当前卡：\n%s" % (name, cur[:2200])
                 )
                 r = chat_completion([{"role": "user", "content": prompt}])
@@ -1408,38 +1424,43 @@ def main():
                 card = ((r.get("message") or {}).get("content") or "").strip()
                 if len(card) < 120:
                     break
+                # 去掉模型输出的"第一步/第二步"脚手架，只保留最终角色卡
+                if "第一步" in card or "第二步" in card:
+                    import re as _re
+                    _idx = card.rfind("# 角色卡：")
+                    if _idx > 0:
+                        card = card[_idx:].strip()
+                    else:
+                        _m2 = _re.search(r"(?ms)(?:第二步[^\n]*)\n{1,3}", card)
+                        if _m2:
+                            card = card[_m2.end():].strip()
                 from agent.persona_enrich import enrich as _enrich
                 card = _enrich(card)
-                # 补足轮次评分（复用严格评分器，0.01；fit=像本人说过的原话/原话样式）
-                sc_prompt = (
-                    "你是角色设定严格评审员。按细则给分（0~100.00，精确 0.01）："
-                    "风格辨识25%/角色贴合30%/内在一致20%/表达自然15%/完整可用10%。"
-                    "扣分上限：无口头禅→风格≤45；通用词口头禅→风格≤70；AI套话→表达≤65；"
-                    "客服口吻→贴合≤60；换角色都能用→贴合≤50；示例占位→完整≤75；沉默类无扩展→完整≤70；缺说话规则→完整≤70。"
-                    "【贴合度判定（最重要）】fit 维度看的是：读起来像不像该角色本人**亲口说**的——"
-                    "若台词是此人原话说过的样式（哪怕意译），fit 高；若像通用善良/勇敢/机智模板，fit 低；"
-                    "若出现当代网络梗（yyds/破防/贴贴等）或与角色年代/风格冲突的用词，fit ≤50。"
-                    "满分唯一条件：仅凭提示词+一次提醒即可逐句贴合本人（「就是本人！」）；否则一律<95（优秀88~94.99）。\n"
-                    "输出：{\"dims\":{\"style\":<估>,\"fit\":<估>,\"coher\":<估>,\"natural\":<估>,\"usable\":<估>}}\n"
-                    "重要：0.01 精度独立评估，禁止整分。\n\n角色卡：\n" + card[:2600]
-                )
-                r2 = chat_completion([{"role": "user", "content": sc_prompt}])
-                import re as _re
-                m = _re.search(r'"dims"\s*:\s*\{([^}]*)\}', (r2.get("message") or {}).get("content") or "", _re.S)
-                d = {}
-                if m:
-                    for pair in _re.findall(r'"(\w+)"\s*:\s*([\d.]+)', m.group(1)):
-                        d[pair[0]] = float(pair[1])
-                score = _compute(d) if d else None
+                # 补足轮次评分：与「模型评分」同一严格尺子（网梗/模板/占位缺陷必须如实压分）
+                sc = _persona_llm_score(card, name)
+                score = sc.get("score") if sc.get("ok") else None
                 trace.append({"round": rnd, "score": score, "chars": len(card)})
                 if score is not None and last_score is not None and score <= last_score:
                     # 分数未升 → 保留上一轮结果，停止
-                    cur_prev = cur
                     break
                 last_score = score
                 cur = card
-            return {"ok": True, "text": cur, "score": last_score, "rounds_done": len(trace), "trace": trace,
-                    "note": "" if not trace else "共 %d 轮，最终 %s 分" % (len(trace), last_score)}
+            # 最终复评（3 次中位）：抑制单次评分波动（忽高忽低）
+            med = []
+            for _ in range(3):
+                sc = _persona_llm_score(cur, name)
+                if sc.get("ok"):
+                    med.append(sc)
+            final_score = None
+            if med:
+                med.sort(key=lambda x: x["score"])
+                final_score = med[len(med) // 2]
+                last_score = final_score["score"]
+            return {"ok": True, "text": cur,
+                    "score": last_score,
+                    "reason": final_score["reason"] if final_score else "（暂无）",
+                    "rounds_done": len(trace), "trace": trace,
+                    "note": "（最终分=3次严格复评中位，不含虚高）" if final_score else ""}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
