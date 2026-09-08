@@ -1762,26 +1762,26 @@ def main():
 
     def shutdown_fn():
         log.info("收到停止指令，正在停止机器人…")
-        try:
-            _summarize_on_exit()
-        except Exception:
-            pass
         # 先写「停止」标记 + 杀看门狗：否则 5 秒后被自动拉起，会「停止后又弹出新控制台」
         try:
             with open(os.path.join(ROOT, "data", "stopped.flag"), "w", encoding="utf-8") as f:
                 f.write(time.strftime("%Y-%m-%d %H:%M:%S"))
         except Exception:
             pass
-        _kill_watchdog()
         try:
-            orch.shutdown()
+            _kill_watchdog()
         except Exception:
             pass
-        # 立即强退（os._exit 不走 atexit，主动清理 PID 文件）；不再依赖 threading.Timer——它可能被线程阻塞/看门狗拦截导致"停止关不掉"
+        # 立即强退（os._exit 不走 atexit，主动清理 PID 文件）。
+        # 关键：os._exit 放最前——orch.shutdown()（微信登出）可能一直阻塞，挡住 os._exit 导致"停止关不掉"。
         try:
             _p = os.path.join(ROOT, "data", "bot.pid")
             if os.path.exists(_p):
                 os.remove(_p)
+        except Exception:
+            pass
+        try:
+            threading.Timer(0.1, lambda: (orch.shutdown() if orch else None)).start()   # 后台尽力登出，不阻塞退出
         except Exception:
             pass
         os._exit(0)
