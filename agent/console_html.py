@@ -76,11 +76,11 @@ body.whale-anim::after{content:"";position:fixed;inset:0;z-index:-1;pointer-even
     radial-gradient(300px 300px at 78% 68%,rgba(120,220,200,.12),transparent 65%),
     radial-gradient(240px 240px at 36% 26%,rgba(255,220,170,.10),transparent 65%),
     var(--bg)}
-/* 导航栏：更深蓝实体（与卡片/背景拉开色差） */
-.side{background:rgba(8,26,48,.66);border:1px solid rgba(120,180,240,.28);box-shadow:var(--shadow)}
+/* 导航栏：更深蓝实体（与卡片/背景拉开色差；用不透明色避免透出海洋渐变导致滚动后上下色差——030117） */
+.side{background:rgba(11,30,56,1);border:1px solid rgba(120,180,240,.28);box-shadow:var(--shadow);backdrop-filter:none}
 .side::after{background:repeating-linear-gradient(115deg,rgba(255,255,255,.10) 0 1px,transparent 1px 22px);opacity:.5}
-.side .nav a{color:var(--tx2);border-radius:9px;margin:1px 0}
-.side .nav a.on{background:rgba(63,168,240,.20);color:#fff;font-weight:600}
+.side .nav a{background:transparent}
+.side .nav a.on{background:rgba(63,168,240,.22);color:#fff;font-weight:600}
 /* ── 海洋动态背景：三层大波浪 + 浪尖高光线（SVG 平移；无外部素材依赖）── */
 .ocean-wave{position:fixed;left:0;right:0;bottom:0;height:40vh;z-index:-1;pointer-events:none;opacity:.95}
 .ocean-wave svg{position:absolute;bottom:0;left:-50%;width:200%;height:100%;display:block}
@@ -348,7 +348,7 @@ th{color:var(--tx2);font-weight:500}
 <div id="wallTint" style="position:fixed;inset:0;z-index:-1;pointer-events:none;display:none;background:linear-gradient(160deg,rgba(150,200,235,.30),rgba(210,232,248,.22) 60%,rgba(225,215,245,.28))"></div>
 
 <div class="topbar">
-  <div class="logo"><div class="whale-badge" id="whaleBadge" title="小鲸鱼"><img src="/assets/icon-whale.png" alt=""></div><span>wx-agent 控制台 <small style="font-weight:400;color:var(--tx2);font-size:12px" title="构建号（换新包后如果这里不变，说明连的是旧实例——先停止再启动）">__VER__ · Ⅱ</small></span></div>  <div class="sp"></div>
+  <div class="logo"><div class="whale-badge" id="whaleBadge" title="小鲸鱼"><img src="/assets/icon-whale.png" alt=""></div><span>wx-agent 控制台 <small style="font-weight:400;color:var(--tx2);font-size:12px" title="构建号（换新包后如果这里不变，说明连的是旧实例——先停止再启动）">vβ·Ⅱ（__VER__）</small></span></div>  <div class="sp"></div>
   <span class="chip"><span class="dot" id="dot"></span><b id="runText">连接中…</b></span>
   <span class="chip">模型 <b id="model-badge">? </b></span>
   <span class="chip" id="balance-badge" title="点击刷新余额">余额：查询中…</span>
