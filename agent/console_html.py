@@ -2819,6 +2819,16 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
         const v = wf[k];
         if(v!==undefined && v!==null && v!=='') W[k]= (typeof DEFAULTS[k]==='boolean') ? !!v : Number(v);
       }
+      // 防手改 config 出现非法值（控制台已限界；此处兜底防 NaN/负环）
+      W.scale = Math.max(0, Math.min(40, W.scale));
+      W.speed = Math.max(0.2, Math.min(20, W.speed));
+      W.mouse_gain = Math.max(0, Math.min(0.1, W.mouse_gain));
+      W.max_gain = Math.max(0, Math.min(20, W.max_gain));
+      W.radius = Math.max(80, Math.min(600, W.radius));
+      W.falloff = Math.max(0.3, Math.min(6, W.falloff));
+      W.rings = Math.max(1, Math.min(6, Math.round(W.rings)));
+      W.ring_speed = Math.max(0.1, Math.min(1.5, W.ring_speed));
+      if(isNaN(W.scale)||isNaN(W.speed)||isNaN(W.falloff)||isNaN(W.rings)) W = Object.assign({}, DEFAULTS);
     }catch(e){}
   }
   readParams();
