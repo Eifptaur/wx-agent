@@ -198,7 +198,9 @@ a{color:var(--blue)}
 /* 侧栏：完全不透明实色（滚动到底也无色差）+ sticky 让开顶栏 */
 .side{background:rgba(12,32,58,1);border:1px solid var(--bd);border-radius:12px;padding:10px;
   position:sticky;top:88px;max-height:calc(100vh - 112px);overflow-y:auto;overscroll-behavior:contain;
-  z-index:20;box-shadow:var(--shadow);backdrop-filter:none}
+  z-index:20;box-shadow:var(--shadow);backdrop-filter:none!important}
+/* 导航栏单独做成「不透明单层」：去掉毛玻璃光斑/质感层（避免透出海洋渐变、叠光斑造成滚动色差——030117） */
+.side::before,.side::after{content:none!important;display:none!important}
 .side::-webkit-scrollbar{width:6px}
 .side::-webkit-scrollbar-track{background:transparent}
 .side::-webkit-scrollbar-thumb{background:rgba(148,196,255,.18);border-radius:3px}
@@ -1322,12 +1324,13 @@ function syncCursorFromCfg(){
   try{
     const on = getPath(cfg,'ui.whale_cursor') !== false;
     const custom = getPath(cfg,'ui.cursor_image');
-    // 默认先确认自定义图是否存在（custom-cursor.png 只有上传后才存在）
+    // 默认先确认自定义图是否存在（custom-cursor.png 只有上传后才存在）；加 ?v= 防浏览器缓存旧 404
     if(custom){
+      const tus = CUSTOM_URL + '?v=' + Date.now();
       const probe = new Image();
-      probe.onload = ()=> WHALE_CURSOR.setCustom(CUSTOM_URL);
+      probe.onload = ()=> WHALE_CURSOR.setCustom(tus);
       probe.onerror = ()=> WHALE_CURSOR.setCustom('');
-      probe.src = CUSTOM_URL;
+      probe.src = tus;
     } else {
       WHALE_CURSOR.setCustom('');
     }
