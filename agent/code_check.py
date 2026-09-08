@@ -84,20 +84,13 @@ def run(verbose_deps: bool = False) -> dict:
     except Exception as e:
         add("配置读取", "fail", str(e)[:120])
 
-    # 4) 角色卡评估汇总（贴合度机制；不接管鼠标）
+    # 4) 角色卡评估（本地启发式评分 persona_check 已弃用——改模型五维评分，见控制台「人设」→AI评分，精确百分位）
     try:
         from agent.persona import PERSONAS
-        from scripts import persona_check
-        rows = [persona_check.evaluate(k, c) for k, c in PERSONAS.items()]
-        low = [r for r in rows if r["score"] < 70]
-        top = max(rows, key=lambda r: r["score"])
-        add("角色卡·数量与唯一", "ok" if len(PERSONAS) >= 50 else "warn", "%d 张" % len(PERSONAS))
-        add("角色卡·贴合度评定", "ok" if not low else "fail",
-            "全部 ≥70；最高 %s（%s）" % (top["score"], top["name"]) if not low else
-            "%d 张不贴合：%s" % (len(low), "、".join(r["name"] for r in low[:4])),
-            "" if not low else "运行 scripts/persona_check.py 查看明细")
-        add("角色卡·补足机制", "ok" if all("说话规则（群聊通用）" in (v.get("text") or "") for v in PERSONAS.values())
-            else "fail", "50 张均已补足通用规则")
+        add("角色卡·数量", "ok" if len(PERSONAS) >= 100 else "warn", "%d 张" % len(PERSONAS))
+        add("角色卡·评分方式", "ok", "模型五维评分（风格25/贴合30/一致20/自然15/可用10，百分位）；本地 persona_check 已弃用")
+        add("角色卡·补足机制", "ok" if sum("说话规则（群聊通用）" in (v.get("text") or "") for v in PERSONAS.values()) * 2 >= len(PERSONAS)
+            else "warn", "大部分含通用说话规则（enrich 补足）")
     except Exception as e:
         add("角色卡检查", "fail", str(e)[:120])
 

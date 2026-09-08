@@ -334,8 +334,16 @@ def build_past_state(store, chat_key, exclude_ids=None, limit=None):
         cutoff = int(__import__("time").time() * 1000) - window_min * 60000
         messages = [m for m in messages if int(m.get("ts") or 0) >= cutoff]
     messages = messages[-max_limit:]
-    lines = [_format_entry(m, with_id=bool((m.get("media") or []))) for m in messages]
-    return {"text": "\n".join(lines), "count": len(lines), "messages": messages}
+    # ⑥ 上下文压缩（向 harness 看齐）：最近 8 条详细，更早的只保留「发送者+前40字」摘要——降 token 且不丢"谁说过"信息
+    NEAR = 8
+    near = messages[-NEAR:]
+    old = messages[:-NEAR]
+    lines = [_format_entry(m, with_id=bool((m.get("media") or []))) for m in near]
+    for m in old:
+        t = str(m.get("text") or "").strip()[:40]
+        s = str(m.get("sender_name") or m.get("sender_id") or "某人")
+        lines.append("（%s：%s）" % (s, t if t else "[消息]"))
+    return {"text": "\n".join(lines), "count": len(lines), "messages": near}
 
 
 def _trigger_labels(entry, ctx) -> list:
