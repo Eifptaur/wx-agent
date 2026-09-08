@@ -2013,13 +2013,15 @@ class WeChatAdapter:
 
     def _search_group(self, gui, name: str) -> bool:
         """搜索群聊进群：官方 open_chat（UIA 优先+侧栏 OCR 点击+搜索兜底），重试 2 次。"""
-        for i in range(2):
+        _st0 = time.time()
+        for i in range(1):                     # 只试 1 次进群（之前重试 2 次，open_chat 每次可能 5~15s，重试白白翻倍）
             try:
                 if gui.open_chat(name):
+                    print("[emoji-search] open_chat 成功 用时 %.2f s" % (time.time() - _st0), flush=True)
                     return True
-            except Exception:
-                pass
-            time.sleep(0.4)
+            except Exception as e:
+                print("[emoji-search] open_chat 异常 %s 用时 %.2f s" % (str(e)[:40], time.time() - _st0), flush=True)
+        print("[emoji-search] 失败 总用时 %.2f s" % (time.time() - _st0), flush=True)
         return False
 
     def _emoji_btn_pos(self, gui):
@@ -2098,7 +2100,7 @@ class WeChatAdapter:
                         gui.open_chat(group_name)
                     except Exception:
                         pass
-                time.sleep(0.40)   # 搜完立刻去点笑脸（原 0.7 过长，压到 0.4 仍够会话切稳）
+                time.sleep(0.25)   # 进群后立刻移向笑脸（原 0.40 压缩；仍够会话切稳）
             else:
                 # 无会话名：自动开第一个群（只探测一次，避免 UIA 连续失败重试）
                 try:
@@ -2109,22 +2111,17 @@ class WeChatAdapter:
                             break
                 except Exception:
                     pass
-            # ② 点笑脸
+            # ② 点笑脸（去掉此前"点消息区空白关面板"的冗余动作——它会先把光标移到窗口中间偏右悬停 0.3s，
+            #    浪费大量时间；表情面板不会遮挡输入栏笑脸，直接点即可。保留 heal=False 防取消菜单）
             render = gui.render_rect or gui._update_render_rect() or (0, 0, 0, 0)
             sx, sy, sw, sh = render
-            try:
-                # 温和关掉可能残留的表情面板（点击消息区空白，不用 Esc——Esc 易卡死微信）
-                ui_adapt.click(gui, int(sw * 0.72), int(sh * 0.45), heal=False)
-                time.sleep(0.3)
-            except Exception:
-                pass
             pos = self._emoji_btn_pos(gui)
             if not pos:
                 return False, "输入栏定位失败（会话未打开？）"
             ok, why = ui_adapt.click(gui, pos[0], pos[1], heal=False)   # 点表情菜单必须 heal=False（heal 抖动会取消菜单）
             if not ok:
                 return False, "点笑脸失败：%s" % why
-            time.sleep(0.80)   # 等表情面板完整弹出（0.9→0.80 略提速；再短会面板未弹稳→点偏格）
+            time.sleep(0.72)   # 等表情面板弹出（0.80→0.72 略压缩；再短会未弹稳→点偏格）
             return True, "表情面板已打开（只点一下，绝不重复点击）"
         except Exception as e:
             return False, str(e)
@@ -2139,20 +2136,23 @@ class WeChatAdapter:
         限定 y 范围排除顶栏搜索区与底部 爱心/输入栏 干扰；失败返回 None。"""
         try:
             from PIL import ImageGrab
-            gui._update_render_rect()
+            if not gui.render_rect:
+                gui._update_render_rect()            # 复用已算好的 render（避免反复 UIA 拉窗口矩形——大头）
             sx, sy, sw, sh = gui.render_rect
             if not sw or not sh:
                 return None
-            img = ImageGrab.grab((sx, sy, sx + sw, sy + sh)).convert("RGB")
-            W_, H_ = img.size
+            cx0 = int(sw * 0.092)
+            x0, x1 = max(0, cx0 - 52), min(sw, cx0 + 52)
+            y_lo, y_hi = int(sh * 0.20), int(sh * 0.92)   # 排除顶栏 / 底部栏
+            # 只截「第一列小竖条」(约 100px 宽)——ImageGrab 比整窗快一个量级；隔行扫描 + 首完整行早停
+            img = ImageGrab.grab((sx + x0, sy + y_lo, sx + x1, sy + y_hi)).convert("RGB")
+            W2, H2 = img.size
             px = img.load()
-            cx0 = int(W_ * 0.092)
-            x0, x1 = max(0, cx0 - 52), min(W_, cx0 + 52)
-            y_lo, y_hi = int(H_ * 0.20), int(H_ * 0.92)   # 排除顶栏 / 底部栏
-            bands = []; cur = None
-            for y in range(y_lo, y_hi):
+            step = 3
+            cur = None
+            for y in range(0, H2, step):
                 c = 0
-                for x in range(x0, x1):
+                for x in range(0, W2):
                     r, g, b = px[x, y]
                     if max(r, g, b) - min(r, g, b) > 45 or max(r, g, b) < 195:
                         c += 1
@@ -2160,16 +2160,11 @@ class WeChatAdapter:
                     if cur is None: cur = [y, y]
                     else: cur[1] = y
                 else:
-                    if cur is not None: bands.append(tuple(cur)); cur = None
-            if cur is not None: bands.append(tuple(cur))
-            m = []
-            for b in bands:
-                if m and b[0] - m[-1][1] <= 6: m[-1] = (m[-1][0], b[1])
-                else: m.append(b)
-            full = [b for b in m if 90 <= (b[1] - b[0]) <= 130 and b[0] >= y_lo + 20]  # 完整表情图≈107px
-            if not full:
-                return None
-            return (top + bot) // 2                  # 格中心 y（渲染相对）
+                    if cur is not None:
+                        b = tuple(cur); cur = None
+                        if 90 <= (b[1] - b[0]) <= 130 and b[0] >= 20:
+                            return y_lo + (b[0] + b[1]) // 2      # 首个完整行中心（早停，转回渲染相对 y）
+            return None
         except Exception:
             return None
 
@@ -2178,38 +2173,35 @@ class WeChatAdapter:
         场景：此时目标行=最底部完整行（顶部露半行、下方4行完整可点）。失败返回 None。"""
         try:
             from PIL import ImageGrab
-            gui._update_render_rect()
+            if not gui.render_rect:
+                gui._update_render_rect()            # 复用已算好的 render
             sx, sy, sw, sh = gui.render_rect
             if not sw or not sh:
                 return None
-            img = ImageGrab.grab((sx, sy, sx + sw, sy + sh)).convert("RGB")
-            W_, H_ = img.size
+            cx0 = int(sw * 0.092)
+            x0, x1 = max(0, cx0 - 52), min(sw, cx0 + 52)
+            y_lo, y_hi = int(sh * 0.20), int(sh * 0.92)
+            # 只截第一列小竖条 + 从底向上倒扫 + 完整行早停
+            img = ImageGrab.grab((sx + x0, sy + y_lo, sx + x1, sy + y_hi)).convert("RGB")
+            W2, H2 = img.size
             px = img.load()
-            cx0 = int(W_ * 0.092)
-            x0, x1 = max(0, cx0 - 52), min(W_, cx0 + 52)
-            y_lo, y_hi = int(H_ * 0.20), int(H_ * 0.92)
-            bands = []; cur = None
-            for y in range(y_lo, y_hi):
+            step = 3
+            cur = None
+            for y in range(H2 - 1, 0, -step):
                 c = 0
-                for x in range(x0, x1):
+                for x in range(0, W2):
                     r, g, b = px[x, y]
                     if max(r, g, b) - min(r, g, b) > 45 or max(r, g, b) < 195:
                         c += 1
                 if c > 22:
                     if cur is None: cur = [y, y]
-                    else: cur[1] = y
+                    else: cur[0] = y
                 else:
-                    if cur is not None: bands.append(tuple(cur)); cur = None
-            if cur is not None: bands.append(tuple(cur))
-            m = []
-            for b in bands:
-                if m and b[0] - m[-1][1] <= 6: m[-1] = (m[-1][0], b[1])
-                else: m.append(b)
-            full = [b for b in m if 90 <= (b[1] - b[0]) <= 130]   # 完整表情图≈107px
-            if not full:
-                return None
-            top, bot = full[-1]                      # 最底部完整行
-            return (top + bot) // 2
+                    if cur is not None:
+                        b = tuple(cur); cur = None
+                        if 90 <= (b[1] - b[0]) <= 130:
+                            return y_lo + (b[0] + b[1]) // 2      # 最底部完整行中心（早停，转回渲染相对 y）
+            return None
         except Exception:
             return None
 
@@ -2224,6 +2216,17 @@ class WeChatAdapter:
         """
         import ctypes, os as _os
         _u32 = ctypes.windll.user32
+        _TF = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "_scratch", "timing.log")
+        _t0 = time.time()
+        def _st(label):
+            msg = "[emoji-send] %s 累计 %.2f s" % (label, time.time() - _t0)
+            print(msg, flush=True)
+            try:
+                _os.makedirs(_os.path.dirname(_TF), exist_ok=True)
+                with open(_TF, "a", encoding="utf-8") as _f:
+                    _f.write(msg + "\n")
+            except Exception:
+                pass
         try:
             gui = self._get_gui()
             from . import ui_adapt
@@ -2234,6 +2237,7 @@ class WeChatAdapter:
             tags_y = sy + int(sh * 0.804 - 13)
             ui_adapt.click(gui, tags_x - sx, tags_y - sy, heal=False)
             time.sleep(0.6)
+            _st("点爱心")
             # ② 点第 index 个表情格（5 列网格）
             cols = 5
             col = index % cols
@@ -2249,20 +2253,21 @@ class WeChatAdapter:
             # 否则"第一个"会错点成记忆位置处的格；加速=压紧间隔+少几次，但微信平滑滚动会并吞快速事件）
             inp = gui._input
             inp._user32.SetCursorPos(sx + int(sw * COL0), sy + int(sh * ROW0))
-            time.sleep(0.25)
+            time.sleep(0.15)
             for _top in range(10):
                 inp.wheel(500)
-                time.sleep(0.22)
-            time.sleep(0.6)
+                time.sleep(0.14)          # 压缩到顶等待（原 0.22；仍给微信平滑滚动留间隔防并吞）
+            time.sleep(0.4)
             _base = self._emoji_base_center(gui)
             if row >= VISIBLE:
                 # 向下滚到目标行：要 row R 落到「底部完整行」(viewport row 3)，需下滚 (R-3) 行
                 _rolls = row - (VISIBLE - 1)
                 for _s in range(_rolls):
                     inp.wheel(-WHEEL_ROW)      # -wheel = 向列表后面/底部滚；每格≈一行
-                    time.sleep(0.4)
-                time.sleep(0.5)
+                    time.sleep(0.3)            # 原 0.4 压缩
+                time.sleep(0.35)
                 click_row = VISIBLE - 1
+                _st("到顶+取base+下滚")
                 print("[emoji] top always then down {} rows (wheel_step={}); click_row={} (index={})"
                       .format(_rolls, WHEEL_ROW, click_row, index), flush=True)
             # 点击点（渲染相对坐标）：
@@ -2271,6 +2276,7 @@ class WeChatAdapter:
             grid_x = sx + int(sw * (COL0 + col * PITCH_C))
             if row >= 6:                      # 较晚的行视为接近末尾，用检测最底部完整行中心
                 _rc = self._emoji_bottom_center(gui)
+                _st("检测最底部完整行")
                 if _rc is not None:
                     grid_y = sy + _rc
                 else:
@@ -2279,23 +2285,7 @@ class WeChatAdapter:
                 grid_y = sy + _base + int(click_row * self.EMOJI_ROW_PX)
             else:
                 grid_y = sy + int(sh * (ROW0 + click_row * PITCH_R))
-            # 调试截图：画十字标记点击点并裁剪该格（存到 _scratch/shots/ 供核对）
-            try:
-                from PIL import ImageGrab, ImageDraw as _ID
-                _img = ImageGrab.grab((sx, sy, sx + sw, sy + sh)).convert("RGB")
-                _d = _ID.Draw(_img)
-                _px, _py = grid_x - sx, grid_y - sy
-                _d.line([(_px - 20, _py), (_px + 20, _py)], fill=(255, 0, 0), width=3)
-                _d.line([(_px, _py - 20), (_px, _py + 20)], fill=(255, 0, 0), width=3)
-                _dbg = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
-                                     "_scratch", "shots")
-                _os.makedirs(_dbg, exist_ok=True)
-                _img.save(_os.path.join(_dbg, "panel_click_%d.png" % index))
-                _img.crop((max(0, _px - 90), max(0, _py - 90),
-                           min(_img.size[0], _px + 90), min(_img.size[1], _py + 90))
-                          ).save(_os.path.join(_dbg, "panel_click_%d_crop.png" % index))
-            except Exception:
-                pass
+            # 已删除"每次整窗 ImageGrab 存调试截图"——它让每次发送额外多几秒，属程序冗余（提速）。
             ok, why = ui_adapt.click(gui, grid_x - sx, grid_y - sy, heal=False)
             if not ok:
                 return False, "点表情失败：%s" % why
