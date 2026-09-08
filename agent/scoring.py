@@ -212,5 +212,5 @@ def top_reactions(limit: int = 20) -> list:
 def stats() -> dict:
     data = _load()
     return {"reaction_count": len(data.get("reactions") or {}),
-            "seed_count": len(seed_library()),
+            "seed_count": len(seed_library(None)),   # 全量(官方+导入)，不能 seed_library()(默认只取12条样本)
             "top": top_reactions(5)}
