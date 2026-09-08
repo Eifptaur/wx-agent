@@ -88,6 +88,7 @@ body.whale-anim::after{content:"";position:fixed;inset:0;z-index:-1;pointer-even
 .ocean-wave .w2{animation:waveMove 14s linear infinite reverse;opacity:.7}
 .ocean-wave .w3{animation:waveMove 20s linear infinite;opacity:.45}
 @keyframes waveMove{from{transform:translateX(0)}to{transform:translateX(25%)}}
+/* 鲸鱼光斑背景：浮动加强（幅度 -22px/1.04 → -30px/1.06；流沙更快） */
 body.whale-anim::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:
     repeating-radial-gradient(160% 90% at 18% 12%,rgba(255,255,255,.22) 0 2px,transparent 2px 26px),
@@ -98,14 +99,14 @@ body.whale-anim::before{content:"";position:fixed;inset:0;z-index:-1;pointer-eve
     radial-gradient(300px 300px at 20% 78%,rgba(210,205,255,.38),transparent 65%),
     radial-gradient(240px 240px at 58% 40%,rgba(255,220,240,.30),transparent 65%),
     radial-gradient(200px 200px at 36% 26%,rgba(255,232,170,.28),transparent 65%);
-  animation:whaleDrift 26s ease-in-out infinite alternate, seaFlow 9s linear infinite}
+  animation:whaleDrift 22s ease-in-out infinite alternate, seaFlow 7s linear infinite}
 @keyframes whaleDrift{
   from{transform:translateY(0) scale(1) hue-rotate(0deg)}
-  to{transform:translateY(-22px) scale(1.04) hue-rotate(10deg)}
+  to{transform:translateY(-30px) scale(1.06) hue-rotate(12deg)}
 }
 @keyframes seaFlow{
   from{background-position:0 0,0 0,0 0,0 0,0 0,0 0,0 0,0 0}
-  to{background-position:-60px 30px,60px -30px,0 0,0 0,0 0,0 0,0 0,0 0}
+  to{background-position:-90px 45px,90px -45px,0 0,0 0,0 0,0 0,0 0,0 0}
 }
 /* ── 自定义背景（JS 设 CSS 变量，绕开一切选择器冲突；无变量=默认海浪图）── */
 body.whale-anim::before,body.custom-bg::before{
@@ -130,37 +131,32 @@ body.custom-bg::before{opacity:1!important}
     radial-gradient(200px 160px at 45% 20%,rgba(255,232,170,.09),transparent 62%);
   opacity:.9}
 :root[data-theme=dark] .card::after,:root[data-theme=dark] .side::after{opacity:.25}
-/* ── 涟漪 v4（经典"文字浮动"实现：逐字 span + delay 递增 波浪上浮；光标处细环）
-   方案来源：hover 文字波浪式效果（CSS animation + per-letter delay）——细浪一波波，静时平如镜 ── */
-.ripple{position:absolute;width:16px;height:16px;border-radius:50%;pointer-events:none;z-index:1;
-  border:1.5px solid rgba(150,214,255,.5);box-shadow:0 0 10px rgba(150,214,255,.3);
-  transform:translate(-50%,-50%) scale(.4);opacity:.8;
-  animation:rippleWave 1.15s cubic-bezier(.2,.8,.3,1) forwards}
-.ripple.r2{border-color:rgba(200,235,255,.3);animation-delay:.12s}
-@keyframes rippleWave{
-  0%{transform:translate(-50%,-50%) scale(.4);opacity:.8}
-  60%{transform:translate(-50%,-50%) scale(1.7);opacity:.4}
-  100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}
-}
-/* 涟漪 v5（重做：鼠标划过周围——卡片/文字缓慢浮动震荡，频率缓像水面慢慢荡开） */
+/* ── 光标特效 v9：无圆环水波纹；扭曲=跟随鼠标的一小圈水光透镜（backdrop-filter，只影响圈内，边缘柔和），波纹持续流动 ── */
 .card{transition:transform .6s cubic-bezier(.3,1.25,.5,1),box-shadow .6s ease}
-.card:hover{transform:translateY(-3px) scale(1.005);box-shadow:0 12px 30px rgba(63,168,240,.14),0 2px 8px rgba(31,41,55,.08)}
+.card:hover{transform:translateY(-4px) scale(1.008);box-shadow:0 12px 30px rgba(63,168,240,.14),0 2px 8px rgba(31,41,55,.08)}
 .card:hover::after{animation:cardShimmer 2.6s ease-in-out infinite}
 @keyframes cardShimmer{0%,100%{opacity:.5}50%{opacity:1}}
-.card:hover h2,.card:hover .row label{transform:translateY(-1px)}
+.card:hover h2,.card:hover .row label{transform:translateY(-1.5px)}
 .card h2,.card .row label{transition:transform .55s ease}
-/* 逐字浮动：每个字一个 span，波浪相位递增（"细浪一波波打过来"） */
-.wave-char{display:inline-block;animation:charFloat 3.2s ease-in-out infinite}
+/* 逐字浮动：每个字一个 span，波浪相位递增（浮动增强：幅度 -2px → -3.5px） */
+.wave-char{display:inline-block;animation:charFloat 3.0s ease-in-out infinite}
 @keyframes charFloat{
   0%,100%{transform:translateY(0)}
-  45%{transform:translateY(-2px)}
+  45%{transform:translateY(-3.5px)}
 }
 
-.card.float-a{animation:waveFloat 5.2s ease-in-out infinite}
+.card.float-a{animation:waveFloat 4.6s ease-in-out infinite}
 @keyframes waveFloat{
   0%,100%{transform:translateY(0)}
-  50%{transform:translateY(-1.5px)}
+  50%{transform:translateY(-3px)}
 }
+/* 水光透镜：跟随鼠标的圆形透镜（backdrop-filter 扭曲圈内一切；mask 让边缘柔和如光晕） */
+#waveLens{position:fixed;left:0;top:0;width:240px;height:240px;margin:-120px 0 0 -120px;
+  border-radius:50%;pointer-events:none;z-index:9999;opacity:0;
+  backdrop-filter:url(#cardWave2) saturate(1.02);
+  -webkit-mask:radial-gradient(circle,#000 34%,rgba(0,0,0,.75) 55%,transparent 78%);
+  mask:radial-gradient(circle,#000 34%,rgba(0,0,0,.75) 55%,transparent 78%);
+  transform:translate3d(-9999px,-9999px,0)}
 input,select,textarea{backdrop-filter:blur(8px)}
 .pri{background:linear-gradient(135deg,#39B6F0,#1E9BE8 55%,#6C8CFF);box-shadow:0 4px 16px rgba(30,155,232,.38),inset 0 1px 0 rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.72);color:#fff}
 .pri:hover{filter:brightness(1.06)}
@@ -340,11 +336,11 @@ th{color:var(--tx2);font-weight:500}
 </head>
 <body>
 
-<!-- 波浪滤镜（卡片翻涌效果：feTurbulence+feDisplacementMap，JS 随光标实时调参） -->
+<!-- 水光透镜滤镜（feTurbulence+feDisplacementMap；JS 正弦动画持续调 scale/baseFrequency，波纹永远在流动） -->
 <svg width="0" height="0" style="position:absolute"><defs>
-  <filter id="cardWave" x="-20%" y="-20%" width="140%" height="140%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.014 0.022" numOctaves="1" seed="5" result="n"/>
-    <feDisplacementMap in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+  <filter id="cardWave2" x="-15%" y="-15%" width="130%" height="130%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.016" numOctaves="2" seed="5" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G"/>
   </filter>
 </defs></svg>
 <!-- 海洋动态波浪（三层 SVG 曲线平移；无外部素材依赖） -->
@@ -358,6 +354,8 @@ th{color:var(--tx2);font-weight:500}
   src="/wallpaper/海的眼睛.mp4"
   style="position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;pointer-events:none;display:none"></video>
 <div id="wallTint" style="position:fixed;inset:0;z-index:-1;pointer-events:none;display:none;background:linear-gradient(160deg,rgba(150,200,235,.30),rgba(210,232,248,.22) 60%,rgba(225,215,245,.28))"></div>
+<!-- 水光透镜：跟随鼠标的扭曲圆环（backdrop-filter 只影响圈内；初始藏于屏外） -->
+<div id="waveLens"></div>
 
 <div class="topbar">
   <div class="logo"><div class="whale-badge" id="whaleBadge" title="小鲸鱼"><img src="/assets/icon-whale.png" alt=""></div><span>wx-agent 控制台 <small style="font-weight:400;color:var(--tx2);font-size:12px" title="构建号（换新包后如果这里不变，说明连的是旧实例——先停止再启动）">vβ·Ⅱ（__VER__）</small></span></div>  <div class="sp"></div>
@@ -2784,38 +2782,58 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
   }
 })();
 
-/* ── 涟漪 v4：逐字浮动（hover 卡片标题波浪）+ 光标处细环；新面板自动生效 ── */
+/* ── 水光粼粼 v9：跟随鼠标的一小圈扭曲透镜（只影响鼠标周围，波纹持续流动）── */
 (function(){
+  /* ① 波光流动：正弦驱动 feTurbulence baseFrequency + feDisplacementMap scale（约 30fps；
+     只改透镜的滤镜参数，任何时刻都像水光微动）。 */
+  const ID = 'cardWave2';
+  const f = document.getElementById(ID);
+  const turb = f ? f.querySelector('feTurbulence') : null;
+  const disp = f ? f.querySelector('feDisplacementMap') : null;
+  const BASE = disp ? parseFloat(disp.getAttribute('scale') || '14') : 14;
+  let _t = performance.now();
+  setInterval(()=>{
+    const now = performance.now(); _t = now;
+    if(!turb || !disp) return;
+    const ph = (now / 1000) * 2.4;
+    const fx = 0.008 + 0.004 * Math.sin(ph * 0.9);
+    const fy = 0.011 + 0.005 * Math.cos(ph * 0.7);
+    try{ turb.setAttribute('baseFrequency', fx.toFixed(4) + ' ' + fy.toFixed(4)); }catch(e){}
+    const s = Math.max(0.5, BASE * (1 + 0.35 * Math.sin(ph * 1.3)));
+    try{ disp.setAttribute('scale', s.toFixed(2)); }catch(e){}
+  }, 33);
+
+  /* ② 透镜跟随鼠标：移到 (clientX, clientY) 中心；进入页面即显示，离开窗口隐藏 */
+  const lens = document.getElementById('waveLens');
+  if(lens){
+    document.addEventListener('mousemove', (ev)=>{
+      lens.style.transform = 'translate3d(' + ev.clientX + 'px,' + ev.clientY + 'px,0)';
+      lens.style.opacity = '1';
+    }, {passive:true});
+    document.addEventListener('mouseleave', ()=>{ lens.style.opacity = '0'; });
+    document.addEventListener('mouseenter', ()=>{ lens.style.opacity = '1'; });
+  }
+
+  /* ③ 逐字浮动：光标划过卡片标题时拆成字（一次拆好缓存）*/
   let lastT = 0;
   document.addEventListener('mousemove', (ev)=>{
     const now = performance.now();
-    if(now - lastT < 100) return;
+    if(now - lastT < 90) return;
     lastT = now;
     const targetEl = ev.target && ev.target.closest ? ev.target.closest('.card,.side,.box,.menu') : null;
-    if(targetEl){
-      const r = targetEl.getBoundingClientRect();
-      const x = ev.clientX - r.left, y = ev.clientY - r.top;
-      for(const cls of ['ripple', 'ripple r2']){
-        const d = document.createElement('i');
-        d.className = cls; d.style.left = x + 'px'; d.style.top = y + 'px';
-        targetEl.appendChild(d);
-        setTimeout(()=>d.remove(), 1350);
-      }
-      // 逐字浮动：把卡片标题拆成字（一次拆好缓存）
-      if(!targetEl._waves && targetEl.classList.contains('card')){
-        targetEl._waves = true;
-        targetEl.querySelectorAll('h2, h3, .desc > b').forEach(h=>{
-          if(h.dataset.waved) return;
-          const t = h.textContent;
-          if(t.length > 60) return;
-          h.dataset.waved = '1';
-          const sp = document.createElement('span');
-          sp.innerHTML = Array.from(t).map((ch, i)=>
-            '<span class="wave-char" style="animation-delay:'+(i*0.12).toFixed(2)+'s">'+esc(ch)+'</span>').join('');
-          h.innerHTML = '';
-          h.appendChild(sp);
-        });
-      }
+    if(targetEl && !targetEl._waves && targetEl.classList.contains('card')){
+      targetEl._waves = true;
+      targetEl.querySelectorAll('h2, h3, .desc > b').forEach(h=>{
+        if(h.dataset.waved) return;
+        const t = h.textContent;
+        if(t.length > 60) return;
+        h.dataset.waved = '1';
+        const sp = document.createElement('span');
+        sp.innerHTML = Array.from(t).map((ch, i)=>
+          '<span class="wave-char" style="animation-delay:'+(i*0.12).toFixed(2)+'s">'+esc(ch)+'</span>').join('');
+        h.innerHTML = '';
+        h.appendChild(sp);
+      });
     }
   });
   function bindFloat(){
@@ -2882,24 +2900,6 @@ function applyWhale(){
   }catch(e){}
 }
 document.addEventListener('DOMContentLoaded', applyWhale);
-
-/* ── 卡片水波：hover 时从鼠标位置荡开两道涟漪，渐平后自动清除 */
-(function(){
-  document.querySelectorAll('.card,.side').forEach(el=>{
-    el._ripBound = true;
-    el.addEventListener('mouseenter', (ev)=>{
-      const r = el.getBoundingClientRect();
-      const x = ev.clientX - r.left, y = ev.clientY - r.top;
-      for(const cls of ['ripple','ripple r2']){
-        const d = document.createElement('i');
-        d.className = cls;
-        d.style.left = x + 'px'; d.style.top = y + 'px';
-        el.appendChild(d);
-        setTimeout(()=>d.remove(), 1100);
-      }
-    });
-  });
-})();
 
 /* ── 程序鼠标检验区（按钮直控鼠标；搜索框过滤 + 滚动槽）── */
 const UI_TESTS = [
