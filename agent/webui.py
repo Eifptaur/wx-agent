@@ -679,6 +679,32 @@ class WebUI:
                         self._json(parent.ui_stop_fn())
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
+                elif path == "/api/stats/cal":
+                    # 日历：读取某日会话明细（data/sessions/YYYY-MM-DD.jsonl 汇总）
+                    try:
+                        import json as _j
+                        d = str(data.get("d") or "")
+                        _sf = os.path.join(parent._data_path("sessions"), (d + ".jsonl"))
+                        agg = {"date": d, "sessions": 0, "tokens": 0, "cost": 0.0, "calls": 0, "sent": 0}
+                        if d and os.path.exists(_sf):
+                            with open(_sf, encoding="utf-8") as fh:
+                                for line in fh:
+                                    line = line.strip()
+                                    if not line:
+                                        continue
+                                    try:
+                                        o = _j.loads(line)
+                                        agg["sessions"] += 1
+                                        agg["tokens"] += int(o.get("tokens") or 0)
+                                        agg["cost"] += float(o.get("cost") or 0)
+                                        agg["calls"] += int(o.get("calls") or 0)
+                                        if o.get("reply"):
+                                            agg["sent"] += 1
+                                    except Exception:
+                                        pass
+                        self._json({"ok": True, **agg})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
                 elif path == "/api/emojis/delete":
                     # 删除一个收藏的表情文件（POST {name}）
                     try:

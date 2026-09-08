@@ -400,6 +400,13 @@ th{color:var(--tx2);font-weight:500}
         <div class="s"><b id="st-extra">—</b><span>本次其他工具成本</span></div>
         <div class="s"><b id="st-extra2">—</b><span>累计其他工具成本</span></div>
       </div>
+      <div style="margin:10px 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b style="color:var(--blue)">📅 每日明细</b>
+        <span class="hint" style="flex:1">点日期查看当天会话/词数/成本</span>
+        <button class="ghost" id="calPrev">‹</button><b id="calYM" style="min-width:104px;text-align:center"></b><button class="ghost" id="calNext">›</button>
+      </div>
+      <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font-size:12px;margin-bottom:6px"></div>
+      <div id="calDetail" class="hint" style="margin-bottom:4px">点日期查看当天明细</div>
       <div class="group-box" style="max-height:240px">
         <table id="group-table" style="margin:0"><thead><tr><th>群名</th><th>目标</th></tr></thead><tbody></tbody></table>
       </div>
@@ -1496,6 +1503,40 @@ async function loadStatus(){
     $('st-groups').textContent = s.groups.filter(g=>g.target).length;
     // 成本明细（最近5条/平均/本次其他工具/累计其他工具——恒显示数值）
     $('st-r5c').textContent = '¥' + (s.stats.recent5_cost||0).toFixed(4);
+    (function(){
+      if(window.__calInit) return; window.__calInit=true;   // 日历只初始化一次（避免随每分钟刷新重置到当前月）
+      const grid=$('calGrid')||null, det=$('calDetail')||null, ymEl=$('calYM')||null;
+      if(!grid||!det||!ymEl) return;
+      const now=new Date(); let ym=now.getFullYear()*100+(now.getMonth()+1);
+      const pad=n=>String(n).padStart(2,'0');
+      function renderCal(){
+        const y=Math.floor(ym/100), m=ym%100; ymEl.textContent=y+'年'+m+'月';
+        const startDay=(new Date(y,m-1,1).getDay()+6)%7, days=new Date(y,m,0).getDate();
+        grid.innerHTML='';
+        ['一','二','三','四','五','六','日'].forEach(w=>{const d=document.createElement('div');d.style.textAlign='center';d.style.color='var(--tx2)';d.textContent=w;grid.appendChild(d);});
+        for(let i=0;i<startDay;i++) grid.appendChild(document.createElement('div'));
+        const today=new Date();
+        for(let day=1;day<=days;day++){
+          const c=document.createElement('button'); c.type='button'; c.className='ghost'; c.style.padding='4px 0'; c.style.fontSize='12px'; c.style.cursor='pointer';
+          c.textContent=day;
+          const ds=y+'-'+pad(m)+'-'+pad(day);
+          if(ds===today.getFullYear()+'-'+pad(today.getMonth()+1)+'-'+pad(today.getDate())) c.style.outline='1px solid var(--blue)';
+          c.onclick=()=>loadDay(ds);
+          grid.appendChild(c);
+        }
+      }
+      async function loadDay(d){
+        det.textContent='加载中 '+d+'…';
+        try{
+          const r=await getJSON('/api/stats/cal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({d})});
+          det.textContent=d+'：'+(r.sessions||0)+' 会话 · '+(r.tokens||0)+' tok · ¥'+(r.cost||0).toFixed(4)+' · '+(r.sent||0)+' 条';
+        }catch(e){ det.textContent='加载失败：'+e.message; }
+      }
+      const prev=$('calPrev'), next=$('calNext');
+      if(prev) prev.onclick=()=>{ ym = ym%100===1 ? (Math.floor(ym/100)-1)*100+12 : ym-1; renderCal(); };
+      if(next) next.onclick=()=>{ ym = ym%100===12 ? (Math.floor(ym/100)+1)*100+1 : ym+1; renderCal(); };
+      renderCal();
+    })();
     $('st-ac').textContent = '¥' + (s.stats.avg_cost||0).toFixed(4);
     $('st-extra').textContent = '¥' + (s.stats.extra_now_cost||0).toFixed(4) + (s.stats.extra_now_tokens?(' · ' + s.stats.extra_now_tokens + ' tok'):'');
     $('st-extra2').textContent = '¥' + (s.stats.extra_total_cost||0).toFixed(4) + (s.stats.extra_total_tokens?(' · ' + s.stats.extra_total_tokens + ' tok'):'');
