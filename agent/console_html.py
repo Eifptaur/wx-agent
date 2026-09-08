@@ -158,7 +158,7 @@ body.custom-bg::before{opacity:1!important}
 .dsel-menu{z-index:220;position:absolute}
 /* 卡片内下拉菜单展开时允许溢出（默认 overflow:hidden 会裁剪菜单） */
 .card:has(.dsel .dsel-menu:not(.dn)),.card:has(.box .dsel-menu:not(.dn)){overflow:visible}
-.card.fx-overflow{overflow:visible!important}
+.card.fx-overflow,.box.fx-overflow,.bill-dlg.fx-overflow{overflow:visible!important}
 /* 水光波纹 v13「模块内投石入水」：透镜=光标所在整个模块（顶栏/导航栏/功能卡），
    单一窄环带从鼠标处一波波向外扩散（有肉眼可见时间差），到模块边缘极强衰减，绝不越过模块边界。
    z-index 40 < 顶栏50：功能栏滚到顶栏下方时，波纹只作用于下层内容，顶栏始终置顶不受扭曲。 */
@@ -295,9 +295,10 @@ button.tiny{padding:3px 10px;font-size:12px;border-radius:7px}
 .row select option{border-radius:10px;background:var(--menu-bg);color:var(--tx);padding:6px}
 /* 自绘下拉（原生弹层无法样式化，全部替换为这个） */
 .dsel{position:relative;width:100%}
-.dsel-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+.dsel-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;white-space:nowrap;
   background:var(--input-bg);border:1px solid var(--input-bd);border-radius:10px;padding:8px 12px;color:var(--tx);
   font:inherit;font-weight:500;text-align:left;cursor:pointer}
+.dsel-btn .txt{overflow:hidden;text-overflow:ellipsis}
 .dsel-btn:hover{border-color:var(--blue)}
 .dsel-btn .arr{color:var(--blue);font-size:11px;transform:translateY(-1px)}
 .dsel-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;background:var(--menu-bg);
@@ -1700,8 +1701,10 @@ function openBillDlg(bills){
   const _now = new Date();
   const _pad = n=>String(n).padStart(2,'0');
   const _years = [];
+  // 可查年份 = 当前年往前 5 年 ~ 当前年 + 账单里出现的年份（更早/更晚也并入），降序
+  const _curY = _now.getFullYear();
+  for(let y=_curY; y>=_curY-5; y--) _years.push(y);
   bills.forEach(b=>{ const y=parseInt(String(b.day||'').slice(0,4),10); if(y && _years.indexOf(y)<0) _years.push(y); });
-  if(!_years.length) _years.push(_now.getFullYear());
   _years.sort((a,b)=>b-a);
   const _yOpts = _years.map(y=>'<option value="'+y+'">'+y+'年</option>').join('');
   const _selStyle = 'background:var(--input-bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:3px 8px;font-size:12.5px';
@@ -1717,10 +1720,10 @@ function openBillDlg(bills){
     +'</div>'
     +'<div class="bd-find" style="display:flex;align-items:center;gap:6px;margin:0 0 8px;flex-wrap:wrap">'
       +'<b style="font-size:12.5px;color:var(--blue)">📅 按日期定位</b>'
-      +'<select id="bdY" style="'+_selStyle+'">'+_yOpts+'</select>'
-      +'<select id="bdM" style="'+_selStyle+'"></select>'
-      +'<select id="bdD" style="'+_selStyle+'"></select>'
-      +'<button class="ghost tiny" id="bdFind">定位到该日</button>'
+      +'<select id="bdY" style="'+_selStyle+';width:86px">'+_yOpts+'</select>'
+      +'<select id="bdM" style="'+_selStyle+';width:72px"></select>'
+      +'<select id="bdD" style="'+_selStyle+';width:72px"></select>'
+      +'<button class="ghost tiny" id="bdFind" style="padding:7px 12px">定位到该日</button>'
       +'<span class="hint" id="bdFindRst" style="font-size:12px;color:var(--tx2);word-break:break-all"></span>'
     +'</div>'
     +'<div class="bill-list">'+listHtml+'</div>'
@@ -1764,10 +1767,12 @@ function openBillDlg(bills){
     const cur=parseInt(selD.value,10)||_now.getDate();
     selD.innerHTML = Array.from({length:days},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+'日</option>').join('');
     selD.value = Math.min(cur, days);
+    if(selD._refresh) selD._refresh();   // 选项重建后刷按钮文字
   }
   selM.innerHTML = Array.from({length:12},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+'月</option>').join('');
   selM.value = _now.getMonth()+1;
   fillDays();
+  enhanceSelect(selY); enhanceSelect(selM); enhanceSelect(selD);   // 与功能栏同款自绘下拉
   selY.addEventListener('change', fillDays);
   selM.addEventListener('change', fillDays);
   box.querySelector('#bdFind').onclick = ()=>{
@@ -1914,54 +1919,58 @@ async function saveAllBtn(btn){
   }catch(e){ toast('保存失败：'+e.message); if(btn){ btn.disabled = false; btn.textContent = cur; } }
 }
 
-/* ── 自绘下拉组件：替换所有原生 select（弹层样式可控，DeepSeek 风）── */
-function enhanceSelects(){
-  document.querySelectorAll('select').forEach(sel=>{
-    if(sel._enhanced) return;
-    sel._enhanced = true;
-    const wrap = document.createElement('div'); wrap.className='dsel';
-    const btn = document.createElement('button'); btn.type='button'; btn.className='dsel-btn';
-    btn.innerHTML = '<span class="txt"></span><span class="arr">▾</span>';
-    const menu = document.createElement('div'); menu.className='dsel-menu dn';
-    const sel2 = sel; // 原 select 隐藏但保留值
-    sel2.style.display = 'none';
-    function refreshText(){
-      const o = sel2.options[sel2.selectedIndex];
-      btn.querySelector('.txt').textContent = (o && o.textContent) || sel2.value || '—';
-    }
-    sel2._refresh = refreshText;   // 程序改 value 后调用（只刷按钮文字，不触发业务 change）
-    function buildMenu(){
-      menu.innerHTML='';
-      Array.from(sel2.options).forEach((o,i)=>{
-        const li=document.createElement('li');
-        li.dataset.i=i; li.textContent=o.textContent;
-        if(i===sel2.selectedIndex) li.classList.add('on');
-        li.addEventListener('click',()=>{
-          sel2.selectedIndex=i;
-          sel2.dispatchEvent(new Event('change'));
-          buildMenu(); refreshText(); menu.classList.add('dn');
-        });
-        menu.appendChild(li);
+/* ── 自绘下拉组件：替换所有原生 select（弹层样式可控，DeepSeek 风）；单元素可复用（弹窗内动态 select 也用）── */
+function enhanceSelect(sel){
+  if(sel._enhanced) return sel;
+  sel._enhanced = true;
+  const w = sel.style && sel.style.width;
+  const wrap = document.createElement('div'); wrap.className='dsel';
+  wrap.style.width = w || '100%';
+  const btn = document.createElement('button'); btn.type='button'; btn.className='dsel-btn';
+  btn.innerHTML = '<span class="txt"></span><span class="arr">▾</span>';
+  const menu = document.createElement('div'); menu.className='dsel-menu dn';
+  const sel2 = sel; // 原 select 隐藏但保留值
+  sel2.style.display = 'none';
+  function refreshText(){
+    const o = sel2.options[sel2.selectedIndex];
+    btn.querySelector('.txt').textContent = (o && o.textContent) || sel2.value || '—';
+  }
+  sel2._refresh = refreshText;   // 程序改 value 后调用（只刷按钮文字，不触发业务 change）
+  function buildMenu(){
+    menu.innerHTML='';
+    Array.from(sel2.options).forEach((o,i)=>{
+      const li=document.createElement('li');
+      li.dataset.i=i; li.textContent=o.textContent;
+      if(i===sel2.selectedIndex) li.classList.add('on');
+      li.addEventListener('click',()=>{
+        sel2.selectedIndex=i;
+        sel2.dispatchEvent(new Event('change'));
+        buildMenu(); refreshText(); menu.classList.add('dn');
       });
-    }
-    btn.addEventListener('click', e=>{
-      e.stopPropagation();
-      const open = !menu.classList.contains('dn');
-      document.querySelectorAll('.dsel-menu').forEach(m=>m.classList.add('dn'));
-      // 兜底（不支持 :has() 的旧浏览器）：打开菜单时让所在卡片允许溢出+提层
-      document.querySelectorAll('.card.fx-overflow').forEach(c=>c.classList.remove('fx-overflow'));
-      if(!open){
-        buildMenu(); refreshText(); menu.classList.remove('dn');
-        let host = wrap.closest('.card');
-        if(host){ host.classList.add('fx-overflow'); }
-      }
+      menu.appendChild(li);
     });
-    document.addEventListener('click', ()=>menu.classList.add('dn'));
-    sel2.addEventListener('change', ()=>{ buildMenu(); refreshText(); });
-    sel2.insertAdjacentElement('afterend', wrap);
-    wrap.appendChild(btn); wrap.appendChild(menu);
-    refreshText();
+  }
+  btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    const open = !menu.classList.contains('dn');
+    document.querySelectorAll('.dsel-menu').forEach(m=>m.classList.add('dn'));
+    // 兜底（不支持 :has() 的旧浏览器）：打开菜单时让所在卡片/弹窗允许溢出+提层
+    document.querySelectorAll('.card.fx-overflow,.box.fx-overflow,.bill-dlg.fx-overflow').forEach(c=>c.classList.remove('fx-overflow'));
+    if(!open){
+      buildMenu(); refreshText(); menu.classList.remove('dn');
+      let host = wrap.closest('.card, .box, .bill-dlg');
+      if(host){ host.classList.add('fx-overflow'); }
+    }
   });
+  document.addEventListener('click', ()=>menu.classList.add('dn'));
+  sel2.addEventListener('change', ()=>{ buildMenu(); refreshText(); });
+  sel2.insertAdjacentElement('afterend', wrap);
+  wrap.appendChild(btn); wrap.appendChild(menu);
+  refreshText();
+  return sel;
+}
+function enhanceSelects(){
+  document.querySelectorAll('select').forEach(enhanceSelect);
 }
 /* ── 所有搜索栏统一加「搜索」按钮（点击=模拟触发 input，各列表联动）── */
 (function(){
