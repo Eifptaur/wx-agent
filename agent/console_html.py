@@ -131,7 +131,7 @@ body.custom-bg::before{opacity:1!important}
     radial-gradient(200px 160px at 45% 20%,rgba(255,232,170,.09),transparent 62%);
   opacity:.9}
 :root[data-theme=dark] .card::after,:root[data-theme=dark] .side::after{opacity:.25}
-/* ── 光标特效 v9：无圆环水波纹；扭曲=跟随鼠标的一小圈水光透镜（backdrop-filter，只影响圈内，边缘柔和），波纹持续流动 ── */
+/* ── 光标特效 v10：无圆环水波纹；水光透镜跟随鼠标（扭曲强度↑、速度↑且随鼠标拖动加速、尺寸+微调）/ 波纹持续流动 ── */
 .card{transition:transform .6s cubic-bezier(.3,1.25,.5,1),box-shadow .6s ease}
 .card:hover{transform:translateY(-4px) scale(1.008);box-shadow:0 12px 30px rgba(63,168,240,.14),0 2px 8px rgba(31,41,55,.08)}
 .card:hover::after{animation:cardShimmer 2.6s ease-in-out infinite}
@@ -151,7 +151,7 @@ body.custom-bg::before{opacity:1!important}
   50%{transform:translateY(-3px)}
 }
 /* 水光透镜：跟随鼠标的圆形透镜（backdrop-filter 扭曲圈内一切；mask 让边缘柔和如光晕） */
-#waveLens{position:fixed;left:0;top:0;width:240px;height:240px;margin:-120px 0 0 -120px;
+#waveLens{position:fixed;left:0;top:0;width:258px;height:258px;margin:-129px 0 0 -129px;
   border-radius:50%;pointer-events:none;z-index:9999;opacity:0;
   backdrop-filter:url(#cardWave2) saturate(1.02);
   -webkit-mask:radial-gradient(circle,#000 34%,rgba(0,0,0,.75) 55%,transparent 78%);
@@ -340,7 +340,7 @@ th{color:var(--tx2);font-weight:500}
 <svg width="0" height="0" style="position:absolute"><defs>
   <filter id="cardWave2" x="-15%" y="-15%" width="130%" height="130%">
     <feTurbulence type="fractalNoise" baseFrequency="0.012 0.016" numOctaves="2" seed="5" result="n"/>
-    <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="17" xChannelSelector="R" yChannelSelector="G"/>
   </filter>
 </defs></svg>
 <!-- 海洋动态波浪（三层 SVG 曲线平移；无外部素材依赖） -->
@@ -2782,24 +2782,43 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
   }
 })();
 
-/* ── 水光粼粼 v9：跟随鼠标的一小圈扭曲透镜（只影响鼠标周围，波纹持续流动）── */
+/* ── 水光粼粼 v10：跟随鼠标的小圈扭曲透镜；波纹速度更快，并随鼠标拖动速度加快而加快 ── */
 (function(){
-  /* ① 波光流动：正弦驱动 feTurbulence baseFrequency + feDisplacementMap scale（约 30fps；
-     只改透镜的滤镜参数，任何时刻都像水光微动）。 */
+  /* ① 波光流动：相位累计 + 鼠标速度联动（约 30fps）
+     速度模型：波光速度 = 基础速度 + 鼠标移动速度 × 增益（鼠标越快，波光翻涌越快）。 */
   const ID = 'cardWave2';
   const f = document.getElementById(ID);
   const turb = f ? f.querySelector('feTurbulence') : null;
   const disp = f ? f.querySelector('feDisplacementMap') : null;
-  const BASE = disp ? parseFloat(disp.getAttribute('scale') || '14') : 14;
-  let _t = performance.now();
+  const BASE = disp ? parseFloat(disp.getAttribute('scale') || '17') : 17;
+  let _ph = 0;                       // 累计相位（rad）
+  let _phSpeed = 5.2;                // 基础波光速度 rad/s（v9 是 2.4 → 更快）
+  const SPEED_GAIN = 0.020;          // 鼠标速度增益：px/s × 增益 → rad/s 增量
+  const MAX_GAIN = 8.0;              // 额外速度上限 rad/s（防帧率噪声爆冲）
+  let _mouseSpeed = 0;               // 平滑后鼠标速度 px/s
+  let _lastEv = null, _lastEvT = 0;
+  document.addEventListener('mousemove', (ev)=>{
+    const now = performance.now();
+    if(_lastEv){
+      const dt = Math.max(1, now - _lastEvT) / 1000;
+      const dx = ev.clientX - _lastEv.x, dy = ev.clientY - _lastEv.y;
+      const v = Math.sqrt(dx*dx + dy*dy) / dt;   // px/s
+      _mouseSpeed = _mouseSpeed * 0.75 + v * 0.25;  // 指数平滑，抗毛刺
+    }
+    _lastEv = {x: ev.clientX, y: ev.clientY}; _lastEvT = now;
+  }, {passive:true});
   setInterval(()=>{
-    const now = performance.now(); _t = now;
     if(!turb || !disp) return;
-    const ph = (now / 1000) * 2.4;
+    const now = performance.now();
+    const dt = 0.033;
+    const gain = Math.min(MAX_GAIN, _mouseSpeed * SPEED_GAIN);
+    _phSpeed = Math.min(14, 5.2 + gain);          // 基础加速且随鼠标速度联动
+    _ph += _phSpeed * dt;
+    const ph = _ph;
     const fx = 0.008 + 0.004 * Math.sin(ph * 0.9);
     const fy = 0.011 + 0.005 * Math.cos(ph * 0.7);
     try{ turb.setAttribute('baseFrequency', fx.toFixed(4) + ' ' + fy.toFixed(4)); }catch(e){}
-    const s = Math.max(0.5, BASE * (1 + 0.35 * Math.sin(ph * 1.3)));
+    const s = Math.max(0.5, BASE * (1 + 0.38 * Math.sin(ph * 1.3)));
     try{ disp.setAttribute('scale', s.toFixed(2)); }catch(e){}
   }, 33);
 
