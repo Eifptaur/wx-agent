@@ -150,10 +150,12 @@ body.custom-bg::before{opacity:1!important}
   0%,100%{transform:translateY(0)}
   50%{transform:translateY(-3px)}
 }
-/* 水光波纹 v11「投石入水」：跟随鼠标/所在卡片的透镜层（backdrop-filter 扭曲圈内一切）。
-   强度分布=中心最强 + 一圈圈向外荡开的波纹环（JS 每帧生成 mask 环带），衰减指数强→边缘基本无扭曲。 */
-#waveLens{position:fixed;left:0;top:0;width:520px;height:520px;margin:-260px 0 0 -260px;
-  border-radius:50%;pointer-events:none;z-index:9999;opacity:0;backdrop-filter:url(#cardWave2) saturate(1.02);
+/* 水光波纹 v12「模块内投石入水」：透镜=光标所在整个模块（顶栏/导航栏/功能卡），
+   波纹环从鼠标位置一波一波扩散到模块边缘（mask 环带，到达边缘自然衰减），绝不越过模块边界。
+   尺寸/位置/圆角由 JS 按模块 rect 实时设置。 */
+#waveLens{position:fixed;left:0;top:0;pointer-events:none;z-index:9999;opacity:0;
+  -webkit-backdrop-filter:url(#cardWave2) saturate(1.02);
+  backdrop-filter:url(#cardWave2) saturate(1.02);
   transform:translate3d(-9999px,-9999px,0)}
 input,select,textarea{backdrop-filter:blur(8px)}
 .pri{background:linear-gradient(135deg,#39B6F0,#1E9BE8 55%,#6C8CFF);box-shadow:0 4px 16px rgba(30,155,232,.38),inset 0 1px 0 rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.72);color:#fff}
@@ -980,7 +982,7 @@ th{color:var(--tx2);font-weight:500}
 
     <section id="sec-wavefx" class="card" data-sec>
       <h2>🌊 水光波纹（鼠标投石入水）</h2>
-      <div class="desc">鼠标像石子投入湖面：中心扭曲最强，一圈圈波纹向外扩散到所在的整个卡片，越往边缘越弱（衰减强，不影响阅读）；拖动越快波纹荡开越快。所有参数即时生效。</div>
+      <div class="desc">鼠标像石子投入湖面：扭曲从鼠标处一波波荡开，扩散范围=光标所在的整个模块（顶栏/导航栏/功能卡），沿模块边缘自然衰减，绝不越界；中心最强、边缘最弱，拖动越快荡得越快。所有参数即时生效。</div>
       <div class="row"><label>启用水光波纹</label><input type="checkbox" data-cfg="ui.wave_fx.enabled"><span class="hint">关闭后完全无扭曲</span></div>
       <div class="row"><label>扭曲强度</label><input type="number" min="0" max="40" step="1" data-cfg="ui.wave_fx.scale"><span class="hint">核心位移量（0=无扭曲；建议 8~24）</span></div>
       <div class="row"><label>基础波速</label><input type="number" min="1" max="20" step="0.2" data-cfg="ui.wave_fx.speed"><span class="hint">静止时的波动速度（越大越急促）</span></div>
@@ -2838,27 +2840,26 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
     _lastEv = {x: ev.clientX, y: ev.clientY}; _lastEvT = now;
   }, {passive:true});
 
-  /* ③ 投石入水 mask：中心最强(核心区) + rings 个环带随 ringPhase 向外扩散 + 强 falloff 衰减。
-     ringPhase 每循环 = 一圈环从中心荡到边缘（像石子入水一圈圈荡开）。 */
+  /* ③ 模块内投石入水 mask：中心=鼠标（相对透镜的 x/y 由 --wx/--wy 传入）、
+     半径=鼠标到模块四边最远距离（波纹到边缘即止）。环带相位 ringPhase：0→1 = 一波从中心荡到边缘。 */
   function waveMaskAt(now){
     const ringPhase = ((now / 1000) * W.ring_speed) % 1;
-    const N = 48;                          // 径向采样点数（性能与平滑折中）
+    const N = 48;
     const stops = [];
     for(let i=0;i<=N;i++){
-      const r = i / N;                     // 归一化径向 0=中心, 1=边缘
-      // 中心核心区随 r 快速衰减（falloff 指数越大边缘越弱）
-      let a = Math.pow(1 - r, W.falloff);
-      // 扩散环：每环一个高斯带，环半径越大强度越弱
+      const r = i / N;
+      let a = Math.pow(1 - r, W.falloff);                 // 中心最强、向外强衰减
       for(let k=0;k<W.rings;k++){
-        const rk = (((k + ringPhase) % W.rings) / W.rings);
-        const g = Math.exp(-Math.pow((r - rk) / 0.065, 2));     // 环带宽
-        a += g * 0.85 * Math.pow(1 - rk, W.falloff) * (1 - r);
+        const rk = (((k + ringPhase) % W.rings) / W.rings);   // 环位置 0→1（越外越弱）
+        const g = Math.exp(-Math.pow((r - rk) / 0.05, 2));    // 环带
+        a += g * 0.9 * Math.pow(1 - rk, W.falloff * 0.8) * (1 - r);
       }
       stops.push(Math.min(1, a).toFixed(3) + ' ' + (i*100/N).toFixed(1) + '%');
     }
-    return 'radial-gradient(circle,' + stops.join(',') + ')';
+    return 'radial-gradient(circle at var(--wx,50%) var(--wy,50%),' + stops.join(',') + ')';
   }
 
+  /* 周期动画：扭曲滤镜持续流动 + mask 环带每 ~110ms 推进（一波接一波扩散） */
   let _lastMaskAt = 0;
   setInterval(()=>{
     if(!turb || !disp || !lens) return;
@@ -2874,24 +2875,44 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
     try{ turb.setAttribute('baseFrequency', fx.toFixed(4) + ' ' + fy.toFixed(4)); }catch(e){}
     const s = Math.max(0.5, W.scale * (1 + 0.38 * Math.sin(ph * 1.3)));
     try{ disp.setAttribute('scale', s.toFixed(2)); }catch(e){}
-    // mask 每 ~120ms 更新一次环相位（扩散动画；避免每帧重算造成卡顿）
-    if(now - _lastMaskAt > 120){
+    if(now - _lastMaskAt > 110){
       _lastMaskAt = now;
       const m = waveMaskAt(now);
       try{ lens.style.maskImage = m; lens.style.webkitMaskImage = m; }catch(e){}
     }
   }, 33);
 
-  /* ④ 透镜跟随鼠标：透镜以鼠标为中心（半径 W.radius）；进入页面即显示，离开窗口隐藏 */
+  /* ④ 透镜 = 光标所在的整个模块（卡片/侧栏/顶栏/弹层…）：
+        - 模块 rect 设置透镜 size/pos/border-radius（波纹绝不越过模块边界）
+        - --wx/--wy = 鼠标在模块内的相对位置（渐变中心=鼠标）
+     无模块（空白处）→ 以小圆环显示（W.radius），只影响局部。 */
+  const MODULES = '.card,.side,.topbar,.box,.menu,.mask .box';
+  let _hostEl = null;
+  function fitLensToHost(el, ev){
+    const r = el.getBoundingClientRect();
+    if(!r.width || !r.height) return false;
+    lens.style.left = '0px'; lens.style.top = '0px';
+    lens.style.width = r.width + 'px'; lens.style.height = r.height + 'px';
+    lens.style.margin = '0';
+    let br = '0';
+    try{ br = getComputedStyle(el).borderRadius || '0'; }catch(e){}
+    lens.style.borderRadius = br;
+    lens.style.transform = 'translate3d(' + r.left + 'px,' + r.top + 'px,0)';
+    lens.style.setProperty('--wx', (ev.clientX - r.left) + 'px');
+    lens.style.setProperty('--wy', (ev.clientY - r.top) + 'px');
+    _hostEl = el;
+    return true;
+  }
   if(lens){
     document.addEventListener('mousemove', (ev)=>{
-      const r = W.radius;
-      lens.style.transform = 'translate3d(' + ev.clientX + 'px,' + ev.clientY + 'px,0)';
-      lens.style.width = (2*r) + 'px'; lens.style.height = (2*r) + 'px';
-      lens.style.margin = (-r) + 'px 0 0 ' + (-r) + 'px';
-      lens.style.opacity = '1';
+      const host = ev.target && ev.target.closest ? ev.target.closest(MODULES) : null;
+      if(host && W.enabled && fitLensToHost(host, ev)){
+        lens.style.opacity = '1';
+      } else {
+        lens.style.opacity = '0'; _hostEl = null;
+      }
     }, {passive:true});
-    document.addEventListener('mouseleave', ()=>{ lens.style.opacity = '0'; });
+    document.addEventListener('mouseleave', ()=>{ lens.style.opacity = '0'; _hostEl = null; });
   }
 
   /* ⑤ 应用按钮：保存 cfg.ui.wave_fx 并即时读回 */
