@@ -266,16 +266,20 @@ button:active{transform:scale(.97)}
 .ov-tools{position:absolute;top:14px;right:16px;display:flex;gap:6px;font-weight:400;z-index:80;pointer-events:auto}
 #sec-overview h2{padding-right:240px}
 button.tiny{padding:3px 10px;font-size:12px;border-radius:7px}
-/* 计费日志弹窗（更不透明） */
-.bill-dlg{background:#141C2E!important;border:1px solid #33415C!important;box-shadow:0 18px 60px rgba(0,0,0,.5)!important}
+/* ── 计费日志勾选删除弹窗（更不透明设计，按天勾选，可一键勾一天/一月，删除后概览自动刷新）── */
+.bill-dlg{background:linear-gradient(180deg,#101828,#0c1220)!important;border:1px solid #33415C!important;box-shadow:0 18px 60px rgba(0,0,0,.65),0 0 0 1px rgba(63,168,240,.10)!important;border-radius:14px}
 .bill-dlg .bd-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .bill-dlg .bd-head b{font-size:14px}
+.bill-dlg .bd-head b.whale-tag{font-weight:700;color:var(--blue)}
 .bill-dlg .bd-sel{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
 .bill-dlg .bd-sel button{font-size:12px;padding:3px 10px}
-.bill-list{max-height:300px;overflow:auto;border:1px solid var(--bd);border-radius:10px;padding:6px}
-.bill-list .row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid rgba(148,196,255,.08);margin:0;font-size:13px}
+.bill-list{max-height:340px;overflow:auto;border:1px solid rgba(148,196,255,.18);border-radius:10px;padding:6px;background:rgba(10,16,28,.6)}
+.bill-list .row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid rgba(148,196,255,.08);margin:0;font-size:13px;border-radius:8px}
+.bill-list .row:hover{background:rgba(63,168,240,.08)}
 .bill-list .row:last-child{border-bottom:none}
 .bill-list .row label{display:flex;gap:6px;align-items:center;flex:1;margin:0}
+.bill-list .row b{min-width:112px;font-weight:600}
+.bill-list .row .hint{flex:1}
 .bill-list b{color:var(--tx)}
 .card .desc{font-size:12.5px;color:var(--tx2);margin-bottom:12px}
 .row{display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
@@ -1602,6 +1606,7 @@ async function loadStatus(){
         $('st-plabel').textContent='截止 '+d+' 用量';
       }
       window.applyDay = applyDay;
+      window.__renderCal = ()=>{ renderCal(); };   // 计费删除后重绘日历
       function renderCal(){
         const y=Math.floor(ym/100), m=ym%100; ymEl.textContent=y+'年'+m+'月';
         const startDay=(new Date(y,m-1,1).getDay()+6)%7, days=new Date(y,m,0).getDate();
@@ -1681,49 +1686,77 @@ async function loadLog(){
 function openBillDlg(bills){
   const box = document.createElement('div');
   box.className = 'box bill-dlg';
-  box.style.cssText = 'width:min(560px,94vw);max-height:82vh;display:flex;flex-direction:column';
-  const listHtml = bills.map((b,i)=>
-    '<div class="row"><label><input type="checkbox" class="billDay" data-day="'+esc(b.day)+'"> '
-    +'<b>'+esc(b.day)+'</b> <span class="hint">'+b.tokens+' tok · ¥'+b.cost.toFixed(4)+' · '+b.calls+' 次</span></label></div>'
+  box.style.cssText = 'width:min(620px,94vw);max-height:84vh;display:flex;flex-direction:column';
+  const listHtml = bills.map(b=>
+    '<div class="row" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid rgba(148,196,255,.08);margin:0;font-size:13px;border-radius:8px">'
+    +'<label style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;margin:0">'
+    +'<input type="checkbox" class="billDay" data-day="'+esc(b.day)+'" style="width:15px;height:15px;flex-shrink:0"> '
+    +'<b style="min-width:96px;font-weight:600;color:var(--tx);flex-shrink:0">'+esc(b.day)+'</b> '
+    +'<span class="hint" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx2);font-size:12.5px">'
+    +b.tokens+' tok · ¥'+b.cost.toFixed(4)+' · '+b.calls+' 次 · '+b.sessions+' 会话</span>'
+    +'</label></div>'
   ).join('');
   box.innerHTML =
-    '<div class="bd-head"><b>🗑 勾选删除计费日志（'+bills.length+' 天）</b><span class="sp" style="flex:1"></span><button class="ghost tiny" id="bdClose">✕</button></div>'
-    +'<div class="hint" style="margin:0 0 6px">勾选要删除的天（可按住一条精确到年月日）；删除后概览自动刷新。操作不可恢复。</div>'
+    '<div class="bd-head"><b class="whale-tag">🗑 勾选删除计费日志</b><span class="hint">共 '+bills.length+' 天，精确到年月日；删除后概览自动刷新</span>'
+    +'<span class="sp" style="flex:1"></span><button class="ghost tiny" id="bdClose">✕</button></div>'
+    +'<div class="hint" style="margin:0 0 6px">勾选要删除的天（可一键勾今日/本月）；操作不可恢复。</div>'
     +'<div class="bd-sel">'
       +'<button class="ghost" id="bdSelAll">☑ 全选</button>'
       +'<button class="ghost" id="bdSelNone">清空勾选</button>'
-      +'<button class="ghost" id="bdSelDay">勾选今日</button>'
-      +'<button class="ghost" id="bdSelMonth">勾选本月</button>'
+      +'<button class="ghost" id="bdSelDay">✔ 勾选今日</button>'
+      +'<button class="ghost" id="bdSelMonth">✔ 勾选本月</button>'
     +'</div>'
     +'<div class="bill-list">'+listHtml+'</div>'
+    +'<div class="hint" id="bdSum" style="margin-top:8px"></div>'
     +'<div class="btns" style="justify-content:flex-end;margin-top:10px">'
       +'<button class="pri" id="bdOk">确认删除</button>'
       +'<button class="ghost" id="bdCancel">取消</button>'
     +'</div>';
-  const mm = document.createElement('div'); mm.className = 'mask'; mm.style.background = 'rgba(8,14,26,.78)';
+  const mm = document.createElement('div'); mm.className = 'mask'; mm.style.background = 'rgba(5,9,17,.88)';   // 更不透明
   mm.appendChild(box); document.body.appendChild(mm); maskOpen(mm);
+  box.style.animation = 'calPop .3s cubic-bezier(.2,1.4,.4,1)';
   const selDays = ()=>[...box.querySelectorAll('.billDay:checked')].map(c=>c.dataset.day);
   const setAll = (on)=>{ box.querySelectorAll('.billDay').forEach(c=>{ c.checked = on; }); };
-  box.querySelector('#bdSelAll').onclick = ()=>setAll(true);
-  box.querySelector('#bdSelNone').onclick = ()=>setAll(false);
-  box.querySelector('#bdSelDay').onclick = ()=>{ setAll(false); const t=new Date(); const s=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); box.querySelectorAll('.billDay').forEach(c=>{ if(c.dataset.day===s) c.checked=true; }); };
-  box.querySelector('#bdSelMonth').onclick = ()=>{ setAll(false); const t=new Date(); const m=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0'); box.querySelectorAll('.billDay').forEach(c=>{ if(c.dataset.day.startsWith(m)) c.checked=true; }); };
+  const sum = ()=>{
+    const days = selDays();
+    let tok = 0, cost = 0;
+    bills.forEach(b=>{ if(days.indexOf(b.day)>=0){ tok += b.tokens; cost += b.cost; } });
+    $('bdSum').textContent = '已选 '+days.length+' 天 · '+tok+' tok · ¥'+cost.toFixed(4)+(days.length===bills.length?'（全部选中）':'');
+  };
+  box.querySelectorAll('.billDay').forEach(c=> c.addEventListener('change', sum));
+  box.querySelector('#bdSelAll').onclick = ()=>{ setAll(true); sum(); };
+  box.querySelector('#bdSelNone').onclick = ()=>{ setAll(false); sum(); };
+  box.querySelector('#bdSelDay').onclick = ()=>{
+    setAll(false);
+    const t=new Date(); const s=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+    box.querySelectorAll('.billDay').forEach(c=>{ if(c.dataset.day===s) c.checked=true; });
+    sum();
+  };
+  box.querySelector('#bdSelMonth').onclick = ()=>{
+    setAll(false);
+    const t=new Date(); const m=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+    box.querySelectorAll('.billDay').forEach(c=>{ if(c.dataset.day.startsWith(m)) c.checked=true; });
+    sum();
+  };
   const close = ()=>{ maskClose(mm); mm.remove(); };
   box.querySelector('#bdClose').onclick = close;
   box.querySelector('#bdCancel').onclick = close;
   box.querySelector('#bdOk').onclick = async ()=>{
     const days = selDays();
     if(!days.length){ alert('请先勾选要删除的天'); return; }
-    if(!confirm('确认删除所选 '+days.length+' 天的计费日志？')) return;
+    if(!confirm('确认删除所选 '+days.length+' 天的计费日志？删除后不可恢复。')) return;
     try{
       const r = await getJSON('/api/stats/cal_delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days})});
       if(r.ok){
         close();
         toast('✅ 已删除 '+r.removed.length+' 天计费日志');
-        if(typeof loadStatus==='function') loadStatus();   // 概览自动刷新
+        if(typeof loadStatus==='function') loadStatus();          // 概览自动刷新（含今日/累计/日历）
+        if(window.__renderCal) window.__renderCal();              // 日历重绘（删掉的天从日历与明细消失）
+        if(window.applyDay && window.__calDay) window.applyDay({sessions:0,tokens:0,sent:0,cost:0}, window.__calDay);
       } else alert(r.error||'删除失败');
     }catch(e){ alert('删除失败：'+e.message); }
   };
+  sum();
 }
 
 /* ── 运行明细：思考过程 / token / 工具调用 ── */

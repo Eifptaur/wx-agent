@@ -912,69 +912,164 @@ class WebUI:
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                 elif path == "/api/stats/cal_clear":
-                    # ⑨ 一键清空计费历史（usage_stats.history 与周期内记录）
+                    # ⑨ 一键清空全部计费历史（按天文件真实删除 + 清零累计/周期/今日）
                     try:
-                        import json as _j2
+                        import glob as _gl
+                        _sd = parent._data_path("sessions")
+                        _n = 0
+                        for _f in _gl.glob(os.path.join(_sd, "????-??-??.jsonl")):
+                            try:
+                                os.remove(_f); _n += 1
+                            except Exception:
+                                pass
                         _p = parent._data_path("usage_stats.json")
                         if os.path.exists(_p):
+                            import json as _j2
                             with open(_p, "r", encoding="utf-8") as f:
                                 _us = _j2.load(f)
                             _us["history"] = []
+                            _us["day"] = {"sessions": 0, "calls": 0, "tokens": 0, "sent": 0, "cost": 0.0}
+                            _us["period"] = {"sessions": 0, "calls": 0, "tokens": 0, "sent": 0, "cost": 0.0}
+                            _us["total"] = {"sessions": 0, "calls": 0, "tokens": 0, "sent": 0, "cost": 0.0}
                             with open(_p, "w", encoding="utf-8") as f:
                                 _j2.dump(_us, f, ensure_ascii=False, indent=1)
-                        self._json({"ok": True, "note": "计费历史已清空"})
+                        self._json({"ok": True, "note": "已清空计费历史（%d 天记录全部删除，累计归零）" % _n})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                 elif path == "/api/stats/cal_list":
-                    # 勾选删除弹窗：列出全部计费日志（按天聚合，精确到年月日）
+                    # 勾选删除弹窗：列出全部计费日志——按天聚合自 data/sessions/YYYY-MM-DD.jsonl（精确到年月日）
                     try:
-                        import json as _j2
+                        import json as _j2, glob as _gl
+                        _sd = parent._data_path("sessions")
+                        _days = {}
+                        for _f in _gl.glob(os.path.join(_sd, "????-??-??.jsonl")):
+                            _day = os.path.basename(_f)[:10]
+                            if not re.match(r"^\d{4}-\d{2}-\d{2}$", _day):
+                                continue
+                            _d = _days.setdefault(_day, {"tokens": 0, "cost": 0.0, "calls": 0,
+                                                         "sessions": 0, "sent": 0})
+                            try:
+                                with open(_f, encoding="utf-8") as fh:
+                                    for _ln in fh:
+                                        _ln = _ln.strip()
+                                        if not _ln:
+                                            continue
+                                        try:
+                                            _o = _j2.loads(_ln)
+                                            _d["tokens"] += int(_o.get("tokens") or 0)
+                                            _d["cost"] += float(_o.get("cost") or 0)
+                                            _d["calls"] += int(_o.get("calls") or 0)
+                                            _d["sessions"] += 1
+                                            if _o.get("reply"):
+                                                _d["sent"] += 1
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
+                        # 同日期内多文件合并（罕见）
+                        _out = []
+                        for _day, _d in sorted(_days.items(), reverse=True):
+                            for k in ("tokens", "calls", "sessions", "sent"):
+                                _d[k] = int(_d[k])
+                            _d["cost"] = round(float(_d["cost"]), 4)
+                            _out.append({"day": _day, **_d})
+                        # 旧版 period 归档（history 的 start/end 字段）也并入
                         _p = parent._data_path("usage_stats.json")
-                        _hist = []
                         if os.path.exists(_p):
                             with open(_p, "r", encoding="utf-8") as f:
                                 _us = _j2.load(f)
-                            _hist = _us.get("history") or []
-                        out = []
-                        for h in _hist:
-                            if not isinstance(h, dict):
-                                continue
-                            day = str(h.get("day") or h.get("date") or h.get("ts") or "")[:10]
-                            if not re.match(r"^\d{4}-\d{2}-\d{2}$", day):
-                                continue
-                            out.append({"day": day,
-                                        "tokens": int(h.get("tokens") or 0),
-                                        "cost": round(float(h.get("cost") or 0), 4),
-                                        "calls": int(h.get("calls") or 0)})
-                        out.sort(key=lambda x: x["day"], reverse=True)
-                        self._json({"ok": True, "bills": out})
-                    except Exception as e:
-                        self._json({"ok": False, "error": str(e)})
-                elif path == "/api/stats/cal_delete":
-                    # 勾选删除：按天删除计费日志（POST {days:[...]}）
-                    try:
-                        import json as _j2
-                        _days = set(str(d) for d in (data.get("days") or []) if re.match(r"^\d{4}-\d{2}-\d{2}$", str(d)))
-                        if not _days:
-                            return self._json({"ok": False, "error": "没有有效的日期"})
-                        _p = parent._data_path("usage_stats.json")
-                        _removed = []
-                        if os.path.exists(_p):
-                            with open(_p, "r", encoding="utf-8") as f:
-                                _us = _j2.load(f)
-                            _keep = []
                             for h in _us.get("history") or []:
                                 if not isinstance(h, dict):
                                     continue
-                                day = str(h.get("day") or h.get("date") or h.get("ts") or "")[:10]
-                                if day in _days:
-                                    _removed.append(day)
-                                else:
-                                    _keep.append(h)
-                            _us["history"] = _keep
+                                day = str(h.get("day") or h.get("start") or "")[:10]
+                                if not re.match(r"^\d{4}-\d{2}-\d{2}$", day):
+                                    continue
+                                if any(x["day"] == day for x in _out):
+                                    continue   # 已有按天记录
+                                _out.append({"day": day, "tokens": int(h.get("tokens") or 0),
+                                             "cost": round(float(h.get("cost") or 0), 4),
+                                             "calls": int(h.get("calls") or 0),
+                                             "sessions": int(h.get("sessions") or 0),
+                                             "sent": int(h.get("sent") or 0)})
+                        _out.sort(key=lambda x: x["day"], reverse=True)
+                        self._json({"ok": True, "bills": _out})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
+                elif path == "/api/stats/cal_delete":
+                    # 勾选删除：按天删除计费日志（POST {days:[...]}）——真实删除当天文件 + 同步回调累计/周期/今日
+                    try:
+                        import json as _j2, glob as _gl
+                        _days = set(str(d) for d in (data.get("days") or [])
+                                    if re.match(r"^\d{4}-\d{2}-\d{2}$", str(d)))
+                        if not _days:
+                            return self._json({"ok": False, "error": "没有有效的日期"})
+                        _sd = parent._data_path("sessions")
+                        _gone = []
+                        _del_days = {}     # day -> sums（删除前算好，用于回补累计）
+                        for _f in _gl.glob(os.path.join(_sd, "????-??-??.jsonl")):
+                            _day = os.path.basename(_f)[:10]
+                            if _day not in _days:
+                                continue
+                            agg = {"tokens": 0, "cost": 0.0, "calls": 0, "sessions": 0, "sent": 0}
+                            try:
+                                with open(_f, encoding="utf-8") as fh:
+                                    for _ln in fh:
+                                        _ln = _ln.strip()
+                                        if not _ln:
+                                            continue
+                                        try:
+                                            _o = _j2.loads(_ln)
+                                            agg["tokens"] += int(_o.get("tokens") or 0)
+                                            agg["cost"] += float(_o.get("cost") or 0)
+                                            agg["calls"] += int(_o.get("calls") or 0)
+                                            agg["sessions"] += 1
+                                            if _o.get("reply"):
+                                                agg["sent"] += 1
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
+                            _del_days[_day] = agg
+                            try:
+                                os.remove(_f)
+                                _gone.append(_day)
+                            except Exception:
+                                pass
+                        if not _gone:
+                            # 没有对应文件：尝试只清历史归档
+                            _gone = list(_days)
+                        # 回补 usage_stats：删除天对应的 累计/周期/今日
+                        _p = parent._data_path("usage_stats.json")
+                        if os.path.exists(_p):
+                            with open(_p, "r", encoding="utf-8") as f:
+                                _us = _j2.load(f)
+                            _us["history"] = [h for h in (_us.get("history") or [])
+                                              if not isinstance(h, dict)
+                                              or str(h.get("day") or h.get("start") or "")[:10] not in _days]
+                            _today = time.strftime("%Y-%m-%d")
+                            for _k in ("total", "period"):
+                                _t = _us.get(_k) or {}
+                                for _day, agg in _del_days.items():
+                                    _t["tokens"] = max(0, int(_t.get("tokens") or 0) - int(agg["tokens"]))
+                                    _t["cost"] = max(0.0, float(_t.get("cost") or 0) - float(agg["cost"]))
+                                    _t["calls"] = max(0, int(_t.get("calls") or 0) - int(agg["calls"]))
+                                    _t["sessions"] = max(0, int(_t.get("sessions") or 0) - int(agg["sessions"]))
+                                    _t["sent"] = max(0, int(_t.get("sent") or 0) - int(agg["sent"]))
+                                _us[_k] = _t
+                            if _today in _del_days:
+                                _t = _us.get("day") or {}
+                                agg = _del_days[_today]
+                                _t["tokens"] = max(0, int(_t.get("tokens") or 0) - int(agg["tokens"]))
+                                _t["cost"] = max(0.0, float(_t.get("cost") or 0) - float(agg["cost"]))
+                                _t["calls"] = max(0, int(_t.get("calls") or 0) - int(agg["calls"]))
+                                _t["sessions"] = max(0, int(_t.get("sessions") or 0) - int(agg["sessions"]))
+                                _t["sent"] = max(0, int(_t.get("sent") or 0) - int(agg["sent"]))
+                                _us["day"] = _t
                             with open(_p, "w", encoding="utf-8") as f:
                                 _j2.dump(_us, f, ensure_ascii=False, indent=1)
-                        self._json({"ok": True, "note": "已删除 %d 天的计费日志" % len(_removed), "removed": _removed})
+                        self._json({"ok": True,
+                                    "note": "已删除 %d 天的计费日志（%s）" % (len(_gone), ", ".join(sorted(_gone)[:12])),
+                                    "removed": sorted(_gone)})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                 elif path == "/api/stats/cal":
