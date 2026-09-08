@@ -1710,23 +1710,6 @@ async function loadSessions(){
       if(r.ok) loadSessions(); else alert(r.error||'删除失败');
     }catch(e){ alert('删除失败：'+e.message); }
   };
-  // 计费删除：概览右上角两个按钮（一键删 / 勾选删弹窗）
-  if($('costClearAll')) $('costClearAll').onclick = async ()=>{
-    if(!confirm('确认一键删除全部计费历史（今日/周期/累计用量的历史记录）？')) return;
-    try{
-      const r=await getJSON('/api/stats/cal_clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      alert(r.ok?('已清空计费历史'):(r.error||'失败'));
-      if(r.ok) loadStatus();
-    }catch(e){ alert('失败：'+e.message); }
-  };
-  if($('costClearSel')) $('costClearSel').onclick = async ()=>{
-    try{
-      const r = await getJSON('/api/stats/cal_list',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      const bills = (r && r.bills) || [];
-      if(!bills.length){ alert('当前没有可删除的计费日志'); return; }
-      openBillDlg(bills);
-    }catch(e){ alert('加载计费日志失败：'+e.message); }
-  };
   const el = $('sessList');
   try{
     const r = await getJSON('/api/sessions?limit=30');
@@ -3651,6 +3634,28 @@ $('unifiedTierChk').addEventListener('change', ()=>renderGroupTierBox());
       const msg = r && r.ok ? ('✅ 意见已上传 '+((r.count||r.uploaded||0))+' 条') : ('上传失败：'+(r.error||'未配置'));
       $('uploadRst').textContent = msg; toast(msg);
     }catch(e){ $('uploadRst').textContent = '上传失败：'+e.message; }
+  };
+})();
+
+/* ── 概览右上角计费删除按钮：页面加载级绑定（不依赖 loadSessions 是否执行过）── */
+(function(){
+  const all = document.getElementById('costClearAll');
+  const sel = document.getElementById('costClearSel');
+  if(all) all.onclick = async ()=>{
+    if(!confirm('确认一键删除全部计费历史（今日/周期/累计用量的历史记录）？')) return;
+    try{
+      const r=await getJSON('/api/stats/cal_clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      alert(r.ok?('已清空计费历史'):(r.error||'失败'));
+      if(r.ok) loadStatus();
+    }catch(e){ alert('失败：'+e.message); }
+  };
+  if(sel) sel.onclick = async ()=>{
+    try{
+      const r = await getJSON('/api/stats/cal_list',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      const bills = (r && r.bills) || [];
+      if(!bills.length){ alert('当前没有可删除的计费日志'); return; }
+      openBillDlg(bills);
+    }catch(e){ alert('加载计费日志失败：'+e.message); }
   };
 })();
 
