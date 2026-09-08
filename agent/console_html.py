@@ -537,7 +537,7 @@ th{color:var(--tx2);font-weight:500}
       <div class="row"><label>种子库状态</label><div class="grow">
         <span class="hint" id="seedStats" style="display:inline-block">加载中…</span>
         <button id="seedReload" class="ghost" style="margin-left:8px">刷新</button>
-        <span class="hint">官方精选 91 条（data/seed_library.json）；「社区与学习」页可导入你的金句墙种子。</span>
+        <span class="hint">趣味种子库（内置官方 212 条 + 你导入的金句，合计可在下方状态看到）；「社区与学习」页可导入金句墙种子。</span>
       </div></div>
     </section>
 
