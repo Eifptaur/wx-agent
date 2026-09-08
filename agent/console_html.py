@@ -303,6 +303,9 @@ pre.out{background:var(--code-bg);color:var(--code-tx);border-radius:10px;paddin
   overflow:auto;margin-top:8px;white-space:pre-wrap;word-break:break-all}
 
 /* ── 概览 ── */
+#calGrid button{transition:transform .12s ease,box-shadow .12s ease,background .12s ease,border-color .12s ease}
+#calGrid button:hover{transform:scale(1.06)}
+#calGrid button.sel{background:var(--blue)!important;color:#fff!important;font-weight:700;transform:scale(1.12);box-shadow:0 0 0 2px rgba(63,168,240,.55),0 4px 12px rgba(63,168,240,.35)}
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
 .stat .s{background:var(--bg-solid);border:1px solid var(--bd);border-radius:10px;padding:12px 14px}
 .stat .s b{font-size:20px;display:block;color:var(--blue)}
@@ -399,7 +402,7 @@ th{color:var(--tx2);font-weight:500}
         <div class="s"><b id="st-groups">0</b><span>目标群</span></div>
         <div class="s"><b id="st-r5c">—</b><span>最近5条成本</span></div>
         <div class="s"><b id="st-ac">—</b><span>平均每条成本</span></div>
-        <div class="s"><b id="st-extra">—</b><span>本次其他工具成本</span></div>
+        <div class="s"><b id="st-extra">—</b><span>今日其他工具成本</span></div>
         <div class="s"><b id="st-extra2">—</b><span>累计其他工具成本</span></div>
       </div>
       <div style="margin:10px 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1461,6 +1464,7 @@ async function loadStatus(){
         dh.style.color = s.dep_ok ? 'var(--ok-tx)' : 'var(--err-tx)';
       }
     }catch(e){}
+    if(window.__calSel && window.applyDay){ window.applyDay(window.__calDay, window.__calSel); return; }   // 选中日期：概览保持"选中日"数据，不覆盖回今日
     $('st-sessions').textContent = s.stats.sessions;
     $('st-tokens').textContent = s.stats.tokens;
     $('st-sent').textContent = s.stats.sent;
@@ -1481,6 +1485,29 @@ async function loadStatus(){
       if(!grid||!det||!ymEl) return;
       const now=new Date(); let ym=now.getFullYear()*100+(now.getMonth()+1);
       const pad=n=>String(n).padStart(2,'0');
+      let sel=null;
+      function markSel(){
+        grid.querySelectorAll('button.sel').forEach(b=>b.classList.remove('sel'));
+        if(sel){
+          const d=parseInt(sel.slice(-2),10);
+          const b=[...grid.querySelectorAll('button')].find(x=>x.textContent===String(d));
+          if(b) b.classList.add('sel');
+        }
+      }
+      function applyDay(r,d){
+        window.__calSel=d; window.__calDay=r;    // 记录选中日（概览刷新时尊重）
+        const fmt=o=>('¥'+(o?parseFloat(o.cost||0):0).toFixed(4)+' · '+((o?parseInt(o.tokens||0):0))+' tok · '+((o?parseInt(o.sessions||0):0))+' 会话');
+        $('st-sessions').textContent=r.sessions||0;
+        $('st-tokens').textContent=r.tokens||0;
+        $('st-sent').textContent=r.sent||0;
+        $('st-cost').textContent='¥'+(r.cost||0).toFixed(4);
+        $('st-dcost').textContent=fmt(r);
+        $('st-dlabel').textContent=d+' 用量（'+(r.sent||0)+' 条）';
+        $('st-extra').textContent=fmt(r);
+        $('st-pcost').textContent=fmt(r);
+        $('st-plabel').textContent='截止 '+d+' 用量';
+      }
+      window.applyDay = applyDay;
       function renderCal(){
         const y=Math.floor(ym/100), m=ym%100; ymEl.textContent=y+'年'+m+'月';
         const startDay=(new Date(y,m-1,1).getDay()+6)%7, days=new Date(y,m,0).getDate();
@@ -1493,15 +1520,18 @@ async function loadStatus(){
           c.textContent=day;
           const ds=y+'-'+pad(m)+'-'+pad(day);
           if(ds===today.getFullYear()+'-'+pad(today.getMonth()+1)+'-'+pad(today.getDate())) c.style.outline='1px solid var(--blue)';
-          c.onclick=()=>loadDay(ds);
+          c.onclick=()=>{ loadDay(ds); };
           grid.appendChild(c);
         }
+        markSel();
       }
       async function loadDay(d){
+        sel=d; markSel();
         det.textContent='加载中 '+d+'…';
         try{
           const r=await getJSON('/api/stats/cal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({d})});
           det.textContent=d+'：'+(r.sessions||0)+' 会话 · '+(r.tokens||0)+' tok · ¥'+(r.cost||0).toFixed(4)+' · '+(r.sent||0)+' 条';
+          applyDay(r,d);
         }catch(e){ det.textContent='加载失败：'+e.message; }
       }
       const prev=$('calPrev'), next=$('calNext');
