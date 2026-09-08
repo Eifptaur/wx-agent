@@ -2290,10 +2290,10 @@ $('codeCheck').onclick = async ()=>{
   pre.classList.remove('dn');
   $('codeCheckTip').textContent='代码检测启动中…';
   try{
-    await getJSON('/api/code-check',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:15000});
+    await getJSON('/api/code-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deps: !!window.__ccDeps}),timeoutMs:15000});
     // 轮询进度（每项显示百分比 + 当前项）
     let done=false, r=null;
-    for(let i=0;i<400 && !done;i++){
+    for(let i=0;i<200 && !done;i++){
       const pr = await getJSON('/api/code-check/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:10000});
       const prg = (pr&&pr.progress)||{};
       const d=prg.done||0, t=prg.total||0, cur=prg.current||'';
@@ -2310,11 +2310,11 @@ $('codeCheck').onclick = async ()=>{
     pre.textContent = lines.join('\n');
     $('codeCheckTip').textContent = '';
   }catch(e){ pre.textContent='代码检测失败：'+e.message; $('codeCheckTip').textContent=''; }
-  finally{ btn.disabled=false; if($('codeCheckDeps')) $('codeCheckDeps').disabled=false; }
+  finally{ btn.disabled=false; if($('codeCheckDeps')) $('codeCheckDeps').disabled=false; window.__ccDeps = false; }
 };
 if($('codeCheckDeps')) $('codeCheckDeps').onclick = async ()=>{
   const btn=$('codeCheckDeps'); btn.disabled=true; if($('codeCheck')) $('codeCheck').disabled=true;
-  $('codeCheckTip').textContent='依赖详细核对（含依赖版本，与代码检测合并跑并显示进度）…';
+  window.__ccDeps = true;   // 真跑依赖版本核对（之前没传 deps 实际是空跑）
   $('codeCheck').click();
 };
 
@@ -3315,6 +3315,12 @@ async function loadSeedStats(){
 }
 if($('seedReload')) $('seedReload').onclick = loadSeedStats;
 loadSeedStats();
+/* 常驻进度栏：页面加载即显示代码检测状态（运行中实时百分比，结束后保留结果提示） */
+(function(){
+  const persist=()=>{ if($('codeCheckTip') && !$('codeCheckTip').textContent) $('codeCheckTip').textContent='代码检测：尚未运行（点上方「代码检测」或「代码检测＋依赖核对」）'; };
+  persist();
+  document.addEventListener('DOMContentLoaded', persist);
+})();
 /* 机器学习：确定学习 / 学习评估 */
 (function(){
   const r=$('learnRst');
