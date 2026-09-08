@@ -1598,7 +1598,9 @@ async function saveAllBtn(btn){
   try{
     let raw = null;
     try{ raw = JSON.parse($('rawjson').value); }catch(e){}
-    if(raw){ cfg = raw; } else { syncFromForm(); wsSyncFromForm(); if(typeof syncMemGroupsToCfg==='function') syncMemGroupsToCfg(); }
+    // 优先用「界面表单」的改动（syncFromForm），避免 rawjson 旧值覆盖界面修改（如 text_style 切换丢失）。
+    // 仅当用户确实改了「原始JSON」且表单未改动时才用 rawjson——此处以界面为主。
+    syncFromForm(); wsSyncFromForm(); if(typeof syncMemGroupsToCfg==='function') syncMemGroupsToCfg();
     await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
     toast('✅ 已保存，刷新页面生效…');
     setTimeout(()=>{
