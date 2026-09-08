@@ -1,21 +1,9 @@
-' wx-agent launcher (no window): starts the hidden watchdog (pyw/pythonw hidden).
-' The project does NOT need PowerShell at all - no cmd/PowerShell window is shown.
 Option Explicit
-Dim fso, sh, root, script, cmd
+' wx-agent launcher used by autostart (no window): delegates to the full one-click
+' flow (ensure Python -> deps -> selftest -> launch). Runs hidden.
+Dim fso, sh, root, root2
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set sh  = CreateObject("WScript.Shell")
-root = fso.GetParentFolderName(WScript.ScriptFullName)
-script = root & "\scripts\watchdog.py"
-On Error Resume Next
-cmd = "pyw.exe -3 """ & script & """"
-sh.Run cmd, 0, False
-If Err.Number <> 0 Then
-    Err.Clear
-    cmd = "pythonw.exe """ & script & """"
-    sh.Run cmd, 0, False
-    If Err.Number <> 0 Then
-        Err.Clear
-        cmd = "python.exe """ & script & """"
-        sh.Run cmd, 0, False
-    End If
-End If
+root = fso.GetParentFolderName(WScript.ScriptFullName)     ' scripts\
+root2 = fso.GetParentFolderName(root)                       ' program root
+sh.Run "wscript.exe """ & root2 & "\一键启动.vbs""", 0, False

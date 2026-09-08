@@ -1,9 +1,12 @@
 @echo off
-set "VBS=%~dp0..\Æô¶¯»úÆ÷ÈË.vbs"
+rem Register wx-agent auto-start (one-click flow: Python auto-provision -> deps -> selftest -> launch)
+set "VBS=%~dp0..\ä¸€é”®å¯åŠ¨.vbs"
 schtasks /create /tn "wx-agent" /tr "\"wscript.exe\" \"%VBS%\"" /sc onlogon /rl limited /f
 if errorlevel 1 (
-  echo ×¢²á¿ª»ú×ÔÆôÊ§°Ü£¨¿ÉÄÜĞèÒª¹ÜÀíÔ±È¨ÏŞ£©
+  echo Register failed. Try run as Administrator.
+  echo Zhu ce shi bai, qing yi guan li yuan quan xian yun xing.
 ) else (
-  echo ÒÑ×¢²á¿ª»ú×ÔÆô£ºwx-agent£¨wscript ÎŞ´°¿Ú·½Ê½£©
+  echo Registered auto-start task wx-agent (logon).
+  echo Yi zhu ce kai ji zi dong qi dong.
 )
 pause
