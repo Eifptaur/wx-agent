@@ -677,24 +677,39 @@ class WebUI:
                     try:
                         from agent import llm
                         from agent.scoring import top_reactions
-                        rxns = top_reactions(8)
+                        rxns = top_reactions(14)
+                        # 只取"机器人自己发的、群友反响好"的话术；剔除系统/平台侧文本（如"撤回/一拍/xx加入了"这类非机器人发言）
+                        import re as _re
+                        _JUNK = ("撤回", "拍一拍", "拍拍", "加入了", "邀请", "退出了", "对方撤回", "你撤回", "以上是", "语音", "图片", "[表情]")
+                        rxns = [r for r in rxns if str(r.get("text") or "").strip() and not any(j in str(r.get("text") or "") for j in _JUNK)]
                         if rxns:
-                            lines = ["下面是我最近【机器学习】学到的、群里反响好的话术（含热度分）："]
+                            lines = ["下面是我【机器人自己发的】、且群友反响好的话术（含热度分，供评估学习效果）："]
                             for r in rxns:
-                                lines.append("- “%s”（热度 %.0f）" % (str(r.get("text") or "")[:60], float(r.get("score") or 0)))
+                                lines.append("- “%s”（热度 %.2f)" % (str(r.get("text") or "")[:60], float(r.get("score") or 0)))
                             sample = "\n".join(lines)
                         else:
-                            sample = "（当前还没有学到的高分反应——请先让机器人多聊、等群友有热烈回应后，评分引擎才会积累。）"
-                        RULES = """【机器学习效果评分细则】（每维 0~100 精确到分，总分=均值）：
-1 自然度：像真人口吻，无AI腔/总结腔；
-2 有趣度：有梗/机灵/让人想接；
-3 人设贴合：是不是该角色会说的话（不换魂）；
-4 机敏度：接话时机、回球、处理冷场/被调侃的水准。
-得分说明：五维均值。并给出"相比未学习前的对话质量提升幅度"（百分之多少，0~100%），一句话点评哪方面进步最明显。"""
+                            sample = "（当前没有可评估的机器人高反应发言——请让机器人多聊、等群友有热烈回应后评分引擎再积累。）"
+                        RULES = """【机器学习效果评分细则】（每维 0~100.00 精确到百分位，总分=8 维加权均值，保留 2 位小数）
+务必只针对上面【机器人自己发的】话术评分，绝不把系统提示/用户消息当机器人发言。
+维度：
+1 自然度(12%)：像真人口吻，无AI腔/总结腔；
+2 有趣度(16%)：有梗、机灵、让人想接；
+3 人设贴合(20%)：是不是该角色会说的话（绝不换魂）；
+4 机敏度(12%)：接话时机、回球、处理冷场/被调侃；
+5 生活气息(12%)：是不是有"真人日常"的味道，而非机械应答；
+6 观察力(10%)：有没有抓住群里细节/梗/前后文；
+7 节奏感(10%)：长短句、停顿、分条像不像真人打字；
+8 口语真实(8%)：用词口语化、不书面、不列点。
+输出格式（务必）：
+各维分：自然=X.XX 有趣=X.XX 人设=X.XX 机敏=X.XX 生活=X.XX 观察=X.XX 节奏=X.XX 口语=X.XX
+总分：XX.XX
+相比未学习前的对话质量提升幅度：XX.X%
+一句话点评：……（并指出哪一维进步最明显）
+"""
                         sys = [{"role": "system", "content": RULES}, {"role": "user", "content": sample}]
-                        r = llm.chat_completion(sys, temperature=0.3)
+                        r = llm.chat_completion(sys, temperature=0.2)
                         self._json({"ok": True, "eval": (r.get("message") or {}).get("content", ""),
-                                    "note": "已按评分细则评估（分数越高越好；括号内为相对未学习的提升）"})
+                                    "note": "已按8维细则(model评分)评估，分数精确到百分位；仅评机器人发言"})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                     parent.pause_fn()
