@@ -822,6 +822,7 @@ th{color:var(--tx2);font-weight:500}
       <div class="row"><label>在线评分</label><input type="checkbox" data-cfg="scoring.online_scoring"><span class="hint">每次 reaction 后调 LLM 打分（费 token，默认关）</span></div>
       <div class="row"><label>热度衰减</label><input type="checkbox" data-cfg="scoring.heat_decay" checked><span class="hint">老梗降权，防饱和</span></div>
       <div class="row"><label>导入金句种子</label><div class="grow"><textarea id="seedImport" rows="2" placeholder="粘贴金句墙导出的文本，每行一条…"></textarea>
+        <div class="row"><label>自定义金句(选单)</label><div class="grow"><input type="text" id="seedCustomTxt" placeholder="输入一句你的自定义金句，点「添加」进库（学习/接梗参考）" style="flex:1"><button id="seedCustomAdd" class="ghost">添加</button><span id="seedCustomRst" class="hint"></span></div></div>
         <div class="btns"><button id="seedImportBtn" class="ghost">导入种子库</button><button id="seedImportFile" class="ghost">选择文件导入</button><input type="file" id="seedFile" accept=".txt,.json,text/plain,application/json" style="display:none"><span class="hint" id="seedImportRst"></span></div>
         <div class="hint">粘贴导入（每行一条）；或「选择文件导入」读 txt/json 文件——导入自动查重（精确+72% 相似度）后写入并立即生效。</div>
       </div></div>
@@ -3341,6 +3342,19 @@ async function loadSeedStats(){
 }
 if($('seedReload')) $('seedReload').onclick = loadSeedStats;
 loadSeedStats();
+/* ⑦ 金句自定义选单：自定义金句添加进库 */
+(function(){ const a=$('seedCustomAdd'); if(!a) return;
+  a.onclick = async ()=>{
+    const inp=$('seedCustomTxt'); const t=(inp&&inp.value)||'';
+    if(!t.trim()){ if($('seedCustomRst')) $('seedCustomRst').textContent='先写一句金句'; return; }
+    try{
+      const r=await getJSON('/api/scoring/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t.trim()})});
+      if($('seedCustomRst')) $('seedCustomRst').textContent = r.ok?('已添加 '+r.imported+' 条'):(r.error||'添加失败');
+      if(inp) inp.value='';
+      if(typeof loadSeedStats==="function") loadSeedStats();
+    }catch(e){ if($('seedCustomRst')) $('seedCustomRst').textContent='添加失败：'+e.message; }
+  };
+})();
 /* ③ 会话 Cookie 可认证后：移除地址栏 ?token=，防止他人复制完整 URL 直接登入 */
 (function(){
   try{
