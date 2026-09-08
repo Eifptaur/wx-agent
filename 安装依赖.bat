@@ -1,17 +1,17 @@
 @echo off
-rem wx-agent dependency installer (auto Python provisioning + pip install from PyPI or offline\wheels)
-title wx-agent - install deps
+rem wx-agent ÒÀÀµ°²×°Æ÷£¨×Ô¶¯±£ÕÏ Python£ºÏµÍ³ Python »ò×Ô¶¯½âÑ¹/ÏÂÔØÂÌÉ«°æ£»ÒÀÀµ´Ó PyPI »ò offline\wheels °²×°£©
+title wx-agent - °²×°ÒÀÀµ
 set "ROOT=%~dp0"
-echo wx-agent: checking Python environment...
+echo wx-agent£ºÕıÔÚ¼ì²é Python »·¾³...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\setup_python.ps1"
 set /p PYPATH=<"%ROOT%logs\python_path.txt"
 if not defined PYPATH (
-  echo [ERROR] No Python available and auto setup failed. Check network / offline package.
+  echo [´íÎó] Ã»ÓĞ¿ÉÓÃµÄ Python£¬×Ô¶¯ÅäÖÃÒ²Ê§°ÜÁË¡£Çë¼ì²éÍøÂç»òÀëÏß°ü£¨offline\python£©¡£
   pause
   exit /b 1
 )
-echo Using Python: %PYPATH%
+echo Ê¹ÓÃ Python£º%PYPATH%
 %PYPATH% -X utf8 "%ROOT%scripts\setup_deps.py"
 echo.
-echo Done. Now run self-test: scripts\selftest or just double-click ä¸€é”®å¯åŠ¨.vbs
+echo ÒÀÀµÍê³É¡£ÏÂÒ»²½£ºÔËĞĞ×Ô¼ì£¨scripts\×Ô¼ì.bat£©£¬»òÖ±½ÓË«»÷¡¸Ò»¼üÆô¶¯.vbs¡¹¡£
 pause

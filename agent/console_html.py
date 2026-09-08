@@ -179,9 +179,11 @@ a{color:var(--blue)}
 /* ── 顶栏 ── */
 .topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;padding:10px 20px;
   background:var(--topbar);backdrop-filter:blur(8px);border-bottom:1px solid var(--bd)}
-.topbar .logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700}
-/* 鲸鱼徽章：绿底 + 白鲸主体（可拖拽：按住鲸鱼拖出，松开随机三态返回） */
-.whale-badge{position:relative;width:52px;height:52px;border-radius:13px;overflow:hidden;cursor:grab;
+.topbar button{white-space:nowrap}
+.topbar .logo{display:flex;align-items:center;gap:12px;font-size:17px;font-weight:700;min-width:0}
+.topbar .logo span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* 鲸鱼徽章：绿底 + 白鲸主体（可拖拽：按住鲸鱼拖出，松开随机三态返回）；flex 不收缩，尺寸恒定 */
+.whale-badge{position:relative;flex:0 0 52px;min-width:52px;width:52px;height:52px;border-radius:13px;overflow:hidden;cursor:grab;
   background:url(/assets/logo-bg.png) center/cover;box-shadow:0 2px 8px rgba(31,41,55,.15)}
 .whale-badge.whale-open{overflow:visible}      /* 拖拽中取消裁切 */
 .whale-badge img{position:absolute;left:8px;bottom:6px;width:36px;height:36px;
@@ -260,8 +262,9 @@ button:active{transform:scale(.97)}
 
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .card h2{font-size:15px;margin-bottom:4px;color:var(--blue);display:flex;align-items:center;gap:6px}
-/* 首页右上角工具按钮（计费删除）——绝对定位右浮，保证可点层级 */
-.ov-tools{margin-left:auto;display:inline-flex;gap:6px;font-weight:400;position:relative;z-index:80;pointer-events:auto}
+/* 首页右上角工具按钮（计费删除）——绝对定位到卡片右上角，与标题分离，保证可点层级 */
+.ov-tools{position:absolute;top:14px;right:16px;display:flex;gap:6px;font-weight:400;z-index:80;pointer-events:auto}
+#sec-overview h2{padding-right:240px}
 button.tiny{padding:3px 10px;font-size:12px;border-radius:7px}
 /* 计费日志弹窗（更不透明） */
 .bill-dlg{background:#141C2E!important;border:1px solid #33415C!important;box-shadow:0 18px 60px rgba(0,0,0,.5)!important}
@@ -419,10 +422,11 @@ th{color:var(--tx2);font-weight:500}
   <main class="main">
 
     <section id="sec-overview" class="card" data-sec>
-      <h2>概览<span class="ov-tools">
+      <span class="ov-tools">
         <button class="ghost tiny" id="costClearAll" type="button" title="一键删除全部计费历史记录">🗑 一键删</button>
         <button class="ghost tiny" id="costClearSel" type="button" title="打开计费日志弹窗，勾选删除">☑ 勾选删</button>
-      </span></h2>
+      </span>
+      <h2>概览</h2>
       <div class="desc">机器人运作状态与账户信息（数据每 8 秒自动刷新）。</div>
       <div class="ov-checkbar" id="codeCheckTip" style="font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:10px;border:1px solid var(--blue-line);background:rgba(63,168,240,.07);color:var(--blue);margin-bottom:12px">代码检测：尚未运行（点「检测中心」页的代码检测/代码检测＋依赖核对）</div>
       <div class="stat">
@@ -980,7 +984,7 @@ th{color:var(--tx2);font-weight:500}
         <option value="dark">深色</option>
         <option value="system">跟随系统自动</option></select></div></div>
       <div class="row"><label>界面文案风格</label><div class="grow"><select data-cfg="ui.text_style">
-        <option value="">正常</option>
+        <option value="normal">正常</option>
         <option value="whale">🐋 鲸语</option>
       </select><span class="hint">切换后保存设置（自动刷新）即生效；功能完全一致。</span></div></div>
       <div class="row"><label>点击前清遮挡</label><input type="checkbox" data-cfg="ui.clean_overlays"></div>
@@ -1335,19 +1339,40 @@ function syncThemeFromCfg(){
    背景靠 body.custom-bg class + CSS 生效；光标同理改为"html.whale-cursor class + cursor:url() 原生光标"，
    不依赖 JS 跟随动画（更可靠、能真正渲染）。图片在服务端已 resize ≤128（CSS 原生光标尺寸上限）。 ── */
 const CURSOR_DEFAULT_URL = '/assets/cursor.png';
+const CURSOR_DEFAULT_NOD_URL = '/assets/cursor-nod.png';
 const CURSOR_CUSTOM_URL = '/assets/custom-cursor.png';
+const CURSOR_CUSTOM_NOD_URL = '/assets/custom-cursor-nod.png';
 const WHALE_CURSOR = (function(){
   const DEFAULT_URL = CURSOR_DEFAULT_URL;
+  const DEFAULT_NOD = CURSOR_DEFAULT_NOD_URL;
   const CUSTOM_URL = CURSOR_CUSTOM_URL;
-  let url = DEFAULT_URL, enabled = false;
-  function apply(){
+  const CUSTOM_NOD = CURSOR_CUSTOM_NOD_URL;
+  let url = DEFAULT_URL, nodUrl = DEFAULT_NOD, enabled = false, nodTimer = null;
+  function setStyle(u){
     let st = document.getElementById('whaleCursorStyle');
     if(!st){ st = document.createElement('style'); st.id = 'whaleCursorStyle'; document.head.appendChild(st); }
-    const u = url + '?v=' + Date.now();      // cache-bust：防浏览器缓存旧图/旧 404
     // 注意：cursor:url() 需同时覆盖 html 与所有元素；图片加载失败用 auto（系统默认）兜底
     st.textContent = 'html.whale-cursor,html.whale-cursor *{cursor:url("'+u+'") 8 8, auto!important}';
   }
-  function setCustom(u){ url = u || DEFAULT_URL; if(enabled) apply(); }
+  function apply(){ setStyle(url + '?v=' + Date.now()); }
+  function applyNod(){ setStyle(nodUrl + '?v=' + Date.now()); }
+  // 点击时点头：mousedown 换成歪头帧，180ms 后换回
+  document.addEventListener('mousedown', ()=>{
+    if(!enabled) return;
+    applyNod();
+    clearTimeout(nodTimer);
+    nodTimer = setTimeout(apply, 180);
+  });
+  function setCustom(u){
+    url = u || DEFAULT_URL;
+    nodUrl = DEFAULT_NOD;
+    if(u){
+      const probe = new Image();
+      probe.onload = ()=>{ nodUrl = CUSTOM_NOD + '?v=' + Date.now(); if(enabled) apply(); };
+      probe.src = CUSTOM_NOD + '?v=' + Date.now();
+    }
+    if(enabled) apply();
+  }
   function set(on){
     enabled = !!on;
     if(on){ document.documentElement.classList.add('whale-cursor'); apply(); }
@@ -2381,7 +2406,7 @@ $('refreshLog').onclick = loadLog;
 $('balance-badge').onclick = loadBalance;
 $('rawJsonBtn').onclick = ()=>{ window.open('/api/config'+(URL_TOKEN?('?token='+URL_TOKEN):''),'_blank'); };
 $('pauseBtn').onclick = async ()=>{
-  try{ await getJSON($('pauseBtn').textContent==='暂停'?'/api/pause':'/api/resume',{method:'POST'}); loadStatus(); }catch(e){toast(e.message)}
+  try{ await getJSON($('pauseBtn').textContent.includes('暂停')?'/api/pause':'/api/resume',{method:'POST'}); loadStatus(); }catch(e){toast(e.message)}
 };
 /* ── 通用确认弹窗（mask + box + 果冻图标），替代原生 confirm ── */
 function confirmBox(title, lines, okLabel, onOk, danger){
@@ -3182,37 +3207,42 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
 
 /* ── 🐋 鲸语版界面文案：DeepSeek 梗（V我50/服务器繁忙/CPU在烧/先白嫖）；功能说明照旧 ── */
 const WHALE_TXT = {
-  "wx-agent 控制台": "wx-agent 控制台 · V我50，解锁下一句",
+  "wx-agent 控制台": "🐋 鲸鲸号 · 深度摸鱼",
   "概览": "🐋 概览 · 我是AI，别催，CPU还在烧",
   "检测中心（代码检测 / 鼠标操作检测）": "检测中心（先体检，再摸鱼）",
   "体检与功能自检": "检测中心 · 出远门前先体检",
   "功能自检清单（按重要性排序）": "功能自检清单（按重要性，一个一个过）",
   "调试 · 高级功能": "调试 · 高级功能（一般人我不告诉他）",
+  "调试·高级功能": "调试·高级功能（一般人我不告诉他）",
   "运行明细": "📋 运行明细 · 内心戏全程有记录",
   "模型 API": "🧊 模型 API · 让我先推理一下，别插嘴",
   "微信": "💬 微信 · 收到，正在假装思考",
   "拍一拍（行为）": "👋 拍一拍 · 拍我干嘛，我只是个蓝鲸",
   "拍一拍": "👋 拍一拍 · 拍我干嘛，我只是个蓝鲸",
   "记忆（群友印象）": "🧠 记忆 · 好像记得…算了不装了",
-  "记忆共享": "🤝 记忆共享 · 它记得=我记得，别问",
   "记忆（共享设置）": "🤝 记忆共享 · 它记得=我记得，别问",
+  "记忆": "🧠 记忆 · 好像记得…算了不装了",
+  "记忆共享": "🤝 记忆共享 · 它记得=我记得，别问",
   "人设与响应": "🎭 人设 · 今天演谁？剧本拿来",
   "社区与学习": "📚 社区 · 好东西先白嫖再说",
   "发送限制": "🚦 发送限制 · 我不回你，就是我在偷懒",
   "联网搜索": "🔎 联网搜索 · 我去搜搜，先不告诉你结果",
   "服务器": "🖥️ 服务器 · 服务器繁忙，再试一次",
   "界面适配（DPI / 遮挡 / 主题）": "🎨 界面 · AI也要体面",
+  "界面适配": "🎨 界面 · AI也要体面",
   "🐋 光标设置": "🖱️ 光标设置 · 别看我，看我的鼠标",
+  "光标设置": "🖱️ 光标设置 · 别看我，看我的鼠标",
   "🌊 水光波纹（鼠标投石入水）": "🌊 水光波纹 · 人家怕水，我就爱摸鱼",
   "🌊 水光波纹": "🌊 水光波纹 · 人家怕水，我就爱摸鱼",
   "水光波纹": "🌊 水光波纹 · 人家怕水，我就爱摸鱼",
   "运行日志": "📜 运行日志 · 我的内心OS全在这",
   "完整配置 JSON（高级）": "📄 原始 JSON · 底裤都给你看",
+  "原始 JSON": "📄 原始 JSON · 底裤都给你看",
   "保存全部设置": "保存全部设置（存好了，我不会失忆的）",
-  "暂停": "⏸ 暂停（先歇会儿，别喊我）",
-  "恢复": "▶ 恢复（满血复活，继续干活）",
-  "停止": "停止（今日打烊，勿扰）",
-  "重启": "重启（我又行了，且行且珍惜）",
+  "暂停": "⏸ 暂停（歇会儿）",
+  "恢复": "▶ 恢复（满血）",
+  "停止": "停止（打烊）",
+  "重启": "重启（我又行了）",
   "测试 API 连通": "测试 API 连通（先冲个电，马上好）",
   "代码检测＋依赖核对": "代码检测＋依赖核对（少了什么先补课）",
   "代码检测": "代码检测（先查bug，再查心情）",
@@ -3242,9 +3272,9 @@ function applyWhale(){
     // 顶栏徽标
     const lg = document.querySelector('.logo span');
     if(lg && lg.textContent.indexOf('鲸鲸号') < 0){
-      lg.innerHTML = lg.innerHTML.replace('wx-agent 控制台', 'wx-agent 控制台 · 🐋 鲸鲸号');
+      lg.innerHTML = lg.innerHTML.replace('wx-agent 控制台', '🐋 鲸鲸号 · 深度摸鱼');
     }
-    document.title = 'wx-agent · 鲸鲸号';
+    document.title = '🐋 鲸鲸号 · 深度摸鱼';
   }catch(e){}
 }
 document.addEventListener('DOMContentLoaded', applyWhale);
