@@ -168,12 +168,13 @@ def run(verbose_deps: bool = False) -> dict:
     if verbose_deps:
         try:
             import importlib.metadata as _md
+            if not hasattr(run, "_deps"):
+                run._deps = { (d.metadata.get("Name") or "").lower(): (d.version or "") for d in _md.distributions() }
             ver = {}
-            for pkg in ("wechatauto", "Pillow", "requests", "pywin32", "mss", "numpy", "opencv-python", "pygetwindow", "Pillow"):
-                try:
-                    ver[pkg] = _md.version(pkg)
-                except Exception:
-                    pass
+            for pkg in ("wechatauto", "Pillow", "requests", "pywin32", "mss", "numpy", "opencv-python", "pygetwindow"):
+                v = run._deps.get(pkg.lower())
+                if v:
+                    ver[pkg] = v
             add("依赖版本核对", "ok" if "wechatauto" in ver else "fail",
                 "wechatauto=%s，核心依赖 %d 个可读版本" % (ver.get("wechatauto", "?"), len(ver)),
                 "" if "wechatauto" in ver else "运行 setup_deps.py")
