@@ -345,13 +345,29 @@ class WebUI:
                 token = str(get_config().get("server", {}).get("token") or "").strip()
                 if not token:
                     return True
-                # 支持 ?token= 或 Authorization: Bearer
+                # ① 会话 Cookie（登录后 URL 不带 token，防他人复制地址登入）
+                try:
+                    import http.cookies as _hc
+                    for m in re.findall(r"(?:^|;\s*)wxauth=([^;]+)", str(self.headers.get("Cookie") or "")):
+                        if m.strip() == token:
+                            return True
+                except Exception:
+                    pass
+                # ② 支持 ?token= 或 Authorization: Bearer
                 q = urlparse(self.path).query
                 from urllib.parse import parse_qs
                 if token in parse_qs(q).get("token", []):
                     return True
                 auth = self.headers.get("Authorization", "")
                 return auth == "Bearer " + token
+
+            def _set_session_cookie(self):
+                """登录成功时种会话 Cookie（HttpOnly，防 JS 读取）。"""
+                try:
+                    token = str(get_config().get("server", {}).get("token") or "").strip()
+                    self.send_header("Set-Cookie", "wxauth=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000" % token)
+                except Exception:
+                    pass
 
             def do_GET(self):
                 parsed = urlparse(self.path)
@@ -363,6 +379,10 @@ class WebUI:
                     return parent._serve_wallpaper(path, self, parsed.query)
                 if not self._auth_ok():
                     return self._json({"error": "unauthorized"}, 401)
+                try:
+                    self._set_session_cookie()   # 已授权：种会话 Cookie（本次/后续请求用 cookie，URL 可去 token）
+                except Exception:
+                    pass
                 if path in ("/", "/index.html"):
                     token = str(get_config().get("server", {}).get("token") or "").strip()
                     body = HTML.replace("__TKN__", token)

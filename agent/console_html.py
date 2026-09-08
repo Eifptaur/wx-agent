@@ -3315,6 +3315,15 @@ async function loadSeedStats(){
 }
 if($('seedReload')) $('seedReload').onclick = loadSeedStats;
 loadSeedStats();
+/* ③ 会话 Cookie 可认证后：移除地址栏 ?token=，防止他人复制完整 URL 直接登入 */
+(function(){
+  try{
+    if(location.search.indexOf('token=')>=0){
+      const u=new URL(location.href); u.searchParams.delete('token');
+      history.replaceState({}, '', u.toString());
+    }
+  }catch(e){}
+})();
 /* 常驻进度栏：页面加载即显示代码检测状态（运行中实时百分比，结束后保留结果提示） */
 (function(){
   const persist=()=>{ if($('codeCheckTip') && !$('codeCheckTip').textContent) $('codeCheckTip').textContent='代码检测：尚未运行（点上方「代码检测」或「代码检测＋依赖核对」）'; };
