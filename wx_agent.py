@@ -1740,19 +1740,24 @@ def main():
             cfg = get_config()
             if not (cfg.get("memory", {}).get("summarize_on_exit", True)):
                 return
-            # 取最近的群友发言（本进程存活期间新增）；无则跳过
+            # 取最近的群友发言（本进程存活期间新增）；记录 群→(发言者,发言) 便于写回对应群
             recent = []
+            by_group = {}
             try:
                 for g in (orch.wechat.list_groups() if orch.wechat else [])[:3]:
                     wxid = g.get("wxid") or g.get("id") or ""
                     if not wxid:
                         continue
+                    ck = "group:" + str(wxid)
                     for raw in orch.wechat._db.get_messages(wxid, limit=40):
                         n = orch.wechat.normalize(raw, wxid)
                         if n and str(n.get("sender_id") or "").startswith("wxid_") and str(n.get("text") or "").strip():
-                            recent.append((str(n.get("sender_name") or "?"), str(n["text"])[:60]))
+                            nm = str(n.get("sender_name") or "?")
+                            txt = str(n["text"])[:60]
+                            recent.append((nm, txt))
+                            by_group.setdefault(ck, []).append(nm)
             except Exception:
-                recent = []
+                recent, by_group = [], {}
             if not recent:
                 log.info("本次无可总结的对话，跳过关机印象")
                 return
@@ -1778,13 +1783,18 @@ def main():
                 imps = [str(i).strip() for i in (row.get("impressions") or []) if str(i).strip()]
                 if not name or not imps:
                     continue
-                # 在每个有该成员发言的群里写入（group 由 memory 结合 chat_key）
-                try:
-                    orch.memory.remember(text=" ".join(imps), member_name=name)
-                    n_ok += 1
-                except Exception:
-                    pass
-            log.info("关机总结完成：更新 %d 位群友印象" % n_ok)
+                # 写入该成员发言过的群（无精确 userId 时以名字为 target 记印象）
+                groups = [ck for ck, names in by_group.items() if any(x == name for x in names)]
+                if not groups:
+                    continue
+                for ck in groups:
+                    try:
+                        orch.memory.append(ck, "memberImpression", " ".join(imps),
+                                           extra={"userId": "", "target": name})
+                        n_ok += 1
+                    except Exception:
+                        pass
+            log.info("关机总结完成：更新 %d 条群友印象" % n_ok)
         except Exception as e:
             log.info("关机总结失败：%s" % e)
 
@@ -1806,6 +1816,14 @@ def main():
             _p = os.path.join(ROOT, "data", "bot.pid")
             if os.path.exists(_p):
                 os.remove(_p)
+        except Exception:
+            pass
+        # 关机总结印象（可选）：线程执行、最多等 20 秒——绝不阻塞"停止"；被强杀则本次跳过
+        try:
+            log.info("关机总结印象中（最多 20 秒）…")
+            _sm = threading.Thread(target=_summarize_on_exit, daemon=True)
+            _sm.start()
+            _sm.join(20)
         except Exception:
             pass
         try:
