@@ -150,12 +150,10 @@ body.custom-bg::before{opacity:1!important}
   0%,100%{transform:translateY(0)}
   50%{transform:translateY(-3px)}
 }
-/* 水光透镜：跟随鼠标的圆形透镜（backdrop-filter 扭曲圈内一切；mask 让边缘柔和如光晕） */
-#waveLens{position:fixed;left:0;top:0;width:258px;height:258px;margin:-129px 0 0 -129px;
-  border-radius:50%;pointer-events:none;z-index:9999;opacity:0;
-  backdrop-filter:url(#cardWave2) saturate(1.02);
-  -webkit-mask:radial-gradient(circle,#000 34%,rgba(0,0,0,.75) 55%,transparent 78%);
-  mask:radial-gradient(circle,#000 34%,rgba(0,0,0,.75) 55%,transparent 78%);
+/* 水光波纹 v11「投石入水」：跟随鼠标/所在卡片的透镜层（backdrop-filter 扭曲圈内一切）。
+   强度分布=中心最强 + 一圈圈向外荡开的波纹环（JS 每帧生成 mask 环带），衰减指数强→边缘基本无扭曲。 */
+#waveLens{position:fixed;left:0;top:0;width:520px;height:520px;margin:-260px 0 0 -260px;
+  border-radius:50%;pointer-events:none;z-index:9999;opacity:0;backdrop-filter:url(#cardWave2) saturate(1.02);
   transform:translate3d(-9999px,-9999px,0)}
 input,select,textarea{backdrop-filter:blur(8px)}
 .pri{background:linear-gradient(135deg,#39B6F0,#1E9BE8 55%,#6C8CFF);box-shadow:0 4px 16px rgba(30,155,232,.38),inset 0 1px 0 rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.72);color:#fff}
@@ -387,6 +385,7 @@ th{color:var(--tx2);font-weight:500}
       <a href="#sec-server">服务器</a>
       <a href="#sec-ui">界面适配</a>
       <a href="#sec-cursor">光标设置</a>
+      <a href="#sec-wavefx">🌊 水光波纹</a>
       <a href="#sec-log">运行日志</a>
       <a href="#sec-json">原始 JSON</a>
     </nav>
@@ -977,6 +976,21 @@ th{color:var(--tx2);font-weight:500}
       </div>
       <div class="hint">时长公式（dist=拖拽距离 px）：蠕动 260×dist/100×系数④（600~2400ms）；纸飞机 170×dist/100×系数+0.58s（变形/翻回）；扎入 90×dist/100×系数+0.78s（含 0.5s 消失+冒出）。可在控制台 Console 看每次返回的日志（如 [whale-return]）。</div>
       <div class="btns"><button class="pri" id="cursorSaveBtn">保存光标设置</button></div>
+    </section>
+
+    <section id="sec-wavefx" class="card" data-sec>
+      <h2>🌊 水光波纹（鼠标投石入水）</h2>
+      <div class="desc">鼠标像石子投入湖面：中心扭曲最强，一圈圈波纹向外扩散到所在的整个卡片，越往边缘越弱（衰减强，不影响阅读）；拖动越快波纹荡开越快。所有参数即时生效。</div>
+      <div class="row"><label>启用水光波纹</label><input type="checkbox" data-cfg="ui.wave_fx.enabled"><span class="hint">关闭后完全无扭曲</span></div>
+      <div class="row"><label>扭曲强度</label><input type="number" min="0" max="40" step="1" data-cfg="ui.wave_fx.scale"><span class="hint">核心位移量（0=无扭曲；建议 8~24）</span></div>
+      <div class="row"><label>基础波速</label><input type="number" min="1" max="20" step="0.2" data-cfg="ui.wave_fx.speed"><span class="hint">静止时的波动速度（越大越急促）</span></div>
+      <div class="row"><label>鼠标提速</label><input type="number" min="0" max="0.1" step="0.005" data-cfg="ui.wave_fx.mouse_gain"><span class="hint">拖动越快波光越快的增益（0=不联动）</span></div>
+      <div class="row"><label>提速上限</label><input type="number" min="0" max="20" step="0.5" data-cfg="ui.wave_fx.max_gain"><span class="hint">鼠标带动额外速度上限 rad/s</span></div>
+      <div class="row"><label>覆盖半径</label><input type="number" min="100" max="600" step="10" data-cfg="ui.wave_fx.radius"><span class="hint">透镜作用范围 px（越大波及越远）</span></div>
+      <div class="row"><label>距离衰减</label><input type="number" min="0.5" max="6" step="0.1" data-cfg="ui.wave_fx.falloff"><span class="hint">边缘减弱指数，越大边缘越接近无扭曲（推荐 ≥2）</span></div>
+      <div class="row"><label>扩散波纹环数</label><input type="number" min="1" max="6" step="1" data-cfg="ui.wave_fx.rings"><span class="hint">同时可见的荡开环数</span></div>
+      <div class="row"><label>波纹荡开速度</label><input type="number" min="0.2" max="1.5" step="0.05" data-cfg="ui.wave_fx.ring_speed"><span class="hint">涟漪一圈圈向外扩散的快慢</span></div>
+      <div class="btns"><button class="pri" id="wavefxApply" style="background:linear-gradient(135deg,#30B0C8,#0E8FB0)">应用水光波纹设置</button></div>
     </section>
 
     <section id="sec-log" class="card" data-sec>
@@ -2783,57 +2797,128 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
 })();
 
 /* ── 水光粼粼 v10：跟随鼠标的小圈扭曲透镜；波纹速度更快，并随鼠标拖动速度加快而加快 ── */
+/* ── 水光波纹 v11「投石入水」：中心最强 + 波纹环一圈圈向外荡开 + 强距离衰减；
+    参数由控制台「🌊 水光波纹」卡调节（cfg.ui.wave_fx），保存后即时生效 ── */
 (function(){
-  /* ① 波光流动：相位累计 + 鼠标速度联动（约 30fps）
-     速度模型：波光速度 = 基础速度 + 鼠标移动速度 × 增益（鼠标越快，波光翻涌越快）。 */
   const ID = 'cardWave2';
   const f = document.getElementById(ID);
   const turb = f ? f.querySelector('feTurbulence') : null;
   const disp = f ? f.querySelector('feDisplacementMap') : null;
-  const BASE = disp ? parseFloat(disp.getAttribute('scale') || '17') : 17;
-  let _ph = 0;                       // 累计相位（rad）
-  let _phSpeed = 5.2;                // 基础波光速度 rad/s（v9 是 2.4 → 更快）
-  const SPEED_GAIN = 0.020;          // 鼠标速度增益：px/s × 增益 → rad/s 增量
-  const MAX_GAIN = 8.0;              // 额外速度上限 rad/s（防帧率噪声爆冲）
-  let _mouseSpeed = 0;               // 平滑后鼠标速度 px/s
+  const lens = document.getElementById('waveLens');
+
+  /* ① 参数（默认与 agent/config.py ui.wave_fx 一致；从 cfg 读，保留未设置的默认值） */
+  const DEFAULTS = {enabled:true, scale:17, speed:5.2, mouse_gain:0.02, max_gain:8.0,
+                    radius:260, falloff:2.6, rings:3, ring_speed:0.55};
+  let W = Object.assign({}, DEFAULTS);
+  function readParams(){
+    try{
+      const wf = (cfg && getPath(cfg,'ui.wave_fx')) || {};
+      for(const k of Object.keys(DEFAULTS)){
+        const v = wf[k];
+        if(v!==undefined && v!==null && v!=='') W[k]= (typeof DEFAULTS[k]==='boolean') ? !!v : Number(v);
+      }
+    }catch(e){}
+  }
+  readParams();
+  document.addEventListener('DOMContentLoaded', readParams);
+
+  /* ② 波光流动：相位累计 + 鼠标速度联动（更快的基础波速，随拖动大幅提速） */
+  const BASE = 17;                        // 兜底（实际用 W.scale）
+  let _ph = 0;                            // 累计相位（rad）
+  let _mouseSpeed = 0;
   let _lastEv = null, _lastEvT = 0;
   document.addEventListener('mousemove', (ev)=>{
     const now = performance.now();
     if(_lastEv){
       const dt = Math.max(1, now - _lastEvT) / 1000;
       const dx = ev.clientX - _lastEv.x, dy = ev.clientY - _lastEv.y;
-      const v = Math.sqrt(dx*dx + dy*dy) / dt;   // px/s
-      _mouseSpeed = _mouseSpeed * 0.75 + v * 0.25;  // 指数平滑，抗毛刺
+      const v = Math.sqrt(dx*dx + dy*dy) / dt;
+      _mouseSpeed = _mouseSpeed * 0.7 + v * 0.3;
     }
     _lastEv = {x: ev.clientX, y: ev.clientY}; _lastEvT = now;
   }, {passive:true});
+
+  /* ③ 投石入水 mask：中心最强(核心区) + rings 个环带随 ringPhase 向外扩散 + 强 falloff 衰减。
+     ringPhase 每循环 = 一圈环从中心荡到边缘（像石子入水一圈圈荡开）。 */
+  function waveMaskAt(now){
+    const ringPhase = ((now / 1000) * W.ring_speed) % 1;
+    const N = 48;                          // 径向采样点数（性能与平滑折中）
+    const stops = [];
+    for(let i=0;i<=N;i++){
+      const r = i / N;                     // 归一化径向 0=中心, 1=边缘
+      // 中心核心区随 r 快速衰减（falloff 指数越大边缘越弱）
+      let a = Math.pow(1 - r, W.falloff);
+      // 扩散环：每环一个高斯带，环半径越大强度越弱
+      for(let k=0;k<W.rings;k++){
+        const rk = (((k + ringPhase) % W.rings) / W.rings);
+        const g = Math.exp(-Math.pow((r - rk) / 0.065, 2));     // 环带宽
+        a += g * 0.85 * Math.pow(1 - rk, W.falloff) * (1 - r);
+      }
+      stops.push(Math.min(1, a).toFixed(3) + ' ' + (i*100/N).toFixed(1) + '%');
+    }
+    return 'radial-gradient(circle,' + stops.join(',') + ')';
+  }
+
+  let _lastMaskAt = 0;
   setInterval(()=>{
-    if(!turb || !disp) return;
+    if(!turb || !disp || !lens) return;
+    if(!W.enabled){ lens.style.opacity='0'; return; }
     const now = performance.now();
     const dt = 0.033;
-    const gain = Math.min(MAX_GAIN, _mouseSpeed * SPEED_GAIN);
-    _phSpeed = Math.min(14, 5.2 + gain);          // 基础加速且随鼠标速度联动
-    _ph += _phSpeed * dt;
+    const gain = Math.min(W.max_gain, _mouseSpeed * W.mouse_gain);
+    const phSpeed = Math.min(20, W.speed + gain);
+    _ph += phSpeed * dt;
     const ph = _ph;
     const fx = 0.008 + 0.004 * Math.sin(ph * 0.9);
     const fy = 0.011 + 0.005 * Math.cos(ph * 0.7);
     try{ turb.setAttribute('baseFrequency', fx.toFixed(4) + ' ' + fy.toFixed(4)); }catch(e){}
-    const s = Math.max(0.5, BASE * (1 + 0.38 * Math.sin(ph * 1.3)));
+    const s = Math.max(0.5, W.scale * (1 + 0.38 * Math.sin(ph * 1.3)));
     try{ disp.setAttribute('scale', s.toFixed(2)); }catch(e){}
+    // mask 每 ~120ms 更新一次环相位（扩散动画；避免每帧重算造成卡顿）
+    if(now - _lastMaskAt > 120){
+      _lastMaskAt = now;
+      const m = waveMaskAt(now);
+      try{ lens.style.maskImage = m; lens.style.webkitMaskImage = m; }catch(e){}
+    }
   }, 33);
 
-  /* ② 透镜跟随鼠标：移到 (clientX, clientY) 中心；进入页面即显示，离开窗口隐藏 */
-  const lens = document.getElementById('waveLens');
+  /* ④ 透镜跟随鼠标：透镜以鼠标为中心（半径 W.radius）；进入页面即显示，离开窗口隐藏 */
   if(lens){
     document.addEventListener('mousemove', (ev)=>{
+      const r = W.radius;
       lens.style.transform = 'translate3d(' + ev.clientX + 'px,' + ev.clientY + 'px,0)';
+      lens.style.width = (2*r) + 'px'; lens.style.height = (2*r) + 'px';
+      lens.style.margin = (-r) + 'px 0 0 ' + (-r) + 'px';
       lens.style.opacity = '1';
     }, {passive:true});
     document.addEventListener('mouseleave', ()=>{ lens.style.opacity = '0'; });
-    document.addEventListener('mouseenter', ()=>{ lens.style.opacity = '1'; });
   }
 
-  /* ③ 逐字浮动：光标划过卡片标题时拆成字（一次拆好缓存）*/
+  /* ⑤ 应用按钮：保存 cfg.ui.wave_fx 并即时读回 */
+  const applyBtn = document.getElementById('wavefxApply');
+  if(applyBtn){
+    applyBtn.addEventListener('click', async ()=>{
+      try{
+        const patch = {};
+        document.querySelectorAll('[data-cfg^="ui.wave_fx."]').forEach(el=>{
+          const key = el.dataset.cfg.slice('ui.wave_fx.'.length);
+          if(!key) return;
+          const num = parseFloat(el.value);
+          patch[key] = (el.type==='checkbox') ? !!el.checked : (isNaN(num) ? el.value : num);
+        });
+        await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ui:{wave_fx: patch}})});
+        cfg = await getJSON('/api/config');
+        readParams();
+        // 即时生效：透镜隐藏后重新显示即可
+        lens.style.opacity = '0';
+        setTimeout(()=>{ lens.style.opacity = '1'; }, 60);
+        toast('✅ 水光波纹已应用');
+      }catch(e){ toast('保存失败：'+e.message); }
+    });
+  }
+
+  /* ⑥ 逐字浮动：光标划过卡片标题时拆成字（一次拆好缓存）*/
   let lastT = 0;
   document.addEventListener('mousemove', (ev)=>{
     const now = performance.now();
@@ -2881,6 +2966,8 @@ const WHALE_TXT = {
   "联网搜索": "🔎 联网搜索 · 我去外面翻翻",
   "服务器": "🖥️ 服务器 · 后台有人守着，不用想",
   "界面适配": "🎨 界面 · 脸面不能省",
+  "🌊 水光波纹": "🌊 水光波纹 · 投一颗石子，涟漪自己荡开",
+  "水光波纹": "水光波纹 · 投一颗石子，涟漪自己荡开",
   "运行日志": "📜 运行日志 · 思考过程全在这",
   "检测中心": "检测中心 · 出门前先自检一遍",
   "体检与功能自检": "检测中心 · 出门前先自检一遍",
