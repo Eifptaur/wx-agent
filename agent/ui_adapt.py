@@ -141,6 +141,9 @@ def find_cover(x: int, y: int, wechat_hwnds: tuple = ()):
         cls, title, pid, rect = _window_info(root or h)
         if cls in _SKIP_CLASSES:
             return None
+        # 微信 UI 弹出层（表情面板/右键菜单等 WinUI Popup）不视为遮挡——允许点击穿透
+        if "SiteBridge" in (cls or "") or cls.startswith("PopupWindow"):
+            return None
         return (root or h, cls, title, pid, rect)
     except Exception:
         return None
@@ -241,36 +244,136 @@ def ensure_point(x: int, y: int, wechat_hwnds: tuple = (), retries: int = 3, gui
         cover = find_cover(x, y, wechat_hwnds)
         if cover is None:
             return True, "点击点属于微信窗口"
-        # 自动拯救：把微信窗口置前（贴顶再复位），避免用户手动切窗口
+        # 有遮挡才拯救：把【微信主窗】置前（不用 wechatauto bring_to_front——它可能顶起渲染子窗盖住面板）
         try:
-            if gui is not None and hasattr(gui, "bring_to_front"):
-                gui.bring_to_front(keep_topmost=True)
+            if gui is not None and hasattr(gui, "main_hwnd"):
+                _user32.SetForegroundWindow(int(gui.main_hwnd))
             elif wechat_hwnds:
-                _user32.SetForegroundWindow(wechat_hwnds[0])
-            time.sleep(0.5)
+                _user32.SetForegroundWindow(int(wechat_hwnds[0]))
+            time.sleep(0.25)
         except Exception:
             pass
         if i == 0:
             dismiss_overlays(wechat_hwnds)
-            time.sleep(0.4)
+            time.sleep(0.3)
     return False, "点击坐标被「%s / %s」窗口遮挡（pid=%d，区域 %s）——已自动尝试把微信置前仍失败，请切到微信窗口或关闭遮挡窗口后重试" % (
         cover[1] or "?", cover[2][:60] or "?", cover[3], cover[4])
 
 
-def prepare_screen(gui) -> bool:
-    """点击操作前的整备：把微信置前 + 清理叠加层/遮挡窗口。"""
+def _restore_wechat_window(gui) -> bool:
+    """按进程枚举找「微信」主窗并恢复（窗口最小化/隐藏/移出屏时自愈）。"""
     try:
-        gui._minimize_blockers()
-        time.sleep(0.4)
+        pid = ctypes.c_ulong()
+        _user32.GetWindowThreadProcessId(int(gui.main_hwnd), ctypes.byref(pid))
+        wx_pid = pid.value
+
+        def _walk():
+            out = []
+            CB = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+
+            def cb(h, l):
+                p2 = ctypes.c_ulong()
+                _user32.GetWindowThreadProcessId(h, ctypes.byref(p2))
+                if p2.value == wx_pid:
+                    t = ctypes.create_unicode_buffer(256)
+                    _user32.GetWindowTextW(h, t, 256)
+                    if "微信" in t.value:
+                        out.append(h)
+                        return False
+                return True
+
+            ref = CB(cb)
+            _user32.EnumWindows(ref, 0)
+            return out
+
+        wins = _walk()
+        if wins:
+            h = wins[0]
+            _user32.ShowWindow(int(h), 9)
+            time.sleep(0.4)
+            _user32.SetForegroundWindow(int(h))
+            time.sleep(0.3)
+            gui._update_render_rect()
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _force_geometry(gui) -> None:
+    """强制微信主窗恒定位+大小（用户方案：相对位置恒定，仅按 DPI 换算坐标）。
+    拖动窗口后下一次点击前自动拉回（ui.lock_window_pos 可关）。"""
+    try:
+        _cfg = __import__("agent.config", fromlist=["get_config"]).get_config()
+        if (_cfg.get("ui") or {}).get("lock_window_pos", True) is False:
+            return
+        hwnd = getattr(gui, "main_hwnd", 0)
+        if not hwnd:
+            return
+        try:
+            _scale = max(1.0, _user32.GetDpiForWindow(hwnd) / 96.0)
+        except Exception:
+            _scale = 1.25
+        _user32.ShowWindow(hwnd, 9)
+        _user32.SetWindowPos(hwnd, 0,
+                             int(120 * _scale), int(80 * _scale),
+                             int(1250 * _scale), int(1100 * _scale),
+                             0x0001 | 0x0002 | 0x0020 | 0x0040)
+        time.sleep(0.15)
+        gui._update_render_rect()
+    except Exception:
+        pass
+
+
+def prepare_screen(gui) -> bool:
+    """点击操作前的整备：把微信置前 + 清理叠加层/遮挡窗口 + 窗口出屏自动还原。"""
+    try:
+        # ① 不再强制 SetWindowPos（每次动窗口会把表情弹出菜单"刷掉"——这是"点完笑脸菜单消失"的真凶）
+        #   仅当窗口被移到极小/出屏时才自愈，正常流程绝不碰窗口几何。
+        # 窗口被移出屏幕（多屏切换/DPI 变化常见）→ 自动还原到可见区
+        try:
+            hwnd = getattr(gui, "main_hwnd", 0)
+            if hwnd:
+                r = wintypes.RECT()
+                _user32.GetWindowRect(hwnd, ctypes.byref(r))
+                vw = int(_user32.GetSystemMetrics(0))
+                vh = int(_user32.GetSystemMetrics(1))
+                if r.left > vw - 60 or r.top > vh - 60 or r.right < 20 or r.bottom < 20:
+                    _user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    _user32.SetWindowPos(hwnd, 0, 90, 90, 0, 0, 0x0001 | 0x0020 | 0x0040)
+                    time.sleep(0.6)
+                    gui._update_render_rect()
+                elif (r.right - r.left) < 1500 or (r.bottom - r.top) < 1000:
+                    # 窗口被缩得很小（物理像素判定，兼容高 DPI：1.8x 屏 1250 逻辑=2250 物理）
+                    # → 按 DPI 恢复标准尺寸（逻辑 1250×1100 → 物理换算）
+                    try:
+                        _scale = max(1.0, _user32.GetDpiForWindow(hwnd) / 96.0)
+                    except Exception:
+                        _scale = 1.25
+                    _user32.ShowWindow(hwnd, 9)
+                    _user32.SetWindowPos(hwnd, 0, 90, 90,
+                                         int(1250 * _scale), int(1100 * _scale),
+                                         0x0001 | 0x0020 | 0x0040)
+                    time.sleep(0.6)
+                    gui._update_render_rect()
+        except Exception:
+            pass
+        # 先确保前台可见（多实例/最小化自愈）
+        _restore_wechat_window(gui)
+        # 注意：不调 gui._minimize_blockers()——它会把「微信」主窗误判成遮挡窗最小化
         gui.bring_to_front(keep_topmost=True)
         time.sleep(0.4)
         gui._update_render_rect()
         dismiss_overlays((gui.main_hwnd, gui.render_hwnd))
         gui.bring_to_front(keep_topmost=True)
         time.sleep(0.3)
-        return gui.is_alive()
+        if not gui.is_alive():
+            # 仍不可见：再恢复一次（可能是把微信误最小化了）
+            _restore_wechat_window(gui)
+            time.sleep(0.4)
+        return True
     except Exception:
-        return False
+        return _restore_wechat_window(gui)
 
 
 def heal_input():
@@ -294,23 +397,29 @@ def heal_input():
         pass
 
 
-def click(gui, x: int, y: int, right: bool = False, scale=None) -> tuple:
+def click(gui, x: int, y: int, right: bool = False, scale=None, extra_hwnds: tuple = (), heal: bool = True) -> tuple:
     """统一点击入口（wx_click 的适配层）。
 
     x/y 为微信渲染窗口相对坐标（截图/OCR 空间）。会：
       换算鼠标空间（CPI 缩放）→ 归属校验（确保点是微信）→ wx_click。
-    返回 (ok, 消息)。每次点击后自动做输入自愈，避免残留输入状态影响拖拽。
+    extra_hwnds：额外认作「微信窗口」的句柄（如朋友圈/视频号等独立子窗），
+    保证在子窗口上点击不被 ensure_point 误判为"别家窗口"而拒绝。
+    heal=False：点击后不做光标自愈移动（悬停出菜单场景必须禁用，
+    否则 +4px 抖动会取消菜单）。
+    返回 (ok, 消息)。
     """
     try:
         sx, sy = to_click(x + gui.origin_x, y + gui.origin_y, scale)
-        ok, why = ensure_point(sx, sy, (gui.main_hwnd, gui.render_hwnd), gui=gui)
+        hwnds = ((gui.main_hwnd, gui.render_hwnd) + tuple(extra_hwnds))
+        ok, why = ensure_point(sx, sy, hwnds, gui=gui)
         if not ok:
             return False, why
         try:
             gui.wx_click(sx, sy, right=right)
             return True, ""
         finally:
-            heal_input()
+            if heal:
+                heal_input()
     except Exception as e:
         return False, str(e)
 

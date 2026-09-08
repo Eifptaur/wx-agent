@@ -43,10 +43,9 @@ PRICING = {
     "deepseek-v4-flash": BASE_PRICE,
     "deepseek-v4-pro": PRO_PRICE,
     "deepseek-chat": BASE_PRICE,
-    "deepseek-reasoner": BASE_PRICE,
+    "deepseek-reasoner": PRO_PRICE,
     "_default": BASE_PRICE,
 }
-_VALUE = "deepseek-v4-pro"  # 映射时作为子串匹配，仅作占位
 # 北京时间 2026-08-23 00:00 的 epoch 秒（周末谷价生效分界）
 import datetime as _dt
 _WEEKEND_VALLEY_FROM_SEC = _dt.datetime(2026, 8, 23, tzinfo=_dt.timezone(_dt.timedelta(hours=8))).timestamp()
@@ -56,10 +55,10 @@ _BJ_OFFSET = 8 * 3600
 
 def price_for(model: str) -> dict:
     m = str(model or "").lower()
-    for key in ("deepseek-v4-pro", "deepseek-v4-flash-vision-exp", "deepseek-v4-flash",
-                "deepseek-chat", "deepseek-reasoner"):
+    for key in ("deepseek-v4-pro", "deepseek-reasoner", "deepseek-v4-flash-vision-exp",
+                "deepseek-v4-flash", "deepseek-chat"):
         if key in m:
-            return PRO_PRICE if key == "deepseek-v4-pro" else BASE_PRICE
+            return PRO_PRICE if key in ("deepseek-v4-pro", "deepseek-reasoner") else BASE_PRICE
     return BASE_PRICE
 
 

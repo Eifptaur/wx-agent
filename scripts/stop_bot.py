@@ -53,6 +53,12 @@ def kill_by_cmdline(marker):
 
 def main():
     killed = 0
+    # 标记「手动停止」：watchdog 见标记不再自动拉起
+    try:
+        with open(os.path.join(DATA, "stopped.flag"), "w", encoding="utf-8") as f:
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S"))
+    except Exception:
+        pass
     for name, marker in (("bot.pid", "wx_agent.py"), ("watchdog.pid", "watchdog")):
         pid = read_pid(name)
         if pid and pid != os.getpid() and kill_pid(pid):

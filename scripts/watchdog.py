@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
 PID_FILE = os.path.join(DATA, "watchdog.pid")
 CRASH_LOG = os.path.join(DATA, "bot_crash.log")
+STOP_FLAG = os.path.join(DATA, "stopped.flag")
 os.makedirs(DATA, exist_ok=True)
 
 
@@ -33,9 +34,45 @@ def main():
             f.write(str(os.getpid()))
     except Exception:
         pass
+    # 单实例看门狗：已有 watchdog 存活（多 watchdog 会互相拉起→窗口反复跳出）→ 本实例退出
+    try:
+        import ctypes
+        if os.path.exists(PID_FILE):
+            with open(PID_FILE, "r", encoding="utf-8") as f:
+                old = int(f.read().strip() or 0)
+            if old and old != os.getpid():
+                if os.name == "nt":
+                    h = ctypes.windll.kernel32.OpenProcess(0x1000, False, old)
+                    if h:
+                        ctypes.windll.kernel32.CloseHandle(h)
+                        print("已有看门狗在运行（pid=%d），本实例退出" % old)
+                        return 0
+                else:
+                    try:
+                        os.kill(old, 0)
+                        return 0
+                    except Exception:
+                        pass
+        with open(PID_FILE, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+    except Exception:
+        pass
     exe = find_pythonw()
     flags = 0x08000000 | 0x00000008 if os.name == "nt" else 0
+    # 启动了就是"要跑"：清掉手动停止标记（除非刚被停止——一键启动/启动机器人.vbs 先删 flag）
+    try:
+        if os.path.exists(STOP_FLAG):
+            os.remove(STOP_FLAG)
+    except Exception:
+        pass
     while True:
+        # 用户在 5 秒宽限期内的「停止」请求 → 不再拉起，直接退场
+        if os.path.exists(STOP_FLAG):
+            try:
+                os.remove(PID_FILE)
+            except Exception:
+                pass
+            return 0
         try:
             # stderr 重定向到崩溃日志：下次机器人无声挂掉时能查到原因
             # （wx_agent 若 import 失败/启动即崩溃，之前 stderr=DEVNULL 会静默重启，无从排查）

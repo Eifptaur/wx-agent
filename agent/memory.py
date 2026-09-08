@@ -51,6 +51,16 @@ def _chat_dir(chat_key: str) -> str:
     return os.path.join(MEMORY_DIR, _chat_dir_name(chat_key))
 
 
+def _data_dir() -> str:
+    """记忆根目录（互通池枚举用）。"""
+    return MEMORY_DIR
+
+
+def _unname_dir(name: str) -> str:
+    """把加密目录名还原为原始 chat_key 近似值（缺省 = 原名，够用于 pool 合并）。"""
+    return str(name or "").replace("memory_", "", 1)
+
+
 def _member_file(chat_key: str, user_id: str, name: str = "") -> str:
     return os.path.join(_chat_dir(chat_key), _member_file_name(user_id, name))
 
@@ -63,6 +73,49 @@ class MemoryStore:
     def __init__(self):
         self.cache: dict = {}          # chat_key -> {user_id: member}
         self._lock = threading.Lock()
+
+    def _share_pool(self) -> bool:
+        """记忆互通开关：true=所有群共享一个记忆池（跨群可见）。"""
+        try:
+            return bool(get_config().get("memory", {}).get("share_across_groups") is True)
+        except Exception:
+            return False
+
+    def _shared_groups(self) -> list:
+        """勾选的共享群（memory.shared_groups，存群名/chat_key）；空=未勾选。"""
+        try:
+            return [str(x) for x in (get_config().get("memory", {}).get("shared_groups") or []) if str(x)]
+        except Exception:
+            return []
+
+    def _chat_keys(self, chat_key: str) -> list:
+        """互通时返回的群：勾选了 shared_groups → 只在这些群间互通（本群在内才生效）；
+        否则 share_across_groups=true 全部互通；false 仅本群。"""
+        groups = self._shared_groups()
+        if groups:
+            if not self._share_pool():
+                # 未开总开关但勾了群：视为"勾选群间互通"
+                pass
+            keys = [g for g in groups if g]
+            if not keys:
+                return [chat_key]
+            # 本群名匹配（chat_key 或群名）尽量宽
+            base = os.path.basename(chat_key)
+            match = [g for g in keys if g == chat_key or g == base or chat_key.endswith(g)]
+            return keys if match else [chat_key]
+        if not self._share_pool():
+            return [chat_key]
+        try:
+            keys = []
+            base = _data_dir()
+            if os.path.isdir(base):
+                for fn in sorted(os.listdir(base)):
+                    p = os.path.join(base, fn)
+                    if os.path.isdir(p) and fn not in (".", ".."):
+                        keys.append(fn)
+            return keys or [chat_key]
+        except Exception:
+            return [chat_key]
 
     def _ensure_chat(self, chat_key: str) -> dict:
         if chat_key not in self.cache:
@@ -129,18 +182,28 @@ class MemoryStore:
         return {"memberImpression": out}
 
     def members(self, chat_key: str):
-        m = self._ensure_chat(chat_key)
-        out = []
-        for mem in m.values():
-            if not mem["impressions"]:
-                continue
-            out.append({
-                "userId": str(mem.get("userId") or ""),
-                "name": str(mem.get("name") or mem.get("userId") or "某人"),
-                "impressions": [dict(e) for e in mem["impressions"]],
-                "updatedAt": mem.get("updatedAt") or 0,
-                "lastConsolidatedAt": mem.get("lastConsolidatedAt") or 0,
-            })
+        """列出成员档案。互通时合并所有群（同 wxid 合并印象）；隔离时仅本群。"""
+        merged: dict = {}
+        for key in self._chat_keys(chat_key):
+            for mem in self._ensure_chat(key).values():
+                if not mem["impressions"]:
+                    continue
+                uid = str(mem.get("userId") or "")
+                ident = uid or str(mem.get("name") or "")
+                if not ident:
+                    continue
+                if ident not in merged:
+                    merged[ident] = {
+                        "userId": mem.get("userId") or "",
+                        "name": str(mem.get("name") or mem.get("userId") or "某人"),
+                        "impressions": [],
+                        "updatedAt": mem.get("updatedAt") or 0,
+                        "lastConsolidatedAt": mem.get("lastConsolidatedAt") or 0,
+                    }
+                else:
+                    merged[ident]["impressions"] = list(mem.get("impressions") or [])
+                    merged[ident]["updatedAt"] = max(merged[ident]["updatedAt"], mem.get("updatedAt") or 0)
+        out = [dict(v, impressions=[dict(e) for e in v["impressions"]]) for v in merged.values()]
         out.sort(key=lambda x: -(x["updatedAt"] or 0))
         return out
 
