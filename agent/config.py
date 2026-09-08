@@ -180,8 +180,9 @@ DEFAULT_CONFIG = {
             "zap": 1.0,               # 扎入（距离自适应，含 0.5s 消失+0.3s 冒出）：每 100px ≈ 90ms×系数
         },
         "moments_entry": "",          # 朋友圈入口坐标 "x,y"（渲染区相对；留空=自动尝试；各电脑校准一次）
+        "obscure_url": False,         # 地址栏乱码化（默认关）：进入页面把路径换随机乱码，防复制 URL 登入
         "wave_fx": {                  # 水光波纹（鼠标投石入水效果；控制台可调）
-            "enabled": True,          # 总开关
+            "enabled": False,         # 总开关（默认关——需用户在「🌊 水光波纹」卡手动开启）
             "scale": 17,              # 扭曲强度（feDisplacementMap 基础位移）
             "speed": 5.2,             # 基础波速 rad/s
             "mouse_gain": 0.02,       # 鼠标拖动提速增益（拖动越快波光越快）

@@ -382,6 +382,20 @@ class WebUI:
                     return parent._serve_wallpaper(path, self, parsed.query)
                 if not self._auth_ok():
                     return self._json({"error": "unauthorized"}, 401)
+                # 防窥视：地址栏乱码路径（单段 /aB3$xy…，无 API/静态前缀）也返回控制台页面
+                if path == "/" or path == "/index.html":
+                    pass  # 正常控制台页
+                elif path.startswith("/api/") or path.startswith("/dsh-whale/") \
+                        or path.startswith("/assets/") or path.startswith("/wallpaper/"):
+                    pass  # 正常 API/静态路由（下方继续匹配）
+                elif "/" not in path[1:]:
+                    # 单段乱码路径 → 当控制台页
+                    import re as _repath
+                    if not _repath.fullmatch(r"/[A-Za-z0-9#$~_\-]{6,64}", path):
+                        return self._json({"error": "not found"}, 404)
+                    path = "/"
+                else:
+                    return self._json({"error": "not found"}, 404)
                 if path in ("/", "/index.html"):
                     token = str(get_config().get("server", {}).get("token") or "").strip()
                     body = HTML.replace("__TKN__", token)
@@ -720,6 +734,7 @@ class WebUI:
 6 观察力(10%)：有没有抓住群里细节/梗/前后文；
 7 节奏感(10%)：长短句、停顿、分条像不像真人打字；
 8 口语真实(8%)：用词口语化、不书面、不列点。
+【禁止】不许给整分/整五/整十（如 80.00/85.00/90.00 一律不得出现）——每个维度必须按真实感受给出带小数的分数（如 84.37、79.15、91.03），百分位不得为 0。
 输出格式（务必）：
 各维分：自然=X.XX 有趣=X.XX 人设=X.XX 机敏=X.XX 生活=X.XX 观察=X.XX 节奏=X.XX 口语=X.XX
 总分：XX.XX
@@ -728,8 +743,17 @@ class WebUI:
 """
                         sys = [{"role": "system", "content": RULES}, {"role": "user", "content": sample}]
                         r = llm.chat_completion(sys, temperature=0.2)
-                        self._json({"ok": True, "eval": (r.get("message") or {}).get("content", ""),
-                                    "note": "已按8维细则(model评分)评估，分数精确到百分位；仅评机器人发言"})
+                        out = (r.get("message") or {}).get("content", "")
+                        # 校验：若所有分都是整分（百分位全 0），强制重试一次并警告
+                        import re as _re2
+                        nums = _re2.findall(r"=(\d+\.\d{2})", out)
+                        if nums and all(n.endswith(".00") or n.endswith(".50") for n in nums):
+                            sys2 = sys + [{"role": "assistant", "content": out},
+                                          {"role": "user", "content": "你上面的分数全是整分/半整分，违反细则。请重新按真实细微差异打分，每维必须带非零百分位（如 84.37），禁止 80.00/85.00 之类的整分。"}]
+                            r2 = llm.chat_completion(sys2, temperature=0.3)
+                            out = (r2.get("message") or {}).get("content", "") or out
+                        self._json({"ok": True, "eval": out,
+                                    "note": "已按8维细则(model评分)评估，分数精确到百分位（禁止整分）；仅评机器人发言"})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                     parent.pause_fn()
@@ -755,6 +779,50 @@ class WebUI:
                     # 重启：后台无窗口拉起新实例（释放端口后接替），当前实例退出
                     self._json({"ok": True, "note": "正在后台重启机器人…"})
                     threading.Timer(0.5, parent.restart_fn).start()
+                elif path == "/api/persona/behavior-recommend":
+                    # 角色卡行为推荐（POST {text?，默认当前 persona.role_text 或内置卡}）：
+                    # ① 本地启发式先给一版；② 模型按多维度严肃规则复核（消费少量 token，可传 llm=false 关闭）
+                    try:
+                        from agent.behavior_recommend import recommend as _br
+                        _txt = str(data.get("text") or "")
+                        if not _txt.strip():
+                            _txt = str(get_config().get("persona", {}).get("role_text") or "")
+                            if not _txt.strip():
+                                from agent.persona import PERSONAS
+                                _txt = str((PERSONAS.get(get_config().get("persona", {}).get("prefer_key", "xiaojingyu")) or {}).get("text") or "")
+                        local = _br(_txt)
+                        res = dict(local)
+                        res["via"] = "local"
+                        if data.get("llm", True) and _txt.strip():
+                            try:
+                                from agent import llm
+                                _rules = (
+                                    "你是行为风格评估员。根据角色卡文本，评出机器人作为群友的行为档（只依据角色本体，禁止编造）。\n"
+                                    "输出严格 JSON：{\"participation\":\"low|medium|high\",\"sticker\":0-3,\"reason\":\"一句话说明\"}\n"
+                                    "维度：participation=参与度（low 安静旁观/medium 普通群友/high 话多活跃）；"
+                                    "sticker=表情包接受度（0 不爱发/1 偶尔/2 较多/3 爱好者）；"
+                                    "规则：说话极简/高冷/庄重类必为 low~medium 且 sticker≤1；话痨/气氛组/爱玩梗类为 high 且 sticker≥2；"
+                                    "每维必须给出确定值，不得写不确定。只输出 JSON。\n\n角色卡：\n" + _txt[:2400]
+                                )
+                                _r = llm.chat_completion([{"role": "user", "content": _rules}], temperature=0.1)
+                                _c = str((_r.get("message") or {}).get("content", ""))
+                                import re as _re3, json as _json3
+                                _m = _re3.search(r"\{.*\}", _c, _re3.S)
+                                if _m:
+                                    _d = _json3.loads(_m.group(0))
+                                    _p = str(_d.get("participation") or "")
+                                    if _p in ("low", "medium", "high"):
+                                        res["participation"] = _p
+                                        res["via"] = "llm"
+                                    _sv = str(_d.get("sticker"))
+                                    if _sv.strip() in ("0", "1", "2", "3"):
+                                        res["sticker"] = int(_sv)
+                                    res["reason"] = str(_d.get("reason") or "")
+                            except Exception:
+                                pass
+                        self._json(res)
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
                 elif path == "/api/ui-test":
                     # 程序鼠标检验（POST {kind}：程序直接操控鼠标执行对应操作；data 透传给检验函数）
                     try:

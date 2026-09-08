@@ -108,9 +108,9 @@ body.whale-anim::before{content:"";position:fixed;inset:0;z-index:-1;pointer-eve
   from{background-position:0 0,0 0,0 0,0 0,0 0,0 0,0 0,0 0}
   to{background-position:-90px 45px,90px -45px,0 0,0 0,0 0,0 0,0 0,0 0}
 }
-/* ── 自定义背景（JS 设 CSS 变量，绕开一切选择器冲突；无变量=默认海浪图）── */
+/* ── 自定义背景（JS 设 CSS 变量，绕开一切选择器冲突；无变量=默认海浪图 assets/wallpaper/ocean1.jpg）── */
 body.whale-anim::before,body.custom-bg::before{
-  background-image:var(--bgimg, url(/assets/ocean1.jpg))!important}
+  background-image:var(--bgimg, url(/wallpaper/ocean1.jpg))!important}
 body.custom-bg::after{background:linear-gradient(160deg,rgba(15,35,65,.10),rgba(20,45,80,.05) 50%,rgba(25,50,90,.08))}
 body.wall-video #wallVideo{display:block}
 body.wall-video #wallTint{display:block}
@@ -735,7 +735,8 @@ th{color:var(--tx2);font-weight:500}
           <button id="pCatAdd" class="ghost" style="padding:2px 10px" title="新建分区或添加角色">＋ 新建/添加</button>
         </div>
         <div class="btns" style="justify-content:flex-start;gap:8px">
-          <button id="pSort" class="ghost">按评估分数排序</button>
+          <button id="pSort" class="ghost" title="点击：分数高→低；再点：低→高；再点回到高→低（WPS 式切换）" style="font-weight:700">↓ 按评估分数排序</button>
+          <span class="hint" id="pSortHint">（点一下正序，再点一下倒序）</span>
           <button id="pSortOff" class="ghost">恢复默认顺序</button>
         </div>
         <input type="text" id="personaSearch" class="group-search" placeholder="🔍 搜索人设（如 傲娇/毒舌/猫/程序员）…">
@@ -951,6 +952,8 @@ th{color:var(--tx2);font-weight:500}
         <option value="whale">🐋 鲸语</option>
       </select><span class="hint">切换后保存设置（自动刷新）即生效；功能完全一致。</span></div></div>
       <div class="row"><label>点击前清遮挡</label><input type="checkbox" data-cfg="ui.clean_overlays"></div>
+      <div class="row"><label>地址栏乱码化</label><input type="checkbox" data-cfg="ui.obscure_url">
+        <span class="hint">开启后：进入页面把地址栏路径替换成随机乱码（保护访问地址不被他人复制直接登入；刷新靠会话 Cookie）。端口号无法乱码（浏览器必须用真实端口连接）。默认关。</span></div>
       <div class="btns"><button class="pri" data-save>保存设置（界面适配）</button></div>
     </section>
 
@@ -1293,14 +1296,17 @@ function syncThemeFromCfg(){
 /* ── 鲸鱼光标（默认 22 蓝鲸，用户可自定义图片）——借鉴"自定义背景"成功经验：
    背景靠 body.custom-bg class + CSS 生效；光标同理改为"html.whale-cursor class + cursor:url() 原生光标"，
    不依赖 JS 跟随动画（更可靠、能真正渲染）。图片在服务端已 resize ≤128（CSS 原生光标尺寸上限）。 ── */
+const CURSOR_DEFAULT_URL = '/assets/cursor.png';
+const CURSOR_CUSTOM_URL = '/assets/custom-cursor.png';
 const WHALE_CURSOR = (function(){
-  const DEFAULT_URL = '/assets/cursor.png';
-  const CUSTOM_URL = '/assets/custom-cursor.png';
+  const DEFAULT_URL = CURSOR_DEFAULT_URL;
+  const CUSTOM_URL = CURSOR_CUSTOM_URL;
   let url = DEFAULT_URL, enabled = false;
   function apply(){
     let st = document.getElementById('whaleCursorStyle');
     if(!st){ st = document.createElement('style'); st.id = 'whaleCursorStyle'; document.head.appendChild(st); }
     const u = url + '?v=' + Date.now();      // cache-bust：防浏览器缓存旧图/旧 404
+    // 注意：cursor:url() 需同时覆盖 html 与所有元素；图片加载失败用 auto（系统默认）兜底
     st.textContent = 'html.whale-cursor,html.whale-cursor *{cursor:url("'+u+'") 8 8, auto!important}';
   }
   function setCustom(u){ url = u || DEFAULT_URL; if(enabled) apply(); }
@@ -1322,7 +1328,7 @@ function syncCursorFromCfg(){
     const custom = getPath(cfg,'ui.cursor_image');
     // 默认先确认自定义图是否存在（custom-cursor.png 只有上传后才存在）；加 ?v= 防浏览器缓存旧 404
     if(custom){
-      const tus = CUSTOM_URL + '?v=' + Date.now();
+      const tus = CURSOR_CUSTOM_URL + '?v=' + Date.now();
       const probe = new Image();
       probe.onload = ()=> WHALE_CURSOR.setCustom(tus);
       probe.onerror = ()=> WHALE_CURSOR.setCustom('');
@@ -1424,7 +1430,8 @@ function applyCustomBg(){
   try{
     const has = cfg && (getPath(cfg,'ui.background')||'') === 'custom';
     document.body.classList.toggle('custom-bg', !!has);
-    document.body.style.setProperty('--bgimg', has ? 'url(/assets/ui-bg.jpg)' : 'url(/assets/ocean1.jpg)');
+    // 默认背景=海浪（assets/wallpaper/ocean1.jpg）；自定义后=ui-bg.jpg
+    document.body.style.setProperty('--bgimg', has ? 'url(/assets/ui-bg.jpg)' : 'url(/wallpaper/ocean1.jpg)');
     if(has && !document.body.classList.contains('wall-video')) document.body.style.setProperty('--bgimg', 'url(/assets/ui-bg.jpg)');
     if(has) document.body.classList.remove('wall-video');
   }catch(e){}
@@ -2660,37 +2667,81 @@ function syncMemGroupsToCfg(){
       };
     });
   }
-  /* 排序按钮 */
+  /* 排序按钮：WPS 式点击切换（正序/倒序），图标随状态变化 */
   (function(){
     const s = document.getElementById('pSort'), so = document.getElementById('pSortOff');
-    if(s) s.onclick = ()=>{ sortByScore = true; render(); toast('已按评估分高→低排序（当前视图）'); };
-    if(so) so.onclick = ()=>{ sortByScore = false; render(); };
+    const hint = document.getElementById('pSortHint');
+    if(s){
+      s.onclick = ()=>{ 
+        sortByScore = !sortByScore;         // 点一下正序，再点一下倒序
+        s.textContent = sortByScore ? '↑ 按评估分数排序' : '↓ 按评估分数排序';
+        if(hint) hint.textContent = sortByScore ? '（切换为：低→高；再点恢复高→低）' : '（点一下正序，再点一下倒序）';
+        render(); 
+        toast(sortByScore ? '已按评估分低→高（倒序）' : '已按评估分高→低（正序）');
+      };
+      if(sortByScore) s.textContent = '↑ 按评估分数排序';
+    }
+    if(so) so.onclick = ()=>{ sortByScore = false; if(s) s.textContent = '↓ 按评估分数排序'; if(hint) hint.textContent = '（点一下正序，再点一下倒序）'; render(); };
   })();
-  /* ➕ 新建分区 / 添加角色（弹出菜单） */
+  /* ➕ 新建分区 / 添加角色（弹出菜单；分区名下拉=已有分区+自定义，选自定义才让输入；选已有自动匹配描述） */
   const addBtn = document.getElementById('pCatAdd');
   if(addBtn) addBtn.onclick = ()=>{
     const box2 = document.createElement('div'); box2.className = 'box'; box2.style.textAlign = 'left';
     const cats = allCats();
+    // 下拉：已有分区（内置 + 用户自定义）最后一项=自定义
+    const catOpts = builtCats.concat(Object.keys(userCats));
+    const allOpts = [];
+    catOpts.forEach((c, i)=>{ allOpts.push('<option value="'+esc(c)+'">'+esc(c)+'</option>'); });
+    allOpts.push('<option value="__custom__">✏️ 自定义…</option>');
+    const catSelHtml = '<select id="pAddCatSel" class="dsel-native">' + allOpts.join('') + '</select>';
     box2.innerHTML =
       '<h1>➕ 新建分区 / 添加到分区</h1>'+
       '<div class="row"><label>类型</label><div class="grow"><select id="pAddType"><option value="cat">新建分区</option><option value="persona">添加角色到分区</option></select></div></div>'+
-      '<div class="row" id="pAddCatRow"><label>分区名</label><div class="grow"><input id="pAddCat" placeholder="如 🎮 我的游戏（可新建）"></div></div>'+
-      '<div class="row" id="pAddDescRow"><label>分区描述</label><div class="grow"><input id="pAddDesc" placeholder="这分区的角色都是什么（可选）"></div></div>'+
+      '<div class="row" id="pAddCatRow"><label>分区名</label><div class="grow">'+catSelHtml+'<input id="pAddCat" class="dn" placeholder="自定义分区名（如 🎮 我的游戏）"></div></div>'+
+      '<div class="row" id="pAddDescRow"><label>分区描述</label><div class="grow"><input id="pAddDesc" placeholder="这分区的角色都是什么（可选；新建分区时填）"></div></div>'+
       '<div class="row" id="pAddNameRow" style="display:none"><label>角色名</label><div class="grow"><input id="pAddName" placeholder="角色名"></div></div>'+
       '<div class="row" id="pAddTextRow" style="display:none"><label>角色文本</label><div class="grow"><textarea id="pAddText" rows="5" placeholder="角色设定（会交补足引擎+评分）"></textarea></div></div>'+
-      '<div class="hint" id="pAddCats" style="margin:4px 0">已有分区：'+(builtCats.concat(Object.keys(userCats)).join('、'))+'</div>'+
+      '<div class="hint" id="pAddCats" style="margin:4px 0">已有分区：'+(catOpts.join('、'))+'</div>'+
       '<div class="btns" style="justify-content:flex-end;margin-top:8px"><button class="pri" id="pAddOk">创建</button><button class="ghost" id="pAddCancel">取消</button></div>';
     const mm = document.createElement('div'); mm.className = 'mask'; mm.appendChild(box2);
     document.body.appendChild(mm); maskOpen(mm);
     const typeSel = box2.querySelector('#pAddType');
+    const catSel = box2.querySelector('#pAddCatSel');
+    const catInput = box2.querySelector('#pAddCat');
+    const descInput = box2.querySelector('#pAddDesc');
+    function catValue(){
+      if(catSel.value === '__custom__'){
+        catInput.classList.remove('dn'); return (catInput.value || '').trim();
+      }
+      catInput.classList.add('dn');
+      return catSel.value;
+    }
     typeSel.onchange = ()=>{
       const isP = typeSel.value === 'persona';
       box2.querySelector('#pAddNameRow').style.display = isP?'':'none';
       box2.querySelector('#pAddTextRow').style.display = isP?'':'none';
+      // 添加角色到分区时：分区名必须选已有/自定义；新建分区时固定「自定义」输入
+      if(isP){
+        catSel.disabled = false;
+        // 恢复下拉（而不是强制自定义）
+      }else{
+        catSel.value = '__custom__'; catInput.classList.remove('dn'); catSel.disabled = true;
+      }
     };
+    // 选已有分区 → 自动带出分区描述；描述输入仅在新建分区时可用
+    catSel.onchange = ()=>{
+      const v = catSel.value;
+      if(v === '__custom__'){ catInput.classList.remove('dn'); descInput.disabled = false; return; }
+      catInput.classList.add('dn');
+      const d = userCats[v] || '';
+      descInput.value = d;
+      descInput.disabled = true;
+    };
+    // 初始：新建分区模式 → 自定义输入
+    catSel.value = '__custom__'; catInput.classList.remove('dn'); catSel.disabled = true;
     box2.querySelector('#pAddCancel').onclick = ()=>{ maskClose(mm); mm.remove(); };
     box2.querySelector('#pAddOk').onclick = async ()=>{
-      const cat = (box2.querySelector('#pAddCat').value||'').trim();
+      const cat = catValue();
       if(!cat){ toast('分区名不能为空'); return; }
       try{
         if(typeSel.value === 'cat'){
@@ -2703,8 +2754,17 @@ function syncMemGroupsToCfg(){
           const name = (box2.querySelector('#pAddName').value||'').trim();
           const text = (box2.querySelector('#pAddText').value||'').trim();
           if(!name || !text){ toast('角色名和文本都要填'); return; }
+          // 自定义新分区名时先落盘（加入「自定义分区」列表）
+          if(catSel.value === '__custom__' && cat && !catOpts.includes(cat)){
+            const desc = (box2.querySelector('#pAddDesc').value||'').trim();
+            await getJSON('/api/persona/cats/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cat, desc})});
+            userCats[cat] = desc;
+          }
           const r = await getJSON('/api/personas/custom',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, text, cat})});
-          if(r.ok){ toast('✅ 角色「'+name+'」已加入分区「'+cat+'」'); rc_load(); }
+          if(r.ok){
+            toast('✅ 角色「'+name+'」已加入分区「'+cat+'」');
+            renderChips(); rc_load();
+          }
           else toast('失败：'+(r.error||''));
         }
         maskClose(mm); mm.remove();
@@ -2715,32 +2775,26 @@ function syncMemGroupsToCfg(){
   renderChips(); render();
 })();
 
-/* 角色卡 → 行为档位推荐（本地关键词，零 token） */
-(function(){
-  const PH = ["活跃","话痨","话多","话唠","开朗","热情","外向","爱说话","爱聊","自来熟","中二","卖萌","活泼","调皮","社牛","气氛组","爱抛梗","爱接话"];
-  const PL = ["高冷","安静","沉默","内向","潜水","话少","不爱说话","寡言","冷淡","宅","旁观","看戏","围观","佛系","淡定"];
-  const SH = {3:["表情包爱好者","表情狂魔","表情轰炸","斗图","斗表情","表情包大师"],
-              2:["表情包","用表情","表情帝","爱用表情","颜文字","可爱","萌"],
-              1:["偶尔表情","偶尔用用","表情克制"],
-              0:["不用表情","不发表情","正经","严肃","老成","严谨","书卷气","文绉绉"]};
+/* 角色卡 → 行为档位推荐（模型多维度评估 + 本地兜底；应用后写入 cfg 并即时生效） */
+(async function(){
   const btn = $('roleHintBtn');
   if(!btn) return;
-  btn.onclick = ()=>{
-    const txt = ($('roleHint') || document.querySelector('[data-cfg="persona.role_text"]'));
+  btn.onclick = async ()=>{
+    const txt = document.querySelector('[data-cfg="persona.role_text"]');
     const rt = txt ? (txt.value || '') : '';
-    if(!rt.trim()){ $('roleHintRst').textContent = '角色文本为空，用默认（普通/少表情）'; }
-    let hi = 0, lo = 0;
-    PH.forEach(k=>{ if(rt.includes(k)) hi++; });
-    PL.forEach(k=>{ if(rt.includes(k)) lo++; });
-    let part = 'medium';
-    if(hi - lo >= 2) part = 'high';
-    else if(lo - hi >= 2) part = 'low';
-    let st = 0;
-    [3,2,1,0].forEach(lv=>{ if(st===0 && SH[lv].some(k=>rt.includes(k))) st = lv; });
-    $('roleHintPart').value = part;
-    $('roleHintSticker').value = String(st);
-    $('roleHintRst').textContent = '推荐：参与度 ' + (part==='high'?'活跃':part==='low'?'安静':'普通') + ' · 表情包 ' + st + ' 级';
-    $('roleHintDetail').style.display = '';
+    $('roleHintRst').textContent = '正在按角色卡评估行为档（模型多维度）…';
+    try{
+      const res = await getJSON('/api/persona/behavior-recommend',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text:rt.slice(0,2400)})});
+      if(res && res.error){ $('roleHintRst').textContent = '评估失败：'+res.error; return; }
+      const part = res.participation || 'medium', st = (res.sticker ?? 0);
+      $('roleHintPart').value = part;
+      $('roleHintSticker').value = String(st);
+      const via = res.via === 'llm' ? '（模型评估'+(res.reason?('：'+res.reason):'')+'）' : '（本地规则）';
+      $('roleHintRst').textContent = '推荐：参与度 ' + (part==='high'?'活跃':part==='low'?'安静':'普通') + ' · 表情包 ' + st + ' 级 ' + via
+        + (res.marks?(' [活跃m×'+res.marks.active+' 安静m×'+res.marks.passive+']'):'');
+      $('roleHintDetail').style.display = '';
+    }catch(e){ $('roleHintRst').textContent = '评估失败：'+e.message; }
   };
   const apply = $('roleHintApply');
   if(apply){
@@ -2748,9 +2802,10 @@ function syncMemGroupsToCfg(){
       try{
         setPath(cfg, 'persona.participation', $('roleHintPart').value);
         setPath(cfg, 'store.sticker_level', parseInt($('roleHintSticker').value) || 0);
-        await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
-        syncToForm();
-        toast('已应用行为档（参与度/表情包）');
+        const r = await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
+        if(r && r.ok === false){ toast('应用失败：'+(r.error||'')); return; }
+        cfg = await getJSON('/api/config'); syncToForm();
+        toast('已应用行为档（参与度/表情包）并保存');
       }catch(e){ toast('应用失败：'+e.message); }
     };
   }
@@ -3496,11 +3551,23 @@ loadSeedStats();
     }catch(e){ if($('seedCustomRst')) $('seedCustomRst').textContent='添加失败：'+e.message; }
   };
 })();
-/* ③ 会话 Cookie 可认证后：移除地址栏 ?token=，防止他人复制完整 URL 直接登入 */
+/* ③ 地址栏防窥视：① 一律移除 ?token=（登录后防复制登入）；
+   ② 可选「地址乱码化」（ui.obscure_url=true，默认关）：路径也换成随机乱码串（刷新靠会话 cookie）。 */
 (function(){
   try{
     if(location.search.indexOf('token=')>=0){
-      const u=new URL(location.href); u.searchParams.delete('token');
+      const u = new URL(location.href);
+      u.searchParams.delete('token');
+      history.replaceState({}, '', u.toString());
+    }
+    if((cfg && getPath(cfg,'ui.obscure_url'))){
+      let garb = '';
+      const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789#$~';
+      for(let i=0;i<16;i++) garb += chars[Math.floor(Math.random()*chars.length)];
+      const u = new URL(location.href);
+      u.pathname = '/' + garb;
+      u.search = '';
+      u.hash = '';
       history.replaceState({}, '', u.toString());
     }
   }catch(e){}
