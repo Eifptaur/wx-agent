@@ -1297,6 +1297,8 @@ PERSONA_CATS = {
     "aodiao_girl": "🔥 网络热门", "menmei": "🔥 网络热门", "yanmao": "🔥 网络热门",
     "shengyin": "🔥 网络热门", "chengxuyuan": "🔥 网络热门", "jizhe": "🔥 网络热门",
     "duanzi": "🔥 网络热门", "zhexuejia": "🔥 网络热门", "zhaizhai": "🔥 网络热门",
+    "narukami": "🎭 女神异闻录", "yuki_makoto": "🎭 女神异闻录", "shioiri": "🎭 女神异闻录",
+    "cult_leader": "🕯️ Weather Factory", "exile": "🕯️ Weather Factory", "heathcliff": "🌙 月计",
     "xiaoyan": "🔥 网络热门", "dashu": "🔥 网络热门", "zongcai": "🔥 网络热门",
     "meng_hou": "🔥 网络热门", "yingxiong": "🔥 网络热门", "qiandao": "🔥 网络热门",
     "banshou": "🔥 网络热门", "xiaogui": "🔥 网络热门", "maomi": "🔥 网络热门",
