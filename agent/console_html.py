@@ -1258,66 +1258,30 @@ function syncThemeFromCfg(){
   try{ applyTheme(qTheme || getPath(cfg,'ui.theme')); }catch(e){}
 }
 
-/* ── 鲸鱼光标（默认 22 蓝鲸，用户可自定义图片；点击时果冻式向下点头） ── */
+/* ── 鲸鱼光标（默认 22 蓝鲸，用户可自定义图片）——借鉴"自定义背景"成功经验：
+   背景靠 body.custom-bg class + CSS 生效；光标同理改为"html.whale-cursor class + cursor:url() 原生光标"，
+   不依赖 JS 跟随动画（更可靠、能真正渲染）。图片在服务端已 resize ≤128（CSS 原生光标尺寸上限）。 ── */
 const WHALE_CURSOR = (function(){
-  const DEFAULT_URL = '/assets/cursor.png';          // 默认：22 蓝鲸（透明底）
-  const CUSTOM_URL = '/assets/custom-cursor.png';    // 用户上传（不存在时 404 → 用默认）
-  let img = new Image(); let url = DEFAULT_URL;
-  let ready = false, enabled = false, el = null;
-  const SIZE = 36;
-  function load(){
-    img = new Image();
-    img.onload = ()=>{ ready = true; if(el) el.style.backgroundImage = 'url("'+url+'")'; if(enabled) build(); };
-    img.onerror = ()=>{ if(url !== DEFAULT_URL){ url = DEFAULT_URL; load(); } };
-    img.src = url;
-  }
-  function setCustom(u){
-    if(u){ url = u; ready = false; if(el){ el.style.backgroundImage = 'url("'+u+'")'; el.style.display = 'block'; } load(); }
-    else { url = DEFAULT_URL; ready = false; if(el){ el.style.backgroundImage = 'url("'+DEFAULT_URL+'")'; } load(); }
-  }
-  function ensureEl(){
-    if(el && el.isConnected) return el;
-    el = document.createElement('div');
-    el.id = 'whaleCursor';
-    el.style.cssText = 'position:fixed;left:0;top:0;width:'+SIZE+'px;height:'+SIZE+'px;'+
-      'pointer-events:none;z-index:99999;display:none;transition:transform .08s cubic-bezier(.34,1.6,.64,1);'+
-      'background:url("'+url+'") no-repeat center/contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))';
-    document.body.appendChild(el);
-    return el;
-  }
-  function build(){
-    const e = ensureEl(); e.style.display = 'block';
+  const DEFAULT_URL = '/assets/cursor.png';
+  const CUSTOM_URL = '/assets/custom-cursor.png';
+  let url = DEFAULT_URL, enabled = false;
+  function apply(){
     let st = document.getElementById('whaleCursorStyle');
     if(!st){ st = document.createElement('style'); st.id = 'whaleCursorStyle'; document.head.appendChild(st); }
-    st.textContent = 'html.whale-cursor,html.whale-cursor *{cursor:none!important}';
-    document.documentElement.classList.add('whale-cursor');
+    const u = url + '?v=' + Date.now();      // cache-bust：防浏览器缓存旧图/旧 404
+    st.textContent = 'html.whale-cursor,html.whale-cursor *{cursor:url("'+u+'") 8 8, auto!important}';
   }
-  function teardown(){
-    if(el) el.style.display = 'none';
-    const st = document.getElementById('whaleCursorStyle');
-    if(st) st.textContent = '';
-    document.documentElement.classList.remove('whale-cursor');
-  }
-  document.addEventListener('pointermove', (ev)=>{
-    if(!enabled) return;
-    const e = ensureEl();
-    e.style.left = ev.clientX + 'px'; e.style.top = ev.clientY + 'px';
-    e.style.transform = 'translate(-4px,-4px) scale(1) rotate(0deg)';
-  }, {passive:true});
-  document.addEventListener('pointerdown', ()=>{
-    if(!enabled) return;
-    const e = ensureEl();
-    // 果冻点头：先压扁前倾（惯性），再回弹过冲恢复
-    e.style.transform = 'translate(-4px,-4px) scale(.72,.82) rotate(14deg)';
-    setTimeout(()=>{ e.style.transform = 'translate(-4px,-4px) scale(1.18,1.06) rotate(-4deg)'; }, 90);
-    setTimeout(()=>{ e.style.transform = 'translate(-4px,-4px) scale(1) rotate(0deg)'; }, 200);
-  }, true);
+  function setCustom(u){ url = u || DEFAULT_URL; if(enabled) apply(); }
   function set(on){
     enabled = !!on;
-    if(enabled){ if(ready) build(); else ensureEl(); }
-    else teardown();
+    if(on){ document.documentElement.classList.add('whale-cursor'); apply(); }
+    else {
+      document.documentElement.classList.remove('whale-cursor');
+      const st = document.getElementById('whaleCursorStyle');
+      if(st) st.textContent = '';
+    }
   }
-  load();
+  apply();
   return { set, setCustom, url: ()=>url };
 })();
 function syncCursorFromCfg(){

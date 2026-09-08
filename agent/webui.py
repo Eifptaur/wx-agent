@@ -547,8 +547,19 @@ class WebUI:
                         img = base64.b64decode(b64)
                         if not img.startswith(b"\x89PNG") and not img.startswith(b"\xff\xd8"):
                             return self._json({"ok": False, "error": "仅支持 PNG/JPEG 图片"}, 400)
+                        # resize ≤128（CSS 原生光标尺寸上限；借鉴背景自定义的 thumbnail 做法）
+                        from PIL import Image as _PILImg
+                        import io as _io
+                        try:
+                            _im = _PILImg.open(_io.BytesIO(img)).convert("RGBA")
+                            _im.thumbnail((128, 128))
+                            _buf = _io.BytesIO()
+                            _im.save(_buf, "PNG")
+                            _img_out = _buf.getvalue()
+                        except Exception:
+                            _img_out = img
                         with open(os.path.join(parent._asset_root, "custom-cursor.png"), "wb") as f:
-                            f.write(img)
+                            f.write(_img_out)
                         self._json({"ok": True})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)}, 500)
