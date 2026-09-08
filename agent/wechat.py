@@ -1007,8 +1007,9 @@ class WeChatAdapter:
             return False, str(e)
 
 
-    def moments_publish_text(self, text: str) -> tuple:
-        """长按左上角相机 ~2 秒 → 纯文字输入栏 → 输入 → 点「发表」（变绿后）→ 关窗。"""
+    def moments_publish_text(self, text: str, dry: bool = False) -> tuple:
+        """长按左上角相机 ~2 秒 → 纯文字输入栏 → 输入 → 点「发表」（变绿后）→ 关窗。
+        dry=True：验证到「输入栏可输入」即止（不点发表、不回车），用于检验避免真的发朋友圈。"""
         try:
             import ctypes
             from . import ui_adapt
@@ -1039,6 +1040,9 @@ class WeChatAdapter:
                     self.moments_close()
                     return False, "朋友圈输入栏未找到（未发布，窗口已关）"
             time.sleep(0.6)
+            if dry:
+                self.moments_close()
+                return True, "已到朋友圈输入框并输入文字（dry 模式，未点发表，未真发）"
             # 点「发表」（变绿后）：OCR 找「发表」；找不到再按回车兜底前先找
             published = False
             for t2, x, y, ww, hh in self.moments_ocr():
