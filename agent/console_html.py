@@ -301,7 +301,7 @@ button.tiny{padding:3px 10px;font-size:12px;border-radius:7px}
 .dsel-btn .txt{overflow:hidden;text-overflow:ellipsis}
 .dsel-btn:hover{border-color:var(--blue)}
 .dsel-btn .arr{color:var(--blue);font-size:11px;transform:translateY(-1px)}
-.dsel-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;background:var(--menu-bg);
+.dsel-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:220;background:var(--menu-bg);
   border:1px solid var(--input-bd);border-radius:10px;box-shadow:0 10px 30px rgba(77,107,254,.14);
   max-height:260px;overflow:auto;padding:5px}
 .dsel-menu li{list-style:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13.5px;color:var(--tx)}
@@ -1954,15 +1954,21 @@ function enhanceSelect(sel){
     e.stopPropagation();
     const open = !menu.classList.contains('dn');
     document.querySelectorAll('.dsel-menu').forEach(m=>m.classList.add('dn'));
-    // 兜底（不支持 :has() 的旧浏览器）：打开菜单时让所在卡片/弹窗允许溢出+提层
+    document.querySelectorAll('.dsel.open-z').forEach(d=>{ d.classList.remove('open-z'); d.style.zIndex=''; });
     document.querySelectorAll('.card.fx-overflow,.box.fx-overflow,.bill-dlg.fx-overflow').forEach(c=>c.classList.remove('fx-overflow'));
     if(!open){
       buildMenu(); refreshText(); menu.classList.remove('dn');
+      // 关键：.dsel(z=70) 自身建立层叠上下文，菜单(220)在它内部——必须把本 wrap 提到 500，
+      // 否则后面的兄弟下拉（模型行等）会盖住菜单（"叠上"根因）
+      wrap.classList.add('open-z'); wrap.style.zIndex='500';
       let host = wrap.closest('.card, .box, .bill-dlg');
       if(host){ host.classList.add('fx-overflow'); }
     }
   });
-  document.addEventListener('click', ()=>menu.classList.add('dn'));
+  document.addEventListener('click', ()=>{
+    menu.classList.add('dn');
+    if(wrap.classList.contains('open-z')){ wrap.classList.remove('open-z'); wrap.style.zIndex=''; }
+  });
   sel2.addEventListener('change', ()=>{ buildMenu(); refreshText(); });
   sel2.insertAdjacentElement('afterend', wrap);
   wrap.appendChild(btn); wrap.appendChild(menu);
