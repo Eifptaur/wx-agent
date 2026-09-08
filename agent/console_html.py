@@ -131,9 +131,11 @@ body.custom-bg::before{opacity:1!important}
     radial-gradient(200px 160px at 45% 20%,rgba(255,232,170,.09),transparent 62%);
   opacity:.9}
 :root[data-theme=dark] .card::after,:root[data-theme=dark] .side::after{opacity:.25}
-/* ── 光标特效 v10：无圆环水波纹；水光透镜跟随鼠标（扭曲强度↑、速度↑且随鼠标拖动加速、尺寸+微调）/ 波纹持续流动 ── */
-.card{transition:transform .6s cubic-bezier(.3,1.25,.5,1),box-shadow .6s ease}
-.card:hover{transform:translateY(-4px) scale(1.008);box-shadow:0 12px 30px rgba(63,168,240,.14),0 2px 8px rgba(31,41,55,.08)}
+/* ── 水光波纹 v10.-（修复：hover transform 创建 stacking context 导致输入框挡住下拉选单）──
+   卡片浮起效果改为 filter+shadow（均不创建 stacking context 不锁层级），
+   transform 保留在 .wave-char 等内部元素上（不涉及整卡分层）。 */
+.card{transition:filter .5s ease,box-shadow .5s ease}
+.card:hover{filter:drop-shadow(0 10px 22px rgba(63,168,240,.16));box-shadow:0 12px 30px rgba(63,168,240,.14),0 2px 8px rgba(31,41,55,.08)}
 .card:hover::after{animation:cardShimmer 2.6s ease-in-out infinite}
 @keyframes cardShimmer{0%,100%{opacity:.5}50%{opacity:1}}
 .card:hover h2,.card:hover .row label{transform:translateY(-1.5px)}
@@ -145,11 +147,18 @@ body.custom-bg::before{opacity:1!important}
   45%{transform:translateY(-3.5px)}
 }
 
+/* 卡片轻柔浮沉：改用 box-shadow 呼吸（transform 会锁内部层级/遮下拉——修复 1018） */
 .card.float-a{animation:waveFloat 4.6s ease-in-out infinite}
 @keyframes waveFloat{
-  0%,100%{transform:translateY(0)}
-  50%{transform:translateY(-3px)}
+  0%,100%{box-shadow:var(--shadow)}
+  50%{box-shadow:0 10px 24px rgba(63,168,240,.12),0 2px 8px rgba(31,41,55,.08)}
 }
+/* 下拉菜单永远在最上层：即便卡片形成局部 stacking context，菜单自身 z 拉满 */
+.dsel{z-index:70}
+.dsel-menu{z-index:220;position:absolute}
+/* 卡片内下拉菜单展开时允许溢出（默认 overflow:hidden 会裁剪菜单） */
+.card:has(.dsel .dsel-menu:not(.dn)),.card:has(.box .dsel-menu:not(.dn)){overflow:visible}
+.card.fx-overflow{overflow:visible!important}
 /* 水光波纹 v13「模块内投石入水」：透镜=光标所在整个模块（顶栏/导航栏/功能卡），
    单一窄环带从鼠标处一波波向外扩散（有肉眼可见时间差），到模块边缘极强衰减，绝不越过模块边界。
    z-index 40 < 顶栏50：功能栏滚到顶栏下方时，波纹只作用于下层内容，顶栏始终置顶不受扭曲。 */
@@ -251,6 +260,20 @@ button:active{transform:scale(.97)}
 
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .card h2{font-size:15px;margin-bottom:4px;color:var(--blue);display:flex;align-items:center;gap:6px}
+/* 概览右上角工具按钮（计费删除） */
+.ov-tools{margin-left:auto;display:inline-flex;gap:6px;font-weight:400}
+button.tiny{padding:3px 10px;font-size:12px;border-radius:7px}
+/* 计费日志弹窗（更不透明） */
+.bill-dlg{background:#141C2E!important;border:1px solid #33415C!important;box-shadow:0 18px 60px rgba(0,0,0,.5)!important}
+.bill-dlg .bd-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bill-dlg .bd-head b{font-size:14px}
+.bill-dlg .bd-sel{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.bill-dlg .bd-sel button{font-size:12px;padding:3px 10px}
+.bill-list{max-height:300px;overflow:auto;border:1px solid var(--bd);border-radius:10px;padding:6px}
+.bill-list .row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid rgba(148,196,255,.08);margin:0;font-size:13px}
+.bill-list .row:last-child{border-bottom:none}
+.bill-list .row label{display:flex;gap:6px;align-items:center;flex:1;margin:0}
+.bill-list b{color:var(--tx)}
 .card .desc{font-size:12.5px;color:var(--tx2);margin-bottom:12px}
 .row{display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
 .row label{width:150px;color:var(--tx2);flex-shrink:0;font-size:13px}
@@ -396,8 +419,12 @@ th{color:var(--tx2);font-weight:500}
   <main class="main">
 
     <section id="sec-overview" class="card" data-sec>
-      <h2>概览</h2>
+      <h2>概览<span class="ov-tools">
+        <button class="ghost tiny" id="costClearAll" title="一键删除全部计费历史记录">🗑 一键删</button>
+        <button class="ghost tiny" id="costClearSel" title="打开计费日志弹窗，勾选删除">☑ 勾选删</button>
+      </span></h2>
       <div class="desc">机器人运作状态与账户信息（数据每 8 秒自动刷新）。</div>
+      <div class="ov-checkbar" id="codeCheckTip" style="font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:10px;border:1px solid var(--blue-line);background:rgba(63,168,240,.07);color:var(--blue);margin-bottom:12px">代码检测：尚未运行（点「检测中心」页的代码检测/代码检测＋依赖核对）</div>
       <div class="stat">
         <div class="s"><b id="st-sessions">0</b><span>累计会话数</span></div>
         <div class="s"><b id="st-tokens">0</b><span>累计 token</span></div>
@@ -413,8 +440,10 @@ th{color:var(--tx2);font-weight:500}
       </div>
       <div style="margin:10px 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <b style="color:var(--blue)">📅 每日明细</b>
-        <span class="hint" style="flex:1">点日期查看当天会话/词数/成本</span>
-        <button class="ghost" id="calPrev">‹</button><b id="calYM" style="min-width:104px;text-align:center"></b><button class="ghost" id="calNext">›</button>
+        <span class="hint" style="flex:1">点日期查看当天会话/词数/成本；点「年月」任意地方跳转年份</span>
+        <button class="ghost" id="calPrev">‹</button>
+        <button class="ghost" id="calYM" title="点击跳转年份（有特效）" style="min-width:104px;text-align:center;background:linear-gradient(135deg,var(--blue-soft),var(--hover-bg));border:1px solid var(--blue-line)"></button>
+        <button class="ghost" id="calNext">›</button>
       </div>
       <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font-size:12px;margin-bottom:6px"></div>
       <div id="calDetail" class="hint" style="margin-bottom:4px">点日期查看当天明细</div>
@@ -433,7 +462,7 @@ th{color:var(--tx2);font-weight:500}
       <div class="btns">
         <button id="codeCheck" class="pri">代码检测</button>
         <button id="codeCheckDeps" class="ghost" title="额外跑依赖版本详细核对（55 项，稍慢）">代码检测＋依赖核对</button>
-        <span class="hint" id="codeCheckTip" style="align-self:center"></span>
+        <button class="ghost" id="codeCheckTip2" title="点击切换到概览查看常驻状态条" onclick="document.getElementById('sec-overview').scrollIntoView({behavior:'smooth'})">查看进度条</button>
       </div>
       <div class="btns">
         <button id="selfCheck" class="pri">鼠标操作检测</button>
@@ -557,11 +586,16 @@ th{color:var(--tx2);font-weight:500}
 
     <section id="sec-sessions" class="card" data-sec>
       <h2>运行明细</h2>
-      <div class="desc">简明日志：发了什么、多少 token、耗时（服务端按天落盘，最近 30 轮）。</div>
+      <div class="desc">简明日志：发了什么、多少 token、耗时（服务端按天落盘，最近 30 轮）。每个日期记录可勾选删除（按日期删，不可恢复）。</div>
       <div class="btns">
         <button id="sessRefresh" class="pri">刷新</button>
         <label class="hint" style="align-self:center;cursor:pointer"><input type="checkbox" id="sessExpand"> 展开详情（推理/工具/触发）</label>
         <span class="hint" style="align-self:center">推理文本按输出价计费，控制台「省 token 开关」默认已关闭思考。</span>
+      </div>
+      <div class="btns">
+        <button id="sessSelDel" class="danger" disabled>删除选中（勾选日期删除）</button>
+        <button id="sessClear" class="danger" title="清空全部运行明细（会话日志/对话历史）——模型将不再记得这些对话">一键清全部</button>
+        <span class="hint" style="align-self:center">勾选每条记录左侧「删」→「删除选中」；或直接「一键清全部」。</span>
       </div>
       <div id="sessBox" style="max-height:360px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-top:10px;background:var(--input-bg)">
         <div id="sessList" style="display:flex;flex-direction:column;gap:8px">
@@ -714,12 +748,9 @@ th{color:var(--tx2);font-weight:500}
         <div class="btns" style="justify-content:flex-start;gap:8px">
           <button id="memClearSel" class="danger" disabled>清除勾选的印象</button>
           <button id="memClearAll" class="danger">清除全部</button>
-          <button id="sessClear" class="danger" title="清除运行明细（会话日志/对话历史）——模型将不再记得这些对话">清除会话日志</button>
-          <button id="sessSelDel" class="danger" disabled title="删除勾选的会话（按日期删除对应日志与对话历史）">删除选中</button>
-          <button id="costClear" class="danger" title="勾选后删除计费历史">删除计费选中</button>
           <span class="hint" id="memClearRst"></span>
         </div>
-        <div class="hint">① 成员印象=记忆页勾选清除/本按钮清除全部；②「清除会话日志」=运行明细里的对话历史（真实删除文件，模型不再记得）；③「清除全部」=印象+共享记忆+会话日志全清。</div>
+        <div class="hint">① 成员印象=记忆页勾选清除/本按钮清除全部；②「清除全部」=印象+共享记忆全清；③ 会话日志/运行明细的删除在「运行明细」页。</div>
       </div></div>
       <div style="max-height:340px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px">
         <table id="memTable" style="width:100%"><thead><tr><th style="width:26px"><input type="checkbox" id="memCheckAll" title="全选"></th><th>成员</th><th>印象数</th><th>更新时间</th><th></th></tr></thead><tbody></tbody></table>
@@ -1159,6 +1190,12 @@ function syncFromForm(){
         try{ v = v.trim() ? JSON.parse(v) : {}; }
         catch(e){ v = {}; toast('屏蔽名单 JSON 格式有误，已忽略；示例：{"群名":["昵称"]}'); }
       }
+      // 空字符串不覆盖已有值（防"保存全部设置"把用户没填的文本框冲成空）
+      else if(v !== undefined && String(v).trim() === '' && getPath(cfg,path) !== undefined
+              && getPath(cfg,path) !== null && getPath(cfg,path) !== ''){
+        // 仍保留表单描述字段等非关键文本的可清空性：仅当原有值非空时跳过覆盖
+        return;
+      }
     }
     setPath(cfg, path, v);
   });
@@ -1565,9 +1602,34 @@ async function loadStatus(){
           applyDay(r,d);
         }catch(e){ det.textContent='加载失败：'+e.message; }
       }
-      const prev=$('calPrev'), next=$('calNext');
+      const prev=$('calPrev'), next=$('calNext'), ymBtn=$('calYM');
       if(prev) prev.onclick=()=>{ ym = ym%100===1 ? (Math.floor(ym/100)-1)*100+12 : ym-1; renderCal(); };
       if(next) next.onclick=()=>{ ym = ym%100===12 ? (Math.floor(ym/100)+1)*100+1 : ym+1; renderCal(); };
+      // 点击「年月」→ 年份选择弹层（带浮出特效）
+      if(ymBtn) ymBtn.onclick = ()=>{
+        const curY = Math.floor(ym/100);
+        const bx = document.createElement('div'); bx.className='box cal-year-dlg';
+        bx.style.cssText='width:min(420px,92vw)';
+        const yrs=[]; for(let yy=curY-4; yy<=curY+6; yy++) yrs.push(yy);
+        bx.innerHTML='<b style="color:var(--blue)">跳到年份</b>'
+          +'<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:12px">'
+          + yrs.map(yy=>'<button class="ghost '+(yy===curY?'on':'')+'" data-y="'+yy+'" style="padding:6px 0;border-radius:9px;'+(yy===curY?'background:var(--blue);color:#fff;':'' )+'">'+yy+'</button>').join('')
+          +'</div>'
+          +'<div class="btns" style="margin-top:12px;justify-content:flex-end"><button class="ghost" id="cyCancel">关闭</button></div>';
+        const mm=document.createElement('div'); mm.className='mask'; mm.style.background='rgba(8,14,26,.6)';
+        mm.appendChild(bx); document.body.appendChild(mm); maskOpen(mm);
+        // 特效：弹层浮出
+        bx.style.animation='calPop .3s cubic-bezier(.2,1.4,.4,1)';
+        const st=document.createElement('style'); st.textContent='@keyframes calPop{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}'; document.head.appendChild(st);
+        const close=()=>{ maskClose(mm); mm.remove(); };
+        bx.querySelector('#cyCancel').onclick=close;
+        bx.querySelectorAll('[data-y]').forEach(b=>{
+          b.onclick=()=>{
+            const y=parseInt(b.dataset.y,10), m=ym%100||1;
+            ym=y*100+(m<=12?m:1); close(); renderCal();
+          };
+        });
+      };
       renderCal();
     })();
     $('st-ac').textContent = '¥' + (s.stats.avg_cost||0).toFixed(4);
@@ -1587,6 +1649,55 @@ async function loadLog(){
   try{ const l = await getJSON('/api/logs'); $('log').textContent = l.lines.join('\n'); $('log').scrollTop = $('log').scrollHeight; }catch(e){}
 }
 
+/* ── 计费日志勾选删除弹窗（更不透明设计，按天勾选，可一键勾一天/一月，删除后概览自动刷新）── */
+function openBillDlg(bills){
+  const box = document.createElement('div');
+  box.className = 'box bill-dlg';
+  box.style.cssText = 'width:min(560px,94vw);max-height:82vh;display:flex;flex-direction:column';
+  const listHtml = bills.map((b,i)=>
+    '<div class="row"><label><input type="checkbox" class="billDay" data-day="'+esc(b.day)+'"> '
+    +'<b>'+esc(b.day)+'</b> <span class="hint">'+b.tokens+' tok · ¥'+b.cost.toFixed(4)+' · '+b.calls+' 次</span></label></div>'
+  ).join('');
+  box.innerHTML =
+    '<div class="bd-head"><b>🗑 勾选删除计费日志（'+bills.length+' 天）</b><span class="sp" style="flex:1"></span><button class="ghost tiny" id="bdClose">✕</button></div>'
+    +'<div class="hint" style="margin:0 0 6px">勾选要删除的天（可按住一条精确到年月日）；删除后概览自动刷新。操作不可恢复。</div>'
+    +'<div class="bd-sel">'
+      +'<button class="ghost" id="bdSelAll">☑ 全选</button>'
+      +'<button class="ghost" id="bdSelNone">清空勾选</button>'
+      +'<button class="ghost" id="bdSelDay">勾选今日</button>'
+      +'<button class="ghost" id="bdSelMonth">勾选本月</button>'
+    +'</div>'
+    +'<div class="bill-list">'+listHtml+'</div>'
+    +'<div class="btns" style="justify-content:flex-end;margin-top:10px">'
+      +'<button class="pri" id="bdOk">确认删除</button>'
+      +'<button class="ghost" id="bdCancel">取消</button>'
+    +'</div>';
+  const mm = document.createElement('div'); mm.className = 'mask'; mm.style.background = 'rgba(8,14,26,.78)';
+  mm.appendChild(box); document.body.appendChild(mm); maskOpen(mm);
+  const selDays = ()=>[...box.querySelectorAll('.billDay:checked')].map(c=>c.dataset.day);
+  const setAll = (on)=>{ box.querySelectorAll('.billDay').forEach(c=>{ c.checked = on; }); };
+  box.querySelector('#bdSelAll').onclick = ()=>setAll(true);
+  box.querySelector('#bdSelNone').onclick = ()=>setAll(false);
+  box.querySelector('#bdSelDay').onclick = ()=>{ setAll(false); const t=new Date(); const s=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); box.querySelectorAll('.billDay').forEach(c=>{ if(c.dataset.day===s) c.checked=true; }); };
+  box.querySelector('#bdSelMonth').onclick = ()=>{ setAll(false); const t=new Date(); const m=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0'); box.querySelectorAll('.billDay').forEach(c=>{ if(c.dataset.day.startsWith(m)) c.checked=true; }); };
+  const close = ()=>{ maskClose(mm); mm.remove(); };
+  box.querySelector('#bdClose').onclick = close;
+  box.querySelector('#bdCancel').onclick = close;
+  box.querySelector('#bdOk').onclick = async ()=>{
+    const days = selDays();
+    if(!days.length){ alert('请先勾选要删除的天'); return; }
+    if(!confirm('确认删除所选 '+days.length+' 天的计费日志？')) return;
+    try{
+      const r = await getJSON('/api/stats/cal_delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days})});
+      if(r.ok){
+        close();
+        toast('✅ 已删除 '+r.removed.length+' 天计费日志');
+        if(typeof loadStatus==='function') loadStatus();   // 概览自动刷新
+      } else alert(r.error||'删除失败');
+    }catch(e){ alert('删除失败：'+e.message); }
+  };
+}
+
 /* ── 运行明细：思考过程 / token / 工具调用 ── */
 async function loadSessions(){
   if($('sessSelDel')) $('sessSelDel').onclick = async ()=>{
@@ -1598,12 +1709,22 @@ async function loadSessions(){
       if(r.ok) loadSessions(); else alert(r.error||'删除失败');
     }catch(e){ alert('删除失败：'+e.message); }
   };
-  if($('costClear')) $('costClear').onclick = async ()=>{
-    if(!confirm('确认清空计费历史（今日/周期/累计用量的历史记录）？')) return;
+  // 计费删除：概览右上角两个按钮（一键删 / 勾选删弹窗）
+  if($('costClearAll')) $('costClearAll').onclick = async ()=>{
+    if(!confirm('确认一键删除全部计费历史（今日/周期/累计用量的历史记录）？')) return;
     try{
       const r=await getJSON('/api/stats/cal_clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
       alert(r.ok?('已清空计费历史'):(r.error||'失败'));
+      if(r.ok) loadStatus();
     }catch(e){ alert('失败：'+e.message); }
+  };
+  if($('costClearSel')) $('costClearSel').onclick = async ()=>{
+    try{
+      const r = await getJSON('/api/stats/cal_list',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      const bills = (r && r.bills) || [];
+      if(!bills.length){ alert('当前没有可删除的计费日志'); return; }
+      openBillDlg(bills);
+    }catch(e){ alert('加载计费日志失败：'+e.message); }
   };
   const el = $('sessList');
   try{
@@ -1736,7 +1857,13 @@ function enhanceSelects(){
       e.stopPropagation();
       const open = !menu.classList.contains('dn');
       document.querySelectorAll('.dsel-menu').forEach(m=>m.classList.add('dn'));
-      if(!open){ buildMenu(); refreshText(); menu.classList.remove('dn'); }
+      // 兜底（不支持 :has() 的旧浏览器）：打开菜单时让所在卡片允许溢出+提层
+      document.querySelectorAll('.card.fx-overflow').forEach(c=>c.classList.remove('fx-overflow'));
+      if(!open){
+        buildMenu(); refreshText(); menu.classList.remove('dn');
+        let host = wrap.closest('.card');
+        if(host){ host.classList.add('fx-overflow'); }
+      }
     });
     document.addEventListener('click', ()=>menu.classList.add('dn'));
     sel2.addEventListener('change', ()=>{ buildMenu(); refreshText(); });
@@ -2356,8 +2483,8 @@ $('codeCheck').onclick = async ()=>{
       if(c.hint) lines.push('    建议：'+c.hint);
     }
     pre.textContent = lines.join('\n');
-    $('codeCheckTip').textContent = '';
-  }catch(e){ pre.textContent='代码检测失败：'+e.message; $('codeCheckTip').textContent=''; }
+    $('codeCheckTip').textContent = r ? ('✅ 代码检测完成：' + (r.summary||'')) : '代码检测完成';
+  }catch(e){ pre.textContent='代码检测失败：'+e.message; $('codeCheckTip').textContent='代码检测失败：'+e.message; }
   finally{ btn.disabled=false; if($('codeCheckDeps')) $('codeCheckDeps').disabled=false; window.__ccDeps = false; }
 };
 if($('codeCheckDeps')) $('codeCheckDeps').onclick = async ()=>{
@@ -2788,8 +2915,13 @@ function syncMemGroupsToCfg(){
         body:JSON.stringify({text:rt.slice(0,2400)})});
       if(res && res.error){ $('roleHintRst').textContent = '评估失败：'+res.error; return; }
       const part = res.participation || 'medium', st = (res.sticker ?? 0);
-      $('roleHintPart').value = part;
-      $('roleHintSticker').value = String(st);
+      // 关键：enhanceSelects 自绘下拉只监听原生 change，程序赋值需手动触发刷新按钮文字（否则显示旧值）
+      const pSel = $('roleHintPart'), sSel = $('roleHintSticker');
+      pSel.value = part;   sSel.value = String(st);
+      try{ pSel.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
+      try{ sSel.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
+      try{ if(pSel._refresh) pSel._refresh(); }catch(e){}
+      try{ if(sSel._refresh) sSel._refresh(); }catch(e){}
       const via = res.via === 'llm' ? '（模型评估'+(res.reason?('：'+res.reason):'')+'）' : '（本地规则）';
       $('roleHintRst').textContent = '推荐：参与度 ' + (part==='high'?'活跃':part==='low'?'安静':'普通') + ' · 表情包 ' + st + ' 级 ' + via
         + (res.marks?(' [活跃m×'+res.marks.active+' 安静m×'+res.marks.passive+']'):'');
@@ -3574,7 +3706,7 @@ loadSeedStats();
 })();
 /* 常驻进度栏：页面加载即显示代码检测状态（运行中实时百分比，结束后保留结果提示） */
 (function(){
-  const persist=()=>{ if($('codeCheckTip') && !$('codeCheckTip').textContent) $('codeCheckTip').textContent='代码检测：尚未运行（点上方「代码检测」或「代码检测＋依赖核对」）'; };
+  const persist=()=>{ if($('codeCheckTip') && !$('codeCheckTip').textContent) $('codeCheckTip').textContent='代码检测：尚未运行（点「检测中心」页的代码检测/代码检测＋依赖核对）'; };
   persist();
   document.addEventListener('DOMContentLoaded', persist);
 })();
