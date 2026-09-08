@@ -767,6 +767,36 @@ class WebUI:
                         self._json(parent.ui_stop_fn())
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
+                elif path == "/api/sessions/delete":
+                    # ⑨ 勾选删除运行明细：按日期删除 data/sessions/YYYY-MM-DD.jsonl（POST {dates:[...]}）
+                    try:
+                        import re as _re2
+                        _dates = [str(d) for d in (data.get("dates") or []) if _re2.match(r"^\d{4}-\d{2}-\d{2}$", str(d))]
+                        if not _dates:
+                            return self._json({"ok": False, "error": "没有有效的日期"})
+                        _sd = os.path.join(parent._data_path("sessions"))
+                        _deleted = []
+                        for _d in _dates:
+                            _f = os.path.join(_sd, _d + ".jsonl")
+                            if os.path.exists(_f):
+                                os.remove(_f); _deleted.append(_d)
+                        self._json({"ok": True, "note": "已删除 %d 个日期的运行明细" % len(_deleted), "deleted": _deleted})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
+                elif path == "/api/stats/cal_clear":
+                    # ⑨ 清空计费历史（usage_stats.history 与周期内记录）
+                    try:
+                        import json as _j2
+                        _p = parent._data_path("usage_stats.json")
+                        if os.path.exists(_p):
+                            with open(_p, "r", encoding="utf-8") as f:
+                                _us = _j2.load(f)
+                            _us["history"] = []
+                            with open(_p, "w", encoding="utf-8") as f:
+                                _j2.dump(_us, f, ensure_ascii=False, indent=1)
+                        self._json({"ok": True, "note": "计费历史已清空"})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
                 elif path == "/api/stats/cal":
                     # 日历：读取某日会话明细（data/sessions/YYYY-MM-DD.jsonl 汇总）
                     try:

@@ -716,6 +716,8 @@ th{color:var(--tx2);font-weight:500}
           <button id="memClearSel" class="danger" disabled>清除勾选的印象</button>
           <button id="memClearAll" class="danger">清除全部</button>
           <button id="sessClear" class="danger" title="清除运行明细（会话日志/对话历史）——模型将不再记得这些对话">清除会话日志</button>
+          <button id="sessSelDel" class="danger" disabled title="删除勾选的会话（按日期删除对应日志与对话历史）">删除选中</button>
+          <button id="costClear" class="danger" title="勾选后删除计费历史">删除计费选中</button>
           <span class="hint" id="memClearRst"></span>
         </div>
         <div class="hint">① 成员印象=记忆页勾选清除/本按钮清除全部；②「清除会话日志」=运行明细里的对话历史（真实删除文件，模型不再记得）；③「清除全部」=印象+共享记忆+会话日志全清。</div>
@@ -1565,6 +1567,22 @@ async function loadLog(){
 
 /* ── 运行明细：思考过程 / token / 工具调用 ── */
 async function loadSessions(){
+  if($('sessSelDel')) $('sessSelDel').onclick = async ()=>{
+    const sel=[...document.querySelectorAll('#sessList .sessSel:checked')].map(x=>x.dataset.date).filter(Boolean);
+    if(!sel.length){ return; }
+    if(!confirm('确认删除所选 '+sel.length+' 个日期的运行明细与对话历史？')) return;
+    try{
+      const r=await getJSON('/api/sessions/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dates:sel})});
+      if(r.ok) loadSessions(); else alert(r.error||'删除失败');
+    }catch(e){ alert('删除失败：'+e.message); }
+  };
+  if($('costClear')) $('costClear').onclick = async ()=>{
+    if(!confirm('确认清空计费历史（今日/周期/累计用量的历史记录）？')) return;
+    try{
+      const r=await getJSON('/api/stats/cal_clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      alert(r.ok?('已清空计费历史'):(r.error||'失败'));
+    }catch(e){ alert('失败：'+e.message); }
+  };
   const el = $('sessList');
   try{
     const r = await getJSON('/api/sessions?limit=30');
@@ -1584,6 +1602,7 @@ async function loadSessions(){
       const tt = parseInt(e.tokens||0);
       const rpct = (tt>0 && rt>0) ? (' · 推理 '+rt+' tok（'+Math.round(rt/tt*100)+'%）') : '';
       let html='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+        +'<label style="display:flex;align-items:center;gap:4px;cursor:pointer" title="勾选删除"><input type="checkbox" class="sessSel" data-date="'+esc(String(e.ts||'').slice(0,10))+'">删</label>'
         +'<b>'+esc(e.chat_name||e.chat_key)+'</b>'
         +'<span class="pill '+(e.ok?'ok':'off')+'">'+esc(e.status||'')+'</span>'
         +'<span class="hint" style="font-size:11px">'+esc((e.ts||'').replace('T',' '))+' · '+esc(e.latency_ms||0)+'ms</span>'
