@@ -2095,7 +2095,7 @@ class WeChatAdapter:
                         gui.open_chat(group_name)
                     except Exception:
                         pass
-                time.sleep(0.7)   # 等会话切到目标群、输入栏/界面就绪（缩短会点偏格，勿动）
+                time.sleep(0.40)   # 搜完立刻去点笑脸（原 0.7 过长，压到 0.4 仍够会话切稳）
             else:
                 # 无会话名：自动开第一个群（只探测一次，避免 UIA 连续失败重试）
                 try:
@@ -2112,7 +2112,7 @@ class WeChatAdapter:
             try:
                 # 温和关掉可能残留的表情面板（点击消息区空白，不用 Esc——Esc 易卡死微信）
                 ui_adapt.click(gui, int(sw * 0.72), int(sh * 0.45), heal=False)
-                time.sleep(0.4)
+                time.sleep(0.3)
             except Exception:
                 pass
             pos = self._emoji_btn_pos(gui)
@@ -2121,7 +2121,7 @@ class WeChatAdapter:
             ok, why = ui_adapt.click(gui, pos[0], pos[1], heal=False)   # 点表情菜单必须 heal=False（heal 抖动会取消菜单）
             if not ok:
                 return False, "点笑脸失败：%s" % why
-            time.sleep(0.9)   # 等表情面板完整弹出（压短会导致面板未弹稳→点偏格，必须保留）
+            time.sleep(0.80)   # 等表情面板完整弹出（0.9→0.80 略提速；再短会面板未弹稳→点偏格）
             return True, "表情面板已打开（只点一下，绝不重复点击）"
         except Exception as e:
             return False, str(e)
@@ -2242,26 +2242,25 @@ class WeChatAdapter:
             WHEEL_ROW = 150
             click_row = row
             _base = None
+            # 总是先【向上滚到最顶】（+wheel=向顶部；微信会记住上次滚动位置，发送前必须回顶，
+            # 否则"第一个"会错点成记忆位置处的格；加速=压紧间隔+少几次，但微信平滑滚动会并吞快速事件）
+            inp = gui._input
+            inp._user32.SetCursorPos(sx + int(sw * COL0), sy + int(sh * ROW0))
+            time.sleep(0.25)
+            for _top in range(10):
+                inp.wheel(500)
+                time.sleep(0.22)
+            time.sleep(0.6)
+            _base = self._emoji_base_center(gui)
             if row >= VISIBLE:
-                # 光标移到表情区（第一格中心，确定在项上——滚动才生效）
-                inp = gui._input
-                inp._user32.SetCursorPos(sx + int(sw * COL0), sy + int(sh * ROW0))
-                time.sleep(0.4)
-                # 先【向上滚大值】到最顶（+wheel=向上/顶部；速动会并吞，必须留间隔）
-                for _top in range(12):
-                    inp.wheel(500)
-                    time.sleep(0.35)
-                time.sleep(0.8)
-                # 到顶后取「视口顶部完整行中心 base」（视口 row0 固定屏幕位置，检测一次即可）
-                _base = self._emoji_base_center(gui)
                 # 向下滚到目标行：要 row R 落到「底部完整行」(viewport row 3)，需下滚 (R-3) 行
                 _rolls = row - (VISIBLE - 1)
                 for _s in range(_rolls):
                     inp.wheel(-WHEEL_ROW)      # -wheel = 向列表后面/底部滚；每格≈一行
-                    time.sleep(0.45)
-                time.sleep(0.6)
+                    time.sleep(0.4)
+                time.sleep(0.5)
                 click_row = VISIBLE - 1
-                print("[emoji] top then down {} rows (wheel_step={}); click_row={} (index={})"
+                print("[emoji] top always then down {} rows (wheel_step={}); click_row={} (index={})"
                       .format(_rolls, WHEEL_ROW, click_row, index), flush=True)
             # 点击点（渲染相对坐标）：
             #  · 中间行(目标不是最底)：视口 base+click_row×132（实测对 第21/27/24）。
