@@ -17,6 +17,9 @@ from collections import deque
 
 from .config import get_config
 
+# 调试开关：WX_DEBUG=1 时输出分步计时/调参日志（平时完全静默，不写 _scratch）
+_DEBUG = str(os.environ.get("WX_DEBUG") or "").strip() in ("1", "true", "yes")
+
 # 微信消息类型标签 → 内部占位文本
 TYPE_LABEL = {    "文本": "text",
     "图片": "image",
@@ -1007,9 +1010,22 @@ class WeChatAdapter:
             return False, str(e)
 
 
-    def moments_publish_text(self, text: str, dry: bool = False) -> tuple:
+    def moments_publish_text(self, text: str, dry: bool = False, shots: bool = False) -> tuple:
         """长按左上角相机 ~2 秒 → 纯文字输入栏 → 输入 → 点「发表」（变绿后）→ 关窗。
-        dry=True：验证到「输入栏可输入」即止（不点发表、不回车），用于检验避免真的发朋友圈。"""
+        dry=True：验证到「输入栏可输入」即止（不点发表、不回车），用于检验避免真的发朋友圈。
+        shots=True：dry 模式下每步截图到 _scratch/shots/moments_*.png（逐屏存证，UI 检验用）。"""
+        _shot = None
+        if shots:
+            import os as _os
+            _sdir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "_scratch", "shots")
+            _os.makedirs(_sdir, exist_ok=True)
+            def _shot(name):
+                try:
+                    from PIL import ImageGrab
+                    rect = self._moments_focus() or self._get_gui().render_rect
+                    ImageGrab.grab((rect[0], rect[1], rect[2], rect[3])).save(_os.path.join(_sdir, name))
+                except Exception:
+                    pass
         try:
             import ctypes
             from . import ui_adapt
@@ -1019,13 +1035,16 @@ class WeChatAdapter:
             if not ok_open:
                 return False, msg_open
             time.sleep(1.0)
+            if _shot: _shot("moments_1_open.png")
             rect = self._moments_focus() or gui.render_rect
             if not rect:
                 self.moments_close()
                 return False, "朋友圈窗口未找到（未发布）"
-            # 相机位置：朋友圈窗口左上角（约窗口左上 (left+70, top+38) 附近，用 OCR 找「相机」无文字——
-            # 用近似坐标：窗口左上角第二按钮。先试常见位置 (left+66, top+36)
-            cam_x, cam_y = int(rect[0] + 66), int(rect[1] + 36)
+            # 相机位置：朋友圈窗口左上角图标排（🔔 铃铛 | 📷 相机 | 🔄 刷新）。
+            # 实测抓图(682×979)：铃铛≈(57,38)、相机≈(105,38)、刷新≈(153,38)。
+            # 0624 修：之前写死 (66,36) 会点到铃铛（弹「全部互动消息」），改按比例自适应窗口大小。
+            _w, _h = max(1, int(rect[2] - rect[0])), max(1, int(rect[3] - rect[1]))
+            cam_x, cam_y = int(rect[0] + _w * 0.154), int(rect[1] + _h * 0.039)
             # 长按：down → 2.0s → up
             user32 = ctypes.windll.user32
             user32.SetCursorPos(cam_x, cam_y)
@@ -1033,14 +1052,46 @@ class WeChatAdapter:
             time.sleep(2.0)
             user32.mouse_event(0x0004, 0, 0, 0, 0)
             time.sleep(1.5)
-            # 纯文字输入栏出现：输入
-            if not gui.input_text(text, fast=True):
-                ok_in = gui.input_text(text)
-                if not ok_in:
+            if _shot: _shot("moments_2_cam_popup.png")
+            # 纯文字输入栏出现：「这一刻的想法…」输入区是弹窗内的独立输入框——
+            # 不能走 gui.input_text（它探测主窗口输入框，会把文字打到聊天栏）。
+            # 点进弹窗输入区（实测弹窗内输入区约：x 0.147w~0.821w，y 0.215h~0.337h）
+            # → 剪贴板 + Ctrl+A/Ctrl+V 直贴。
+            _iw, _ih = max(1, int(rect[2] - rect[0])), max(1, int(rect[3] - rect[1]))
+            ix0, iy0 = int(rect[0] + _iw * 0.147), int(rect[1] + _ih * 0.215)
+            ix1, iy1 = int(rect[0] + _iw * 0.821), int(rect[1] + _ih * 0.337)
+            _cx, _cy = (ix0 + ix1) // 2, iy0 + int((iy1 - iy0) * 0.30)
+            user32.SetCursorPos(_cx, _cy)
+            user32.mouse_event(0x0002, 0, 0, 0, 0)
+            user32.mouse_event(0x0004, 0, 0, 0, 0)
+            time.sleep(0.8)
+            try:
+                gui.set_clipboard(text)          # pyperclip 剪贴板
+            except Exception:
+                import pyperclip
+                pyperclip.copy(text)
+            gui._input.key(0x41, ctrl=True)      # Ctrl+A 清空占位
+            time.sleep(0.15)
+            gui._input.key(0x56, ctrl=True)      # Ctrl+V 粘贴
+            time.sleep(0.8)
+            # 验证：输入区是否有深色文字（占位符是浅灰 ~(200,200,200)，正文字体近黑）
+            def _popup_has_text():
+                try:
+                    from PIL import ImageGrab as _IG2
+                    img = _IG2.grab((ix0, iy0, ix1, iy1)).convert("L")
+                    dark = sum(1 for p in img.getdata() if p < 120)
+                    return dark >= 30
+                except Exception:
+                    return False
+            if not _popup_has_text():
+                # 兜底：走 input_text（可能探测到弹窗输入框的某些版本）
+                if not gui.input_text(text, fast=False):
                     self.moments_close()
-                    return False, "朋友圈输入栏未找到（未发布，窗口已关）"
+                    return False, "朋友圈输入栏未找到或输入未生效（未发布，窗口已关）"
             time.sleep(0.6)
+            if _shot: _shot("moments_3_typed.png")
             if dry:
+                if _shot: _shot("moments_4_dry_end.png")
                 self.moments_close()
                 return True, "已到朋友圈输入框并输入文字（dry 模式，未点发表，未真发）"
             # 点「发表」（变绿后）：OCR 找「发表」；找不到再按回车兜底前先找
@@ -2021,11 +2072,11 @@ class WeChatAdapter:
         for i in range(1):                     # 只试 1 次进群（之前重试 2 次，open_chat 每次可能 5~15s，重试白白翻倍）
             try:
                 if gui.open_chat(name):
-                    print("[emoji-search] open_chat 成功 用时 %.2f s" % (time.time() - _st0), flush=True)
+                    if _DEBUG: print("[emoji-search] open_chat 成功 用时 %.2f s" % (time.time() - _st0), flush=True)
                     return True
             except Exception as e:
-                print("[emoji-search] open_chat 异常 %s 用时 %.2f s" % (str(e)[:40], time.time() - _st0), flush=True)
-        print("[emoji-search] 失败 总用时 %.2f s" % (time.time() - _st0), flush=True)
+                if _DEBUG: print("[emoji-search] open_chat 异常 %s 用时 %.2f s" % (str(e)[:40], time.time() - _st0), flush=True)
+        if _DEBUG: print("[emoji-search] 失败 总用时 %.2f s" % (time.time() - _st0), flush=True)
         return False
 
     def _emoji_btn_pos(self, gui):
@@ -2218,19 +2269,7 @@ class WeChatAdapter:
         滚轮（实测方向）：+wheel=向顶部/更早滚，-wheel=向后面/底部滚；微信为平滑滚动会并吞快速事件，
           故每格留 0.35~0.5s。滚一行所需 wheel 单位 = 行距px / 0.44（每单位约滚 0.44 渲染px），随 DPI/分辨率自适应。
         """
-        import ctypes, os as _os
-        _u32 = ctypes.windll.user32
-        _TF = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "_scratch", "timing.log")
-        _t0 = time.time()
-        def _st(label):
-            msg = "[emoji-send] %s 累计 %.2f s" % (label, time.time() - _t0)
-            print(msg, flush=True)
-            try:
-                _os.makedirs(_os.path.dirname(_TF), exist_ok=True)
-                with open(_TF, "a", encoding="utf-8") as _f:
-                    _f.write(msg + "\n")
-            except Exception:
-                pass
+        import ctypes
         try:
             gui = self._get_gui()
             from . import ui_adapt
@@ -2241,7 +2280,6 @@ class WeChatAdapter:
             tags_y = sy + int(sh * 0.804 - 13)
             ui_adapt.click(gui, tags_x - sx, tags_y - sy, heal=False)
             time.sleep(0.6)
-            _st("点爱心")
             # ② 点第 index 个表情格（5 列网格）
             cols = 5
             col = index % cols
@@ -2271,16 +2309,12 @@ class WeChatAdapter:
                     time.sleep(0.3)            # 原 0.4 压缩
                 time.sleep(0.35)
                 click_row = VISIBLE - 1
-                _st("到顶+取base+下滚")
-                print("[emoji] top always then down {} rows (wheel_step={}); click_row={} (index={})"
-                      .format(_rolls, WHEEL_ROW, click_row, index), flush=True)
             # 点击点（渲染相对坐标）：
             #  · 中间行(目标不是最底)：视口 base+click_row×132（实测对 第21/27/24）。
             #  · 最后一行(滚到底/顶部露半行)：用「检测最底部完整行中心」（实测对 第31）。
             grid_x = sx + int(sw * (COL0 + col * PITCH_C))
             if row >= 6:                      # 较晚的行视为接近末尾，用检测最底部完整行中心
                 _rc = self._emoji_bottom_center(gui)
-                _st("检测最底部完整行")
                 if _rc is not None:
                     grid_y = sy + _rc
                 else:
