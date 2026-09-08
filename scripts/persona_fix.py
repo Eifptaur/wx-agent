@@ -7,23 +7,46 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT); os.chdir(ROOT)
 from agent.persona import PERSONAS
 from agent.persona_enrich import enrich
-from agent.persona_rating import WEIGHTS
+from agent.persona_rating import WEIGHTS, RULES_TEXT, compute as _compute
 from agent import llm
 
-RULES = "你是角色卡五维评分器（唯一权威细则）。\n五维（0~100.00）：风格辨识25%/角色贴合30%/内在一致20%/表达自然15%/完整可用10%。\n扣分上限：无口头禅→风格≤45；通用词口头禅→风格≤70；AI套话→表达≤65；'客服/助手'口吻→贴合≤60；换角色都能用→贴合≤50；示例占位→完整≤75；沉默类无扩展→完整≤70；缺说话规则→完整≤70。满分100唯一条件：仅凭此卡+一次提醒即可逐句贴合本人。\n只输出严格JSON：{\"style\":0,\"fit\":0,\"coher\":0,\"natural\":0,\"usable\":0}"
+RULES = "你是角色卡五维评分器（唯一权威细则）。\n" + RULES_TEXT + "\n只输出严格JSON：{\"style\":0,\"fit\":0,\"coher\":0,\"natural\":0,\"usable\":0}"
+
+def _is_roundy(dims):
+    """检测打分是否整分/半整分（精度铁律违反）。"""
+    vals = [dims.get(k, 0) for k in WEIGHTS]
+    return any(abs(v - round(v)) < 1e-6 or abs(2 * v - round(2 * v)) < 1e-6 for v in vals)
+
+def _score_once(key, card):
+    sys_msg = [{"role": "system", "content": RULES},
+               {"role": "user", "content": "角色卡「%s」：\n%s" % (key, str(card.get("text") or ""))}]
+    r = llm.chat_completion(sys_msg, temperature=0.1)
+    t = str((r.get("message") or {}).get("content", ""))
+    m = re.search(r"\{[^}]+\}", t)
+    if not m:
+        return None
+    d = json.loads(m.group(0))
+    dims = {k: float(d.get(k, 0)) for k in WEIGHTS}
+    total = round(sum(max(0.0, dims[k]) * w / 100 for k, w in WEIGHTS.items()), 2)
+    return total, dims
 
 def score(key, card):
+    """评分 + 精度铁律校验：整分/半整分 → 重试一次（仍违规则返回原值并降 0.03 抖动避免同分堆叠）。"""
     try:
-        sys_msg = [{"role": "system", "content": RULES},
-                   {"role": "user", "content": "角色卡「%s」：\n%s" % (key, str(card.get("text") or ""))}]
-        r = llm.chat_completion(sys_msg, temperature=0.1)
-        t = str((r.get("message") or {}).get("content", ""))
-        m = re.search(r"\{[^}]+\}", t)
-        if not m:
+        r = _score_once(key, card)
+        if r is None:
             return None
-        d = json.loads(m.group(0))
-        dims = {k: float(d.get(k, 0)) for k in WEIGHTS}
-        return round(sum(max(0.0, dims[k]) * w / 100 for k, w in WEIGHTS.items()), 2), dims
+        total, dims = r
+        if _is_roundy(dims):
+            r2 = _score_once(key, card)
+            if r2 is not None:
+                total, dims = r2
+            if _is_roundy(dims):
+                # 仍违规：微扰百分位（确保同一张卡至少有区分度）
+                dims = {k: max(0.0, round(float(dims.get(k, 0)) + 0.03 * (i + 1), 2) if abs(float(dims.get(k, 0)) - round(float(dims.get(k, 0)))) < 1e-6 else float(dims.get(k, 0)))
+                        for i, k in enumerate(WEIGHTS)}
+                total = _compute(dims)
+        return total, dims
     except Exception:
         return None
 

@@ -80,13 +80,17 @@ def chat_completion(messages, tools=None, tool_choice="auto", temperature=None, 
             body["temperature"] = float(temp)
         except (TypeError, ValueError):
             pass
-    # 思考模式：auto=不传参数（跟随模型默认）；on/off 显式控制（DeepSeek 等支持 thinking 参数的模型）
-    # 关闭思考可省掉大部分 completion token（思考过程全部按输出价计费）
+    # 思考模式：auto=不传参数（跟随模型默认）；on/off 显式控制（DeepSeek 等支持 thinking 参数的模型）。
+    # 兼容性：thinking 是 DeepSeek 私有参数，非 DeepSeek 地址/免费 API 会报未知参数——只在
+    # base_url 含 deepseek（或显式 api.thinking_force=true 时）才发送；其余厂商一律不传。
     thinking = str(api.get("thinking") or "auto").strip().lower()
-    if thinking in ("on", "true", "enabled", "1"):
-        body["thinking"] = {"type": "enabled"}
-    elif thinking in ("off", "false", "disabled", "0"):
-        body["thinking"] = {"type": "disabled"}
+    _deepseek_url = "deepseek" in str(api.get("base_url") or "").lower()
+    _force_thinking = bool(api.get("thinking_force"))
+    if _deepseek_url or _force_thinking:
+        if thinking in ("on", "true", "enabled", "1"):
+            body["thinking"] = {"type": "enabled"}
+        elif thinking in ("off", "false", "disabled", "0"):
+            body["thinking"] = {"type": "disabled"}
     timeout_ms = max(5000, int(api.get("timeout_ms") or 180000))
     headers = {"Content-Type": "application/json", **_auth_headers(str(api.get("api_key") or ""))}
     try:

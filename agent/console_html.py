@@ -2864,7 +2864,7 @@ if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
   const lens = document.getElementById('waveLens');
 
   /* ① 参数（默认与 agent/config.py ui.wave_fx 一致；从 cfg 读，保留未设置的默认值） */
-  const DEFAULTS = {enabled:true, scale:17, speed:5.2, mouse_gain:0.02, max_gain:8.0,
+  const DEFAULTS = {enabled:false, scale:17, speed:5.2, mouse_gain:0.02, max_gain:8.0,
                     radius:260, falloff:4.0, rings:1, ring_speed:0.40};
   let W = Object.assign({}, DEFAULTS);
   function readParams(){
