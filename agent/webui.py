@@ -284,6 +284,15 @@ class WebUI:
                     return
                 handler._bytes(b"", "image/jpeg", 404)
                 return
+            if name.startswith("custom-cursor"):
+                # 自定义光标（用户上传到 assets/custom-cursor.png）；缺失=404（浏览器光标回退系统默认）
+                fp = os.path.join(self._asset_root, "custom-cursor.png")
+                if os.path.exists(fp):
+                    with open(fp, "rb") as f:
+                        handler._bytes(f.read(), "image/png")
+                    return
+                handler._bytes(b"", "image/png", 404)
+                return
             if path.startswith("/assets/emoji/"):
                 import urllib.parse as _up
                 name = _up.unquote(name)
@@ -304,6 +313,9 @@ class WebUI:
                         break
                 else:
                     raise FileNotFoundError(name)
+        except FileNotFoundError:
+            handler._bytes(b"", "application/octet-stream", 404)
+            return
         except Exception:
             body = b""
         handler._bytes(body, "image/png")
@@ -571,6 +583,7 @@ class WebUI:
                         self._json({"ok": False, "error": str(e)}, 500)
                 elif path == "/api/cursor/upload":
                     # 自定义光标：base64 PNG/JPEG → assets/custom-cursor.png
+                    # 浏览器 css cursor 硬限制：≤128×128、PNG/SVG/ICO、透明底最佳、加载失败静默回退（白箭头根因=404空图）
                     try:
                         import base64
                         b64 = str(data.get("image") or "")
@@ -581,20 +594,20 @@ class WebUI:
                         img = base64.b64decode(b64)
                         if not img.startswith(b"\x89PNG") and not img.startswith(b"\xff\xd8"):
                             return self._json({"ok": False, "error": "仅支持 PNG/JPEG 图片"}, 400)
-                        # resize ≤128（CSS 原生光标尺寸上限；借鉴背景自定义的 thumbnail 做法）
+                        # 强制 ≤64px（CSS 光标在部分 DPI 下 128 会变糊/超限兼容不佳；64 最稳）+ RGBA 透明保底
                         from PIL import Image as _PILImg
                         import io as _io
                         try:
                             _im = _PILImg.open(_io.BytesIO(img)).convert("RGBA")
-                            _im.thumbnail((128, 128))
+                            _im.thumbnail((64, 64), _PILImg.LANCZOS)
                             _buf = _io.BytesIO()
-                            _im.save(_buf, "PNG")
+                            _im.save(_buf, "PNG", optimize=True)
                             _img_out = _buf.getvalue()
                         except Exception:
-                            _img_out = img
+                            return self._json({"ok": False, "error": "图片解析失败，请换 PNG/JPEG"}, 400)
                         with open(os.path.join(parent._asset_root, "custom-cursor.png"), "wb") as f:
                             f.write(_img_out)
-                        self._json({"ok": True})
+                        self._json({"ok": True, "note": "自定义光标已保存（≤64px PNG）"})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)}, 500)
                 elif path == "/api/cursor/reset":
@@ -852,7 +865,7 @@ class WebUI:
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                 elif path == "/api/stats/cal_clear":
-                    # ⑨ 清空计费历史（usage_stats.history 与周期内记录）
+                    # ⑨ 一键清空计费历史（usage_stats.history 与周期内记录）
                     try:
                         import json as _j2
                         _p = parent._data_path("usage_stats.json")
@@ -863,6 +876,58 @@ class WebUI:
                             with open(_p, "w", encoding="utf-8") as f:
                                 _j2.dump(_us, f, ensure_ascii=False, indent=1)
                         self._json({"ok": True, "note": "计费历史已清空"})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
+                elif path == "/api/stats/cal_list":
+                    # 勾选删除弹窗：列出全部计费日志（按天聚合，精确到年月日）
+                    try:
+                        import json as _j2
+                        _p = parent._data_path("usage_stats.json")
+                        _hist = []
+                        if os.path.exists(_p):
+                            with open(_p, "r", encoding="utf-8") as f:
+                                _us = _j2.load(f)
+                            _hist = _us.get("history") or []
+                        out = []
+                        for h in _hist:
+                            if not isinstance(h, dict):
+                                continue
+                            day = str(h.get("day") or h.get("date") or h.get("ts") or "")[:10]
+                            if not re.match(r"^\d{4}-\d{2}-\d{2}$", day):
+                                continue
+                            out.append({"day": day,
+                                        "tokens": int(h.get("tokens") or 0),
+                                        "cost": round(float(h.get("cost") or 0), 4),
+                                        "calls": int(h.get("calls") or 0)})
+                        out.sort(key=lambda x: x["day"], reverse=True)
+                        self._json({"ok": True, "bills": out})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
+                elif path == "/api/stats/cal_delete":
+                    # 勾选删除：按天删除计费日志（POST {days:[...]}）
+                    try:
+                        import json as _j2
+                        _days = set(str(d) for d in (data.get("days") or []) if re.match(r"^\d{4}-\d{2}-\d{2}$", str(d)))
+                        if not _days:
+                            return self._json({"ok": False, "error": "没有有效的日期"})
+                        _p = parent._data_path("usage_stats.json")
+                        _removed = []
+                        if os.path.exists(_p):
+                            with open(_p, "r", encoding="utf-8") as f:
+                                _us = _j2.load(f)
+                            _keep = []
+                            for h in _us.get("history") or []:
+                                if not isinstance(h, dict):
+                                    continue
+                                day = str(h.get("day") or h.get("date") or h.get("ts") or "")[:10]
+                                if day in _days:
+                                    _removed.append(day)
+                                else:
+                                    _keep.append(h)
+                            _us["history"] = _keep
+                            with open(_p, "w", encoding="utf-8") as f:
+                                _j2.dump(_us, f, ensure_ascii=False, indent=1)
+                        self._json({"ok": True, "note": "已删除 %d 天的计费日志" % len(_removed), "removed": _removed})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                 elif path == "/api/stats/cal":
