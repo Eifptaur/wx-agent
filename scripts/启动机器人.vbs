@@ -1,9 +1,9 @@
 Option Explicit
-' wx-agent launcher used by autostart (no window): delegates to the full one-click
-' flow (ensure Python -> deps -> selftest -> launch). Runs hidden.
+' wx-agent ¿ª»ú×ÔÆôÓÃÆô¶¯Æ÷£¨ÎŞ´°¿Ú£©£º×ªµ÷Ö÷Ä¿Â¼¡¸Ò»¼üÆô¶¯.vbs¡¹ÍêÕûÁ÷³Ì
+' £¨×Ô¶¯±£ÕÏ Python ¡ú ×°ÒÀÀµ ¡ú ×Ô¼ì ¡ú Æô¶¯£©¡£
 Dim fso, sh, root, root2
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set sh  = CreateObject("WScript.Shell")
 root = fso.GetParentFolderName(WScript.ScriptFullName)     ' scripts\
-root2 = fso.GetParentFolderName(root)                       ' program root
-sh.Run "wscript.exe """ & root2 & "\ä¸€é”®å¯åŠ¨.vbs""", 0, False
+root2 = fso.GetParentFolderName(root)                       ' ³ÌĞòÖ÷Ä¿Â¼
+sh.Run "wscript.exe """ & root2 & "\Ò»¼üÆô¶¯.vbs""", 0, False

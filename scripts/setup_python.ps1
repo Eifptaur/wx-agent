@@ -1,8 +1,8 @@
-# wx-agent auto Python provisioning (no user install needed):
-#  1) system Python >= 3.10 (py launcher or python)  -> use it
-#  2) else portable Python: unpack offline\python\python-3.10.11-embed-amd64.zip (or download from mirror)
-#  3) bootstrap pip for the portable build (offline wheels pip, else get-pip.py)
-# Writes the resolved command to logs\python_path.txt (ASCII). Exit 0 = ok.
+﻿# wx-agent 自动保障 Python（无需用户安装）：
+#  1) 系统已有 Python 3.10+（py / python） → 直接用
+#  2) 否则用绿色版：解压 offline\python\python-3.10.11-embed-amd64.zip（或联网下载）
+#  3) 为绿色版引导 pip（优先离线 wheels 里的 pip 轮子，其次 get-pip.py）
+# 结果写入 logs\python_path.txt（ASCII）。退出码 0=成功。
 $ErrorActionPreference = 'Continue'
 
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -19,7 +19,7 @@ function Set-PyPath($cmd) {
     try { Set-Content -Path $pathTxt -Value $cmd -Encoding ascii } catch {}
 }
 
-# --- 1) system python ---
+# --- 1) 系统 Python ---
 if (-not $env:WX_FORCE_PORTABLE) {
     foreach ($c in @('py -3', 'py', 'python')) {
         $ok = $false
@@ -28,17 +28,17 @@ if (-not $env:WX_FORCE_PORTABLE) {
             if ($LASTEXITCODE -eq 0) { $ok = $true }
         } catch {}
         if ($ok) {
-            Log "using system python: $c"
+            Log "使用系统 Python：$c"
             Set-PyPath $c
             exit 0
         }
     }
-    Log "no system python >=3.10 found; trying portable green python (no install required)..."
+    Log "未找到系统 Python（>=3.10），改用绿色版（无需安装）…"
 } else {
-    Log "WX_FORCE_PORTABLE=1: skip system python check (test mode)"
+    Log "WX_FORCE_PORTABLE=1：跳过系统 Python 检测（测试模式）"
 }
 
-# --- 2) portable python ---
+# --- 2) 绿色版 Python ---
 $runtime = Join-Path $root 'runtime\python'
 $zipDir  = Join-Path $root 'offline\python'
 $zip     = Join-Path $zipDir 'python-3.10.11-embed-amd64.zip'
@@ -52,21 +52,21 @@ function Ensure-Runtime {
     if (Test-Path $pyExe) { return $true }
     New-Item -ItemType Directory -Force -Path $runtime | Out-Null
     if (-not (Test-Path $zip)) {
-        Log "downloading portable python (~8MB)..."
+        Log "需要下载绿色版 Python（约 8MB）…"
         $down = $false
         foreach ($u in $urls) {
             try {
                 Invoke-WebRequest -Uri $u -OutFile $zip -UseBasicParsing -TimeoutSec 120
-                Log "download ok: $u"
+                Log "下载成功：$u"
                 $down = $true
                 break
             } catch {
-                Log "download failed: $u ($($_.Exception.Message))"
+                Log "下载失败：$u（$($_.Exception.Message)）"
             }
         }
         if (-not $down) { return $false }
     }
-    Log "unpacking portable python to runtime\python ..."
+    Log "解压绿色版 Python 到 runtime\python …"
     Expand-Archive -Path $zip -DestinationPath $runtime -Force
     if (-not (Test-Path $pyExe)) { return $false }
     $pth = Get-ChildItem $runtime -Filter 'python*._pth' | Select-Object -First 1
@@ -74,29 +74,28 @@ function Ensure-Runtime {
         $c = Get-Content $pth.FullName -Raw
         $c = $c -replace '#\s*import site', 'import site'
         Set-Content -Path $pth.FullName -Value $c -Encoding ascii
-        Log "enabled site (pip support): $($pth.Name)"
+        Log "已开启 site（pip 支持）：$($pth.Name)"
     }
     return $true
 }
 
 if (-not (Ensure-Runtime)) {
-    Log "[FAIL] no python and auto-download failed (need network or offline\python in package)."
+    Log "[失败] 没有 Python 且自动下载失败（需要联网，或离线包里有 offline\python）。"
     exit 1
 }
 
-# --- 3) pip bootstrap ---
+# --- 3) 引导 pip（只要 pip 可用就行；离线优先，其次 get-pip）---
 $pipOk = $false
 try {
     $pv = & $pyExe -m pip --version 2>&1
     if ($LASTEXITCODE -eq 0 -and ("$pv" -match 'pip \d')) { $pipOk = $true }
 } catch {}
 if (-not $pipOk) {
-    Log "portable python lacks pip; bootstrapping..."
-    # offline-first: unpack pip wheel (and setuptools) straight into site-packages
+    Log "绿色版缺少 pip，开始引导…"
     $sitePkgs = Join-Path $runtime 'Lib\site-packages'
     $pipWheel = Get-ChildItem (Join-Path $root 'offline\wheels') -Filter 'pip-*-py3-none-any.whl' -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($pipWheel) {
-        Log "pip unpack from offline wheel: $($pipWheel.Name)"
+        Log "从离线 wheels 解包 pip：$($pipWheel.Name)"
         try {
             New-Item -ItemType Directory -Force -Path $sitePkgs | Out-Null
             Expand-Archive -Path $pipWheel.FullName -DestinationPath $sitePkgs -Force
@@ -107,7 +106,7 @@ if (-not $pipOk) {
         } catch {}
     }
     if (-not $pipOk) {
-        Log "trying online get-pip.py..."
+        Log "尝试联网 get-pip.py…"
         $gp = Join-Path $logDir 'get-pip.py'
         try {
             Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile $gp -UseBasicParsing -TimeoutSec 90
@@ -115,16 +114,16 @@ if (-not $pipOk) {
             $pv = & $pyExe -m pip --version 2>&1
             if ($LASTEXITCODE -eq 0 -and ("$pv" -match 'pip \d')) { $pipOk = $true }
         } catch {
-            Log "get-pip failed: $($_.Exception.Message)"
+            Log "get-pip 失败：$($_.Exception.Message)"
         }
     }
     if (-not $pipOk) {
-        Log "[FAIL] pip bootstrap failed (offline pip wheel missing and no network)."
+        Log "[失败] pip 引导失败（离线 wheels 里没有 pip 且无网络）。"
         exit 1
     }
-    Log "pip ready"
+    Log "pip 就绪"
 }
 
-Log "python ready: $pyExe"
+Log "Python 就绪：$pyExe"
 Set-PyPath $pyExe
 exit 0
