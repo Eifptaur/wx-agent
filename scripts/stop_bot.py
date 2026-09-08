@@ -7,6 +7,7 @@ pid 文件由机器人(wx_agent.py)/看门狗(看门狗.py)启动时写入。
 import os
 import subprocess
 import sys
+import time  # 第 59 行 time.strftime 需要；缺失会导致 stop_bot 一运行即崩溃（"停止机器人文件"失效）
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
