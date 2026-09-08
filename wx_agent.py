@@ -2107,22 +2107,31 @@ def main():
                 except Exception as e:
                     return {"ok": False, "error": str(e)}
             if kind == "message_recall":
-                # 自动找「自己最近 2 分钟内发的消息」；无则明确提示
+                # 自动找「自己最近 2 分钟内发的消息」；无则明确提示。
+                # 注意：normalize 会跳过"自己/系统消息"(sender_id 2/3 → None)，所以这里直接读 DB 原始数据找自己。
                 try:
+                    import re as _re
                     target = None
+                    _now_ms = int(time.time() * 1000)
                     for g in (wx.list_groups() or []):
                         wxid = g.get("wxid") or g.get("id") or ""
                         if not wxid:
                             continue
-                        for raw in wx._db.get_messages(wxid, limit=20):
-                            n = wx.normalize(raw, wxid)
-                            if n and str(n.get("sender_id") or "") == str(n.get("self_id") or "") and str(n.get("text") or "").strip():
-                                target = (wxid, str(n["text"]))
-                                break
+                        for raw in wx._db.get_messages(wxid, limit=30):
+                            if str(raw.get("sender_id")) in ("2", "3"):   # 微信4.x：自己=2/3
+                                ct = int(raw.get("create_time") or 0)
+                                ts = ct * 1000 if ct and ct < 1e12 else ct
+                                if (_now_ms - ts) <= 120000:              # 2 分钟内
+                                    content = str(raw.get("content") or "")
+                                    m = _re.match(r"^(wxid_[0-9a-zA-Z_-]+|.*@chatroom):\s*(.*)$", content)
+                                    text = (m.group(2) if m else content).strip()
+                                    if text:
+                                        target = (wxid, text)
+                                        break
                         if target:
                             break
                     if not target:
-                        return {"ok": False, "error": "没有自己 2 分钟内的消息可撤回（先让机器人在群里说句话）"}
+                        return {"ok": False, "error": "没有自己 2 分钟内的消息可撤回（请先让机器人说一句话）"}
                     ok, msg = wx.recall_message(target[0], target[1])
                     return {"ok": ok, "note": msg or ("已尝试撤回【%s】" % target[1][:12])}
                 except Exception as e:
