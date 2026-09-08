@@ -816,6 +816,7 @@ class WebUI:
                                     "note": "已按8维细则(model评分)评估，分数精确到百分位（禁止整分）；仅评机器人发言"})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
+                elif path == "/api/pause":
                     parent.pause_fn()
                     self._json({"ok": True})
                 elif path == "/api/resume":
