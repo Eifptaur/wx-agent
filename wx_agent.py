@@ -1988,8 +1988,8 @@ def main():
                 ok, msg = wx.moments_like()
                 return {"ok": ok if ok and "已" in msg else ok, "note": ("（仅验证到可点赞，未真赞）" if ok else msg)}
             if kind == "moments_comment":
-                # 不执行「发送」最后一步：dry 模式只到输入框即视为通过
-                ok, msg = wx.moments_comment(0, "检验评论：程序鼠标没问题", dry=True)
+                # 真发送：输入并发布评论（用户反馈此前 dry 只到输入框、未发送导致看似"失败"）
+                ok, msg = wx.moments_comment(0, "检验评论：程序鼠标没问题", dry=False)
                 return {"ok": ok, "note": msg}
             if kind == "moments_scroll":
                 ok, msg = wx.moments_open()
