@@ -260,8 +260,8 @@ button:active{transform:scale(.97)}
 
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .card h2{font-size:15px;margin-bottom:4px;color:var(--blue);display:flex;align-items:center;gap:6px}
-/* 概览右上角工具按钮（计费删除） */
-.ov-tools{margin-left:auto;display:inline-flex;gap:6px;font-weight:400}
+/* 概览右上角工具按钮（计费删除）——绝对定位右浮，保证可点层级 */
+.ov-tools{margin-left:auto;display:inline-flex;gap:6px;font-weight:400;position:relative;z-index:80;pointer-events:auto}
 button.tiny{padding:3px 10px;font-size:12px;border-radius:7px}
 /* 计费日志弹窗（更不透明） */
 .bill-dlg{background:#141C2E!important;border:1px solid #33415C!important;box-shadow:0 18px 60px rgba(0,0,0,.5)!important}
@@ -420,8 +420,8 @@ th{color:var(--tx2);font-weight:500}
 
     <section id="sec-overview" class="card" data-sec>
       <h2>概览<span class="ov-tools">
-        <button class="ghost tiny" id="costClearAll" title="一键删除全部计费历史记录">🗑 一键删</button>
-        <button class="ghost tiny" id="costClearSel" title="打开计费日志弹窗，勾选删除">☑ 勾选删</button>
+        <button class="ghost tiny" id="costClearAll" type="button" title="一键删除全部计费历史记录">🗑 一键删</button>
+        <button class="ghost tiny" id="costClearSel" type="button" title="打开计费日志弹窗，勾选删除">☑ 勾选删</button>
       </span></h2>
       <div class="desc">机器人运作状态与账户信息（数据每 8 秒自动刷新）。</div>
       <div class="ov-checkbar" id="codeCheckTip" style="font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:10px;border:1px solid var(--blue-line);background:rgba(63,168,240,.07);color:var(--blue);margin-bottom:12px">代码检测：尚未运行（点「检测中心」页的代码检测/代码检测＋依赖核对）</div>
@@ -769,6 +769,7 @@ th{color:var(--tx2);font-weight:500}
           <button id="pSort" class="ghost" title="点击：分数高→低；再点：低→高；再点回到高→低（WPS 式切换）" style="font-weight:700">↓ 按评估分数排序</button>
           <span class="hint" id="pSortHint">（点一下正序，再点一下倒序）</span>
           <button id="pSortOff" class="ghost">恢复默认顺序</button>
+          <button id="pRestorePrev" class="ghost" title="撤销最近一次应用的人设（真实有效：恢复上一个人设名+文本）" style="color:var(--warn);border-color:var(--warn)">↩ 恢复上个人设</button>
         </div>
         <input type="text" id="personaSearch" class="group-search" placeholder="🔍 搜索人设（如 傲娇/毒舌/猫/程序员）…">
         <div id="personaList" style="max-height:320px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:6px;background:var(--input-bg)">
@@ -2764,9 +2765,13 @@ function syncMemGroupsToCfg(){
         ev.stopPropagation();
         try{
           if(!cfg.persona) cfg.persona = {};
+          // 备份上一个应用的人设（一键恢复用）
+          const prev = {name: getPath(cfg,'persona.bot_name')||'', text: getPath(cfg,'persona.role_text')||''};
+          cfg.persona.last_used = prev;
           cfg.persona.bot_name = p.name;
           cfg.persona.role_text = p.text;
           await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
+          cfg = await getJSON('/api/config');
           syncToForm();
           toast('✅ 已切换人设「'+p.name+'」并保存（重启机器人后生效）');
         }catch(e){ toast('应用失败：'+e.message); }
@@ -2809,6 +2814,25 @@ function syncMemGroupsToCfg(){
       if(sortByScore) s.textContent = '↑ 按评估分数排序';
     }
     if(so) so.onclick = ()=>{ sortByScore = false; if(s) s.textContent = '↓ 按评估分数排序'; if(hint) hint.textContent = '（点一下正序，再点一下倒序）'; render(); };
+    // 恢复上个人设：从 cfg.persona.last_used 读回（应用人设时自动备份）
+    const rp = document.getElementById('pRestorePrev');
+    if(rp){
+      rp.onclick = async ()=>{
+        const prev = getPath(cfg,'persona.last_used') || {};
+        if(!prev.name && !prev.text){ toast('还没有可恢复的人设（先应用过一次）'); return; }
+        if(!confirm('恢复上个人设「'+ (prev.name||'未命名') +'」？当前人设将被替换。')) return;
+        try{
+          if(!cfg.persona) cfg.persona = {};
+          // 当前人设备份（再点恢复一次可回到它？不，保持单向：恢复后 last_used=当前，避免循环）
+          cfg.persona.bot_name = prev.name || '';
+          cfg.persona.role_text = prev.text || '';
+          const r = await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
+          if(r && r.ok === false){ toast('恢复失败：'+(r.error||'')); return; }
+          cfg = await getJSON('/api/config'); syncToForm();
+          toast('✅ 已恢复上个人设「'+(prev.name||'未命名')+'」并保存（重启后生效）');
+        }catch(e){ toast('恢复失败：'+e.message); }
+      };
+    }
   })();
   /* ➕ 新建分区 / 添加角色（弹出菜单；分区名下拉=已有分区+自定义，选自定义才让输入；选已有自动匹配描述） */
   const addBtn = document.getElementById('pCatAdd');
