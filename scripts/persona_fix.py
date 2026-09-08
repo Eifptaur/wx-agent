@@ -28,18 +28,21 @@ def score(key, card):
         return None
 
 def score_median(key, card, n=3):
-    """评分稳定化：评 n 次取中位（规避模型评分噪声波动）。返回 (中位总分, dims)。"""
+    """评分稳定化：评 n 次取中位（规避模型评分噪声波动）。
+    返回 (中位总分, 各维中位 dims)：按总分排序取中间那次（维值跟随该次样本），
+    保证维度与总分来自同一次观测。"""
     vals = []
     for _ in range(n):
         s = score(key, card)
         if s:
-            vals.append(s[0])
+            vals.append(s)
     if not vals:
         return None
-    vals.sort()
-    return vals[len(vals) // 2], {}
+    vals.sort(key=lambda x: x[0])
+    total, dims = vals[len(vals) // 2]
+    return total, dims
 
-def main(keys=None):
+def main(keys=None, median_final=True):
     todo = keys or list(PERSONAS.keys())
     for rnd in range(1, 4):
         low = []
@@ -57,7 +60,8 @@ def main(keys=None):
             break
     miss = []
     for key in todo:
-        sc = score(key, PERSONAS.get(key) or {})
+        sc = (score_median(key, PERSONAS.get(key) or {}, n=3) if median_final
+              else score(key, PERSONAS.get(key) or {}))
         if sc and sc[0] < 75:
             miss.append((key, sc[0]))
     print("≥75通过：%d/%d；仍<75：%s" % (len(todo) - len(miss), len(todo), miss), flush=True)

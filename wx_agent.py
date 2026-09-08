@@ -1997,6 +1997,12 @@ def main():
                     ok2, msg2 = wx.moments_close()
                     return {"ok": True, "note": "已滚动 2 屏并关窗：" + msg2}
                 return {"ok": False, "error": msg}
+            if kind == "moments_publish":
+                # dry 实测：点侧栏图标→长按相机2秒→输入框输入；不点发表、不真发；逐屏截图
+                _txt = str(data.get("text") or "检验朋友圈：程序鼠标没问题")
+                ok, msg = wx.moments_publish_text(_txt, dry=True, shots=True)
+                note = msg + "（截图：_scratch/shots/moments_*.png）" if ok else msg
+                return {"ok": ok, "note": note}
             if kind == "emoji_collect":
                 # 最近一条 emoji/image 消息右键收藏（真操作；用任一有表情消息的群）
                 try:

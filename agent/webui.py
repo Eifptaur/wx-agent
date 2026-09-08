@@ -323,14 +323,6 @@ class WebUI:
             def log_message(self, fmt, *args):
                 pass  # 静默，避免刷屏
 
-            def _json(self, obj, code=200):
-                body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-                self.send_response(code)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
             def _bytes(self, body, ctype="application/octet-stream", code=200):
                 if not body:
                     body = b""
@@ -362,12 +354,23 @@ class WebUI:
                 return auth == "Bearer " + token
 
             def _set_session_cookie(self):
-                """登录成功时种会话 Cookie（HttpOnly，防 JS 读取）。"""
+                """登录成功时种会话 Cookie（HttpOnly，防 JS 读取）。
+                注意：必须在 send_response() 之后调用（先 send_header 会让 Set-Cookie 排到状态行前面，响应直接坏掉）。"""
                 try:
                     token = str(get_config().get("server", {}).get("token") or "").strip()
                     self.send_header("Set-Cookie", "wxauth=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000" % token)
                 except Exception:
                     pass
+
+            def _json(self, obj, code=200):
+                body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                if code == 200:
+                    self._set_session_cookie()   # 成功响应才种 cookie（在状态行/Server/Date 之后）
+                self.end_headers()
+                self.wfile.write(body)
 
             def do_GET(self):
                 parsed = urlparse(self.path)
@@ -379,10 +382,6 @@ class WebUI:
                     return parent._serve_wallpaper(path, self, parsed.query)
                 if not self._auth_ok():
                     return self._json({"error": "unauthorized"}, 401)
-                try:
-                    self._set_session_cookie()   # 已授权：种会话 Cookie（本次/后续请求用 cookie，URL 可去 token）
-                except Exception:
-                    pass
                 if path in ("/", "/index.html"):
                     token = str(get_config().get("server", {}).get("token") or "").strip()
                     body = HTML.replace("__TKN__", token)
@@ -393,6 +392,7 @@ class WebUI:
                     self.send_header("Content-Type", "text/html; charset=utf-8")
                     self.send_header("Content-Length", str(len(body)))
                     self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                    self._set_session_cookie()   # 必须在 send_response 之后（Set-Cookie 排在状态行/Server/Date 后）
                     self.end_headers()
                     self.wfile.write(body)
                 elif path.startswith("/dsh-whale/"):
