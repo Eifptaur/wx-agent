@@ -704,8 +704,18 @@ class WebUI:
                     self._json({"ok": True})
                 elif path == "/api/shutdown":
                     self._json({"ok": True, "note": "正在停止机器人…"})
-                    # 稍等响应返回后再触发停止，避免连接被切断
-                    threading.Timer(0.5, parent.shutdown_fn).start()
+                    # 立即强退（handler 线程里 os._exit 杀全进程 + taskkill 自己兜底）——不依赖 Timer/shutdown_fn 线程，
+                    # 之前 os._exit 放 Timer 线程里偶尔没杀干净，导致"停止关不掉"。
+                    try:
+                        parent.shutdown_fn()   # 写 stopped.flag + 杀看门狗 + os._exit(0)
+                    except Exception:
+                        pass
+                    try:
+                        import os as _o, subprocess
+                        subprocess.run(["taskkill", "/F", "/PID", str(_o.getpid())],
+                                       capture_output=True, creationflags=0x08000000)
+                    except Exception:
+                        pass
                 elif path == "/api/restart":
                     # 重启：后台无窗口拉起新实例（释放端口后接替），当前实例退出
                     self._json({"ok": True, "note": "正在后台重启机器人…"})

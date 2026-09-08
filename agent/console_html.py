@@ -3299,7 +3299,7 @@ loadSeedStats();
     if(r) r.textContent='正在让模型评估学习效果（按评分细则）…';
     try{
       const res=await getJSON('/api/learning/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      if(r) r.innerHTML = (res.eval?('评估：'+res.eval : (res.error||res.note||'评估完成'));
+      if(r) r.innerHTML = res.eval ? ('评估：'+res.eval) : (res.error||res.note||'评估完成');
     }catch(e){ if(r) r.textContent='评估失败：'+e.message; }
   };
 })();
