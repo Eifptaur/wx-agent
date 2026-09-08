@@ -57,6 +57,7 @@ def run(verbose_deps: bool = False) -> dict:
         run._prog["current"] = name
         run._prog["total"] = max(run._prog["total"], run._prog["done"] + 1)
         run._check_count = len(checks)
+        run._checks = checks   # 实时进度项（前端逐项滚动显示，无需等报告结束）
 
     # 1) Python 编译检查（内联全量）
     ok, detail = _compile_all()
