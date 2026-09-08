@@ -66,10 +66,16 @@ class ChatStore:
 
     def list_chats(self):
         try:
+            files = set()
             for fn in os.listdir(MESSAGES_DIR):
                 m = re.match(r"^(group|private)_(.+)\.json$", fn)
                 if m:
-                    self._state("%s:%s" % (m.group(1), m.group(2)))
+                    files.add("%s:%s" % (m.group(1), m.group(2)))
+            # 与磁盘同步：内存中已被删除的 chat（手动删 json/清数据）一并移除，避免"幽灵群"出现在记忆页
+            for k in [k for k in self.chats if k not in files]:
+                del self.chats[k]
+            for ck in files:
+                self._state(ck)
         except FileNotFoundError:
             pass
         return list(self.chats.keys())
