@@ -574,7 +574,7 @@ th{color:var(--tx2);font-weight:500}
     <section id="sec-model" class="card" data-sec>
       <h2>模型 API</h2>
       <div class="desc">密钥在控制台首次引导填入后自动保存，无需再改 config.json。</div>
-      <div class="row"><label>Base URL</label><div class="grow"><input type="text" data-cfg="api.base_url"></div></div>
+      <div class="row"><label>Base URL</label><div class="grow"><input type="text" data-cfg="api.base_url"><span class="hint" style="margin-top:4px;display:block">可填官方地址，也可填「API 中转站」地址（如 https://api.中轉站.com/v1——常更便宜、能降低 token 花费；填中转站地址+对应 Token 即可，无需改其它设置）。</span></div></div>
       <div class="row"><label>API Key</label>
         <div class="grow">
           <input type="password" id="apiKeyInput" data-cfg="api.api_key" placeholder="sk-...">
