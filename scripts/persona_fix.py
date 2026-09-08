@@ -23,10 +23,21 @@ def score(key, card):
             return None
         d = json.loads(m.group(0))
         dims = {k: float(d.get(k, 0)) for k in WEIGHTS}
-        total = round(sum(max(0.0, dims[k]) * w / 100 for k, w in WEIGHTS.items()), 2)
-        return total, dims
+        return round(sum(max(0.0, dims[k]) * w / 100 for k, w in WEIGHTS.items()), 2), dims
     except Exception:
         return None
+
+def score_median(key, card, n=3):
+    """评分稳定化：评 n 次取中位（规避模型评分噪声波动）。返回 (中位总分, dims)。"""
+    vals = []
+    for _ in range(n):
+        s = score(key, card)
+        if s:
+            vals.append(s[0])
+    if not vals:
+        return None
+    vals.sort()
+    return vals[len(vals) // 2], {}
 
 def main(keys=None):
     todo = keys or list(PERSONAS.keys())
