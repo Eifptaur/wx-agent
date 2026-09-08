@@ -5,7 +5,7 @@
 <h1 align="center">wx-agent —— 微信智能机器人</h1>
 
 <p align="center">
-  <b>v2.0.0·Ⅱ</b> · Windows 10/11 · Python 3.10+ · UIA 无注入 · 仅供学习交流
+  <b>v2.0.0·Ⅱ</b> · Windows 10/11 · Python 3.10+（无需安装，一键启动自动配置）· UIA 无注入 · 仅供学习交流
 </p>
 
 <p align="center">
@@ -123,16 +123,18 @@
 - server.port / token —— 控制台端口 / 访问口令（留空自动生成）
 - ui.coord_scale / ui.clean_overlays / ui.theme / ui.whale_cursor —— 显示缩放 / 点击前清遮挡 / 主题（system|light|dark|whale）/ 鲸鱼光标
 
-## 🛠️ 运维（无需 PowerShell，全程无窗口）
+## 🛠️ 运维（全程无窗口，无需安装 Python）
 
-- 启动机器人.vbs —— 启动（pyw 隐藏跑 watchdog.py → pythonw 跑主程序，崩溃自动重启）
+- 一键启动.vbs —— **一键启动（自动：检测/下载绿色 Python → 装依赖 → 自检 → 启动，零弹窗后台；无需去官网装 Python）**
+- 启动机器人.vbs —— 启动（同样自动保障 Python；隐藏跑 watchdog.py → pythonw 跑主程序，崩溃自动重启）
 - 停止机器人.vbs —— 停止（按 PID 文件静默结束机器人+看门狗）
 - scripts\watchdog.py / stop_bot.py —— 看门狗 / 停止器本体
-- 安装依赖.bat / 自检.bat / 一键启动.vbs / scripts\onestart.py / scripts\备份配置.bat —— 装依赖（已装自动跳过）/ 环境自检 / **一键启动（依赖→自检→启动全自动，零弹窗后台）** / 备份
-- 启动机器人.vbs / 停止机器人.vbs —— 备用开关：仅启动 / 停止（弹窗详细说明）
-- scripts\开机自启.bat / 取消开机自启.bat —— 注册/取消登录自启
+- 安装依赖.bat / 自检.bat / scripts\onestart.py / scripts\设置开机自启.bat —— 装依赖（已装自动跳过）/ 环境自检 / 一键启动主体 / 开机自启
+- scripts\开机自启.bat / 取消开机自启.bat —— 注册/取消登录自启（登录即自动一键启动）
 
-**离线部署**：仓库已含 `offline\`（依赖 wheels + 绿色版 Python 3.10 + 微信 4.1.13 安装包，微信版权归腾讯），目标电脑没网时：解压主体包 → 把 `offline\` 放进去 → 双击 `安装依赖.bat`（已装好自动跳过）→ 没装微信就装 `offline\wechat` 里的微信 4.1.13 → 运行 `自检.bat` 收尾。
+**零 Python 启动**：电脑没装 Python 也能跑——一键启动会先找系统 Python 3.10+，找不到就用内置 `offline\python` 里的绿色版（自动解压到 `runtime\`），离线包已带 pip 依赖 wheels，装完依赖自动进入自检并拉起。
+
+**离线部署**：仓库已含 `offline\`（依赖 wheels + 绿色版 Python 3.10 + 微信 4.1.13 安装包，微信版权归腾讯），目标电脑没网时：解压主体包 → 把 `offline\` 放进去 → 双击 `一键启动.vbs`（或 `安装依赖.bat`）→ 没装微信就装 `offline\wechat` 里的微信 4.1.13 → 完事。
 
 ## 📂 目录结构与文件用途
 
