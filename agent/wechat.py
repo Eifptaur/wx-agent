@@ -1381,8 +1381,9 @@ class WeChatAdapter:
         except Exception:
             return None
 
-    def _send_poke_locate(self, gui, target_name: str, db_text: str, scroll: bool = True):
+    def _send_poke_locate(self, gui, target_name: str, db_text: str, scroll: bool = True, self_side: bool = False):
         """定位目标头像（渲染相对坐标），返回 (ax, ay, score) 或 None。
+        self_side=True：要找的是"自己发的消息"（撤回/删自己），它在**右侧**，不剔除右侧项。
 
         路径优先级：① UIA 行匹配（精确/模糊）→ 彩色头像检测；② UIA 行固定偏移；
         ③ OCR 相似度匹配 → 彩色头像检测；④ 左侧消息块兜底。
@@ -1409,9 +1410,11 @@ class WeChatAdapter:
         # 头像列中心 ≈ 会话区左缘 + 18.5% 会话区宽（实测：深色 197px、浅色 201px，取 0.185；头像 45~50px，容差 ±10px）
         ax = gui.right_pane_left + int(pane_w * 0.185)
 
-        # 剔除垃圾项（侧栏碎片/小残片）与右侧（机器人自己的消息）
-        items = [it for it in items
-                 if it[3] > 30 and (gui.right_pane_left + 60) < it[1] < mid_x]
+        # 剔除垃圾项（侧栏碎片/小残片）；普通定位找左侧（对方），self_side 撤回自己在右侧
+        if self_side:
+            items = [it for it in items if it[3] > 30 and mid_x < it[1] < gui.render_w]
+        else:
+            items = [it for it in items if it[3] > 30 and (gui.right_pane_left + 60) < it[1] < mid_x]
 
         db_norm = self._norm_ocr(db_text)
         best = None
@@ -1971,7 +1974,7 @@ class WeChatAdapter:
                 # 只滚到底一次 + 当前视口查找（不翻页循环，避免屏幕来回滚动）
                 self._scroll_to_bottom(gui)
                 time.sleep(0.8)
-                located = self._send_poke_locate(gui, sender_name or "", text, scroll=False)
+                located = self._send_poke_locate(gui, sender_name or "", text, scroll=False, self_side=(label == "撤回"))
                 if located:
                     ax, ay, _ = located
                     px, py = self._bubble_point(gui, ax, ay, text)

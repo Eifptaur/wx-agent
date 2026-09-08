@@ -1777,16 +1777,14 @@ def main():
             orch.shutdown()
         except Exception:
             pass
-        # 强制退出进程（os._exit 不走 atexit，主动清理 PID 文件）
-        def _exit_now():
-            try:
-                _p = os.path.join(ROOT, "data", "bot.pid")
-                if os.path.exists(_p):
-                    os.remove(_p)
-            except Exception:
-                pass
-            os._exit(0)
-        threading.Timer(1.0, _exit_now).start()
+        # 立即强退（os._exit 不走 atexit，主动清理 PID 文件）；不再依赖 threading.Timer——它可能被线程阻塞/看门狗拦截导致"停止关不掉"
+        try:
+            _p = os.path.join(ROOT, "data", "bot.pid")
+            if os.path.exists(_p):
+                os.remove(_p)
+        except Exception:
+            pass
+        os._exit(0)
 
     def restart_fn():
         # 后台无窗口重启：先杀旧看门狗（防复活/双实例），再用 pythonw 拉起新看门狗接管，本进程退出
