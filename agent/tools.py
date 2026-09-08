@@ -43,7 +43,7 @@ def build_tool_defs() -> list:
     return [
         {
             "name": "send_message",
-            "description": "发送消息到当前聊天（本工具只能发到本次会话对应的群/私聊）。messages 传字符串=发一条；传字符串数组=分多条发送（推荐，更像真人）。需要\"引用对方刚说的话再回\"时才传 reply_to_message_id（引用的是最近一条消息）；需要点名某人才传 at_user_id（wxid）。不要在字符串内部用空格分句。",
+            "description": "发送消息到当前会话。messages=字符串发一条；数组=分多条（更像真人，空格不是分句）。想引用对方最近一句就传 reply_to_message_id；点名某人传 at_user_id（wxid）。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -58,7 +58,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "get_recent_messages",
-            "description": "往前翻当前会话的更多历史消息（提示词里只带了最近一段；需要更早的上下文时用）。返回带 messageId（就是聊天记录里的 #数字），可用于引用或看图。",
+            "description": "往前翻当前会话更多历史消息。返回带 messageId（聊天记录里的 #数字），可用于引用或看图。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -70,7 +70,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "get_active_members",
-            "description": "查看当前会话最近活跃的成员（wxid、名字、最近发言时间、发言数），用于 @ 时找人。",
+            "description": "查看当前会话最近活跃的成员（wxid/名字/发言数），用于 @ 时找人。",
             "parameters": {
                 "type": "object",
                 "properties": {"limit": {"type": "integer", "description": "默认 10，最大 20"}},
@@ -79,7 +79,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "get_message_detail",
-            "description": "按消息 id 查看单条消息详情（完整文本、发送者、时间）。id 用聊天记录里每条消息前的 #数字，不要自己编。",
+            "description": "按消息 id（聊天记录里的 #数字）查看单条消息详情（完整文本、发送者、时间）。",
             "parameters": {
                 "type": "object",
                 "properties": {"message_id": {"description": "消息 id（聊天记录里的 #数字）"}},
@@ -89,7 +89,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "get_message_images",
-            "description": "查看某条消息里的图片（视觉模型可以直接看懂）。消息文本出现 [图片] 时可用。id 用聊天记录里每条消息前的 #数字。",
+            "description": "查看某条消息里的图片（能看懂图）。消息文本出现 [图片] 时用。message_idx=聊天记录里的 #数字。",
             "parameters": {
                 "type": "object",
                 "properties": {"message_id": {"description": "消息 id（聊天记录里的 #数字）"}},
@@ -99,7 +99,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "send_image",
-            "description": "把某条消息里的图片转发/发送到当前聊天。messageId 填那条带图消息前的 #数字。适合「发一张图回应」「把这张图发出去」等场景。",
+            "description": "把某条消息里的图片用鼠标操作转发/发到当前会话。messageId=带图消息的 #数字。适合「发一张图回应」。描述里写清你要发哪张图。",
             "parameters": {
                 "type": "object",
                 "properties": {"message_id": {"description": "带图消息的 id（聊天记录里的 #数字）"}},
@@ -108,8 +108,110 @@ def build_tool_defs() -> list:
             "execute": _exec_send_image,
         },
         {
+            "name": "collect_emoji",
+            "description": "用鼠标把一条表情/图片消息收藏进微信表情库（右键气泡→添加到表情）。messageId=[表情] 或 [图片] 消息前的 #数字。最终由程序操作鼠标完成。",
+            "parameters": {
+                "type": "object",
+                "properties": {"message_id": {"description": "[表情] 消息的 id（聊天记录里的 #数字）"}},
+                "required": ["message_id"],
+            },
+            "execute": _exec_collect_emoji,
+        },
+        {
+            "name": "list_emojis",
+            "description": "查看微信/本地已收藏的表情（供发送时选择）。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+            "execute": _exec_list_emojis,
+        },
+        {
+            "name": "send_emoji",
+            "description": "用鼠标发送一个已收藏的表情（程序点输入栏笑脸→爱心→点选表情→发送）。可选 nameOrId 指定表情（收藏时生成的概述/文件名）；不传则由模型按当前语境从已收藏概述里选最合适的。适合「发个表情回应」。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name_or_id": {"description": "可选：表情的概述/文件名（见 collect_emoji / list_emojis）"},
+                    "context": {"description": "可选：当前语境一句话，帮模型从已收藏里挑最贴合的表情"}
+                },
+                "required": []
+            },
+            "execute": _exec_send_emoji,
+        },
+        {
+            "name": "view_merge_forward",
+            "description": "查看「合并转发聊天记录」的完整内容（程序解析子消息）。messageId=[合并转发] 前的 #数字。",
+            "parameters": {
+                "type": "object",
+                "properties": {"message_id": {"description": "[合并转发] 消息的 id（聊天记录里的 #数字）"}},
+                "required": ["message_id"],
+            },
+            "execute": _exec_view_merge,
+        },
+        {
+            "name": "collect_message",
+            "description": "用鼠标把某条消息收藏到微信收藏（右键→收藏）。messageId=聊天记录里的 #数字。",
+            "parameters": {
+                "type": "object",
+                "properties": {"message_id": {"description": "要收藏的消息 id（#数字）"}},
+                "required": ["message_id"],
+            },
+            "execute": _exec_collect_message,
+        },
+        {
+            "name": "recall_message",
+            "description": "用鼠标撤回自己最近发的一条消息（限 2 分钟内）。不传 messageId=撤回最近一条自己的。",
+            "parameters": {
+                "type": "object",
+                "properties": {"message_id": {"description": "可选：要撤回的自己消息 id（#数字）；不填=最近的"}},
+                "required": [],
+            },
+            "execute": _exec_recall_message,
+        },
+        {
+            "name": "moments_like",
+            "description": "用鼠标点赞朋友圈第 index 条（程序：点动态右下蓝点→「赞」；完成后自动关闭朋友圈窗口）。index 0 起。",
+            "parameters": {
+                "type": "object",
+                "properties": {"index": {"type": "integer", "description": "点第几条的赞（0 起，默认 0=最新的）"}},
+                "required": [],
+            },
+            "execute": _exec_moments_like,
+        },
+        {
+            "name": "moments_comment",
+            "description": "用鼠标评论朋友圈第 index 条（程序：点蓝点→「评论」→输入→发送；完成后自动关窗）。评论内容自己写，像真人的随口点评。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer", "description": "评论第几条（0 起）"},
+                    "text": {"description": "评论内容（4~60 字，随口点评，不要公告腔）"},
+                },
+                "required": ["text"],
+            },
+            "execute": _exec_moments_comment,
+        },
+        {
+            "name": "moments_publish",
+            "description": "用鼠标发一条纯文字朋友圈（程序：长按朋友圈左上角相机 2 秒→输入栏→输入→点发表→自动关窗）。text 像真人的日常随笔（8~120 字）。低频用。",
+            "parameters": {
+                "type": "object",
+                "properties": {"text": {"description": "朋友圈内容（8~120 字，日常画风，别像公告/广告）"}},
+                "required": ["text"],
+            },
+            "execute": _exec_moments_publish,
+        },
+        {
+            "name": "moments_surf",
+            "description": "刷朋友圈：打开朋友圈→（可选滚动）→把当前视口截图给你看（图片在本工具返回里）。你看完再决定：赞（moments_like）/评论（moments_comment）/继续刷（再调一次）/结束。刷完程序自动关窗。",
+            "parameters": {
+                "type": "object",
+                "properties": {"scroll": {"type": "integer", "description": "先滚几屏（0=不滚，默认 0）"}},
+                "required": [],
+            },
+            "execute": _exec_moments_surf,
+        },
+        {
             "name": "send_poke",
-            "description": "拍一拍群里的某位成员（右键对方头像 → 菜单选「拍一拍」）。targetUserId 填对方 wxid（不知道就先调 get_active_members 查）。reason 三选一：reply=回拍（对方刚拍了你，通常系统会自动回拍，无需重复调用）；request=群友明确要求拍某人（不设概率门）；playful=偶尔皮一下（受 10% 概率 + 每天 3 次限制，可能被拦）。实验性：靠屏幕 OCR 定位头像和菜单，可能失败。",
+            "description": "用鼠标拍一拍群成员（右键头像→拍一拍）。targetUserId=对方 wxid（用 get_active_members 查）。reason：reply=系统回拍时（通常系统已自动回，无需调）；request=群友明确要求拍；playful=偶尔皮一下（10%概率+每天3次，可能被拦）。失败如实说没拍上。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -123,7 +225,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "memory_append",
-            "description": "记一条对群友的长期印象（下次运行会自动看到）。只记\"以后和这个人打交道时用得上\"的稳定印象：身份/关系、说话风格、爱玩的梗、雷点、常聊话题。太临时的事情不要记。userId 填对方 wxid（不知道就先调 get_active_members / get_recent_messages 查）；target 填备注名/群名片/昵称。",
+            "description": "记一条对群友的长期印象（以后可见）。只记稳定信息：身份/关系、说话风格、梗、雷点、常聊话题。userId=对方 wxid；target=名字。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -138,7 +240,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "memory_query",
-            "description": "查看当前会话里你对群友的长期印象。不传 userId 返回全部；传 userId 只看某一个人。",
+            "description": "查看对群友的长期印象。不传 userId 返回全部。",
             "parameters": {
                 "type": "object",
                 "properties": {"user_id": {"description": "可选：只看这个 wxid 的印象"}},
@@ -147,7 +249,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "memory_remove",
-            "description": "删除一条过时/不再准确的对群友印象。userId 优先按 wxid 删；target 按名字删；两者都不传则删全部印象。",
+            "description": "删除过时的群友印象。userId 按 wxid 删；target 按名字删；都不传=全删。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -162,7 +264,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "web_search",
-            "description": "联网搜索，返回标题/URL/摘要列表。适用：实时信息、新闻热点、网络用语/梗的含义、自己不确定的事实。可以换关键词连续搜 2~3 次；对最相关的 1~2 个结果用 web_fetch 读正文，不要只看摘要。",
+            "description": "联网搜索（实时信息/新闻/梗/不确定的事实）。可换关键词搜 2~3 次；最相关的结果用 web_fetch 读正文。",
             "parameters": {
                 "type": "object",
                 "properties": {"query": {"type": "string", "description": "搜索词"}},
@@ -195,7 +297,7 @@ def build_tool_defs() -> list:
         },
         {
             "name": "finish",
-            "description": "明确结束本次处理（表示你看完了、决定了下一步）。看完不打算说话时调用它（summary 写一句给自己看的理由）；说完话想收尾时也可以调用。不调用也可以——直接结束文本输出同样代表结束。",
+            "description": "结束本次处理（可选）。看完不打算说话时调用，summary 写一句不发言的理由；不调也可以，直接结束输出同样代表结束。",
             "parameters": {
                 "type": "object",
                 "properties": {"summary": {"type": "string", "description": "一句话说明你这次的决定（只记录给管理端看，不会发送）"}},
@@ -326,6 +428,229 @@ def _exec_send_image(ctx, args):
         ctx["sender"].send_image(ctx["chat_key"], path)
         ctx["session"]["sent"].append({"type": "image", "text": "[图片]"})
         return _ok({"sent": True, "note": "图片已发送。不要输出\"已发送\"类汇报。"})
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_collect_emoji(ctx, args):
+    """用鼠标收藏：右键表情气泡→「添加到表情」存入微信表情库（失败再本地截图兜底）。"""
+    try:
+        entry = ctx["store"].find_by_mid(ctx["chat_key"], args.get("message_id"))
+        if not entry:
+            return _err("当前会话找不到消息 %s。%s" % (args.get("message_id"), _mid_hint(ctx)))
+        media = [m for m in (entry.get("media") or [])
+                 if m.get("local_id") and m.get("kind") in ("emoji", "image")]
+        if not media:
+            return _err("消息 %s 不是表情/图片（无法收藏）" % args.get("message_id"))
+        # ① 鼠标真操作：右键气泡→添加到表情
+        ok, msg = ctx["wechat"].collect_emoji_native(ctx["chat_id"], str(entry.get("text") or ""),
+                                                      str(entry.get("sender_name") or ""))
+        _text = str(entry.get("text") or "")
+        _sender = str(entry.get("sender_name") or "")
+        if ok:
+            # 记入模型-程序协作表情库（概述+发送者语境；面板格序号由后续重扫描面板确定）
+            try:
+                from agent import emoji_lib as _el
+                _el.record(_el.gen_summary(_text, _sender), -1, path="",
+                           meta={"sender": _sender, "source": "native"})
+            except Exception:
+                pass
+            return _ok({"collected": True, "note": "已用鼠标添加到微信表情库（右键→添加到表情）。"})
+        # ② 本地兜底（截图/下载入收藏夹，send_emoji 面板可发）
+        path = ctx["wechat"].collect_emoji(ctx["chat_id"], media[0]["local_id"])
+        if not path:
+            return _err("鼠标收藏失败（%s）；本地收藏也失败。" % msg)
+        try:
+            from agent import emoji_lib as _el
+            _el.record(_el.gen_summary(_text, _sender), -1, path=path,
+                       meta={"sender": _sender, "source": "local"})
+        except Exception:
+            pass
+        return _ok({"collected": True, "path": path,
+                    "note": "鼠标操作未成功（%s），已入本地收藏夹兜底。" % msg})
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_list_emojis(ctx, args):
+    """列出收藏夹表情。"""
+    try:
+        emojis = ctx["wechat"].list_emojis()
+        if not emojis:
+            return _ok({"emojis": [], "note": "收藏夹为空：收到好玩的 [表情] 时可用 collect_emoji 收藏。"})
+        return _ok({"emojis": emojis, "note": "用 send_emoji(name_or_id=文件名) 发送。"})
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_send_emoji(ctx, args):
+    """用鼠标发送收藏的表情（程序点输入栏笑脸→爱心→点表情；微信认可的唯一稳妥路径）。
+    优先按 name_or_id 匹配概述/路径取面板格序号；否则模型从概述里选；否则发最近收藏(0)。"""
+    from agent import emoji_lib as _el
+    name = str(args.get("name_or_id") or "").strip()
+    index = None
+    if name:
+        for s in _el.list_summaries():
+            if name in str(s["summary"]) or name in str(s.get("path") or ""):
+                index = int(s["index"]); break
+    if index is None:
+        index = _el.pick(str(args.get("context") or ""))
+    if index is None or index < 0:
+        index = 0
+    try:
+        # ① 真实微信表情面板（笑脸→爱心→点第 index 个），程序全程鼠标操作
+        ok, msg = ctx["wechat"].emoji_panel_open()
+        if not ok:
+            # ② 本地收藏夹兜底（send_image；微信可见模拟点击同样有效）
+            if name:
+                emojis = ctx["wechat"].list_emojis()
+                target = next((e for e in emojis if e["name"] == name), None)
+                if not target:
+                    return _err("表情面板打开失败（%s）；收藏夹也没有 %s" % (msg, name))
+                ctx["sender"].send_image(ctx["chat_key"], target["path"])
+                ctx["session"]["sent"].append({"type": "image", "text": "[表情]"})
+                return _ok({"sent": True, "note": "面板未打开，已用本地收藏夹发送 %s。" % name})
+            return _err("表情面板打开失败：%s（可能需要微信窗口在前台）" % msg)
+        ok2, msg2 = ctx["wechat"].emoji_panel_send(index)
+        if not ok2:
+            return _err("表情面板发送失败：%s（已取消，未发送）" % msg2)
+        ctx["session"]["sent"].append({"type": "image", "text": "[表情]"})
+        return _ok({"sent": True, "index": index, "note": msg2})
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_view_merge(ctx, args):
+    """查看合并转发聊天记录内容。"""
+    try:
+        entry = ctx["store"].find_by_mid(ctx["chat_key"], args.get("message_id"))
+        if not entry:
+            return _err("当前会话找不到消息 %s。%s" % (args.get("message_id"), _mid_hint(ctx)))
+        merges = [m for m in (entry.get("media") or []) if m.get("kind") == "merge" and m.get("local_id")]
+        if not merges:
+            # 也允许直接看卡片类
+            fc = ctx["wechat"].parse_forward_card(ctx["chat_id"], int(args.get("message_id") or 0))
+            if fc.get("kind") == "merge":
+                merges = [{"local_id": args.get("message_id")}]
+            else:
+                return _err("消息 %s 不是合并转发（可能是普通卡片/链接）" % args.get("message_id"))
+        fc = ctx["wechat"].parse_forward_card(ctx["chat_id"], merges[0]["local_id"])
+        if fc.get("kind") != "merge":
+            return _err("合并转发内容解析失败")
+        items = fc.get("items") or []
+        lines = ["【合并转发聊天记录 · 共 %d 条】" % len(items)]
+        for i, it in enumerate(items, 1):
+            lines.append("%d. %s" % (i, it.get("title") or it.get("desc") or "（无标题）"))
+        return _ok({"content": "\n".join(lines), "raw": fc.get("raw"), "note": "以上是合并转发里的消息。"})
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_collect_message(ctx, args):
+    """收藏某条消息。"""
+    try:
+        entry = ctx["store"].find_by_mid(ctx["chat_key"], args.get("message_id"))
+        if not entry:
+            return _err("当前会话找不到消息 %s。%s" % (args.get("message_id"), _mid_hint(ctx)))
+        text = str(entry.get("text") or "")
+        sender = str(entry.get("sender_name") or "")
+        ok, msg = ctx["wechat"].collect_message(ctx["chat_id"], text, sender)
+        return _ok({"collected": ok, "note": msg}) if ok else _err(msg)
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_recall_message(ctx, args):
+    """撤回自己的消息（默认最近一条）。"""
+    try:
+        entry = None
+        if args.get("message_id"):
+            entry = ctx["store"].find_by_mid(ctx["chat_key"], args.get("message_id"))
+            if not entry:
+                return _err("当前会话找不到消息 %s。%s" % (args.get("message_id"), _mid_hint(ctx)))
+        else:
+            msgs = ctx["store"].recent(ctx["chat_key"], limit=20) or []
+            for m in reversed(msgs):
+                if m.get("self") and str(m.get("text") or "").strip():
+                    entry = m
+                    break
+        if not entry:
+            return _err("没找到可撤回的自己消息")
+        ok, msg = ctx["wechat"].recall_message(ctx["chat_id"], str(entry.get("text") or ""),
+                                               str(entry.get("sender_name") or ""))
+        return _ok({"recalled": ok, "note": msg}) if ok else _err(msg)
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_moments_like(ctx, args):
+    """点赞朋友圈（程序鼠标；低频由行为引擎把关）。"""
+    try:
+        from agent.behavior import decider
+        if not decider.should("like_moments"):
+            return _err("点赞被决策引擎拦截（概率/上限未达，或未启用；可在控制台调试区开启）")
+        index = int(args.get("index") or 0)
+        ok, msg = ctx["wechat"].moments_like(index)
+        return _ok({"liked": ok, "note": msg}) if ok else _err(msg)
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_moments_comment(ctx, args):
+    """评论朋友圈（程序鼠标）。"""
+    try:
+        from agent.behavior import decider
+        if not decider.should("moments_comment"):
+            return _err("评论被决策引擎拦截（概率/上限未达，或未启用；可在控制台调试区开启）")
+        index = int(args.get("index") or 0)
+        text = str(args.get("text") or "").strip()
+        if len(text) < 4:
+            return _err("评论至少 4 个字")
+        ok, msg = ctx["wechat"].moments_comment(index, text)
+        return _ok({"commented": ok, "note": msg}) if ok else _err(msg)
+    except Exception as e:
+        return _err(str(e))
+
+
+def _exec_moments_surf(ctx, args):
+    """刷朋友圈：滚动 + 截图给模型看（一次视口）。"""
+    try:
+        from agent.behavior import decider
+        if not decider.should("moments_surf"):
+            return _err("刷朋友圈被决策引擎拦截（频率/上限未达，或未启用；可在控制台调试区开启）")
+        scroll = int(args.get("scroll") or 0)
+        ok, msg = ctx["wechat"].moments_open()
+        if not ok:
+            return _err("朋友圈打开失败：%s" % msg)
+        if scroll > 0:
+            ctx["wechat"].moments_scroll(1, scroll)
+            time.sleep(1.0)
+        parts = ctx["wechat"].moments_screenshot()
+        if not parts:
+            ctx["wechat"].moments_close()
+            return _err("朋友圈截图失败（窗口可能未加载）；窗口已关")
+        return {"content": _image_parts("朋友圈当前视口：", parts)}
+    except Exception as e:
+        return _err(str(e))
+
+
+def _ok_text(parts):
+    return "（截图见下方图片）"
+
+
+def _exec_moments_publish(ctx, args):
+    """发纯文字朋友圈（程序鼠标：长按相机→输入→发表→关窗）。"""
+    try:
+        from agent.behavior import decider
+        if not decider.should("moments_publish"):
+            return _err("发朋友圈被决策引擎拦截（概率/上限未达，或未启用；可在控制台调试区开启）")
+        text = str(args.get("text") or "").strip()
+        if len(text) < 8:
+            return _err("朋友圈内容至少 8 个字")
+        if len(text) > 120:
+            return _err("朋友圈内容别超过 120 字")
+        ok, msg = ctx["wechat"].moments_publish_text(text)
+        return _ok({"published": ok, "note": msg}) if ok else _err(msg)
     except Exception as e:
         return _err(str(e))
 

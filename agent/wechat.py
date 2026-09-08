@@ -351,7 +351,9 @@ class WeChatAdapter:
             text = "[图片]"
             media = [{"kind": "image", "local_id": local_id}]
         elif mtype == "动画表情":
+            # media 携带 local_id 供「收藏表情包」工具截图入收藏夹
             text = "[表情]"
+            media = [{"kind": "emoji", "local_id": local_id}]
         elif mtype == "语音":
             text = "[语音]"
         elif mtype == "视频":
@@ -369,7 +371,15 @@ class WeChatAdapter:
                 if parsed.get("sender_wxid"):
                     sender_wxid = parsed["sender_wxid"]
             else:
-                text = "[文件/链接/卡片]"
+                # 合并转发/多条目卡片：解析子消息摘要
+                fc = self.parse_forward_card(chat_id, local_id)
+                if fc.get("kind") == "merge":
+                    items = fc.get("items") or []
+                    brief = " / ".join(i["title"][:30] for i in items[:4])
+                    text = "[合并转发] %s" % (brief if brief else "查看聊天记录")
+                    media = [{"kind": "merge", "local_id": local_id}]
+                else:
+                    text = "[文件/链接/卡片]"
         elif mtype == "红包":
             text = "[红包]"
         else:
@@ -401,11 +411,37 @@ class WeChatAdapter:
 
     def _get_gui(self):
         if self._gui is None:
+            from wechatauto.guia import WeChatGUI
             try:
-                from wechatauto.guia import WeChatGUI
-            except ImportError as e:
-                raise WeChatError("wechatauto.guia 不可用：%s" % e)
-            self._gui = WeChatGUI()
+                self._gui = WeChatGUI()
+            except Exception:
+                # 主窗不可见（最小化/隐藏）→ 按进程枚举恢复「微信」主窗后重试一次
+                try:
+                    import ctypes
+                    from ctypes import wintypes
+                    u = ctypes.windll.user32
+                    pid = ctypes.c_ulong()
+                    CB = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+                    found = []
+
+                    def cb(h, l):
+                        t = ctypes.create_unicode_buffer(256)
+                        u.GetWindowTextW(h, t, 256)
+                        if t.value == "微信":
+                            found.append(h)
+                            return False
+                        return True
+
+                    ref = CB(cb)
+                    u.EnumWindows(ref, 0)
+                    if found:
+                        u.ShowWindow(int(found[0]), 9)
+                        time.sleep(0.5)
+                        u.SetForegroundWindow(int(found[0]))
+                        time.sleep(0.3)
+                    self._gui = WeChatGUI()
+                except Exception:
+                    raise WeChatError("不可用：微信主窗口不可见（恢复失败）。请打开电脑微信后重试。")
             try:
                 if self._gui.desktop_available():
                     self._gui.calibrate_layout(save=True)
@@ -618,6 +654,463 @@ class WeChatAdapter:
                 return ok, str(getattr(r, "message", "") or "")
         except Exception as e:
             return False, str(e)
+
+    # ── 表情包（收藏 / 发送）───────────────────────────────────────────
+    # 微信表情原图在消息库中为加密数据（md5+len 索引），wechatauto 提供
+    # 「截取最新一条表情消息气泡」的方案（EmojiMessage.capture()）——
+    # 收到表情时它即会话最新一条，可截取为 PNG 存进收藏夹 data/emojis/。
+
+    EMOJI_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "emojis")
+
+    def _chat_obj(self, chat_id: str):
+        """构造 wechatauto Chat（复用当前 db/gui），用于表情截图。"""
+        from wechatauto import WeChat  # 提供 ChatWith 等（实际以 Chat 为主）
+        from wechatauto.wx import Chat
+        name = self.group_name(chat_id) or chat_id
+        gui = self._get_gui()
+        return Chat(who=name, gui=gui, db=self._db)
+
+    def collect_emoji(self, chat_id: str, local_id: int) -> str | None:
+        """收藏一条消息到本地收藏夹 data/emojis/（返回路径；失败 None）。
+
+        动画表情(47) → UIA 精确定位截图；图片(3) → 原图下载（更清晰）；
+        返回值统一为收藏夹内文件路径，供 send_emoji/list_emojis 使用。
+        """
+        try:
+            row = self._db.get_message_row(chat_id, int(local_id))
+            if not row:
+                return None
+            lt = (row.get("local_type") or 0) & 0xFF
+            os.makedirs(self.EMOJI_DIR, exist_ok=True)
+            if lt == 3:
+                # 图片：原图下载
+                if self._md is None:
+                    return None
+                path = self._md.download_image(chat_id, int(local_id), save_dir=self.EMOJI_DIR)
+                if path and os.path.exists(path):
+                    return path
+                return None
+            if lt != 47:
+                return None
+            chat = self._chat_obj(chat_id)
+            msg = chat.GetMessageById(int(local_id))
+            if msg is None:
+                return None
+            path = msg.capture(save_dir=self.EMOJI_DIR)
+            if path and os.path.exists(path):
+                return path
+            return None
+        except Exception:
+            return None
+
+    def list_emojis(self) -> list:
+        """收藏夹表情列表：[{path, name, size}]。"""
+        try:
+            out = []
+            if os.path.isdir(self.EMOJI_DIR):
+                for f in sorted(os.listdir(self.EMOJI_DIR)):
+                    p = f
+                    if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+                        fp = os.path.join(self.EMOJI_DIR, f)
+                        out.append({"path": fp, "name": f, "size": os.path.getsize(fp)})
+            return out
+        except Exception:
+            return []
+
+    def send_emoji(self, chat_id: str, emoji_path: str) -> tuple:
+        """从收藏夹发送表情包（转 send_image）。返回 (ok, msg)。"""
+        return self.send_image(chat_id, emoji_path)
+
+    # ── 朋友圈（模拟点击 + OCR；入口=侧栏相机图标）────────────────────────
+    # 微信 PC 4.1 侧栏第 4 个图标（相机）= 朋友圈。坐标经 DPI 适配层换算，
+    # 不同电脑用 ui_adapt.prepare_screen + 相对缩放推算（兜底 OCR 识别「朋友圈」文字）。
+
+    # ── 朋友圈（PC 版有入口：侧栏第 4 图标=朋友圈，窗口标题"朋友圈"；实测确认）──
+    # 操作链：点图标 → 验证「朋友圈」窗口出现 → 干活 → 关闭窗口（点右上角叉号，落败兜底）。
+
+    def moments_open(self) -> tuple:
+        """点击侧栏朋友圈图标 → 等待 → 验证「朋友圈」窗口出现（轮询+重试）。"""
+        try:
+            from . import wechat_ui
+            gui = self._get_gui()
+            ok, msg = wechat_ui.hit("sidebar.moments", gui, retries=3)
+            if not ok:
+                return False, "朋友圈图标点击失败：%s" % msg
+            # 轮询等窗口出现（最多 4 秒）；无窗口→先关掉可能误开的其它子窗（视频号等）再重试
+            for attempt in range(3):
+                deadline = time.time() + 4.0
+                while time.time() < deadline:
+                    try:
+                        for hwnd, title, rect in wechat_ui._wechat_subwindows(gui.main_hwnd):
+                            if "朋友圈" in title or title == "Weixin":
+                                return True, "朋友圈窗口已打开"
+                    except Exception:
+                        pass
+                    time.sleep(0.4)
+                if attempt < 2:
+                    wechat_ui.close_leftover_windows(gui)   # 防误开窗口残留/拦截
+                    time.sleep(0.5)
+                    wechat_ui.hit("sidebar.moments", gui, retries=2)
+            return True, "已点击朋友圈图标（窗口待加载）"
+        except Exception as e:
+            return False, str(e)
+
+    def moments_close(self) -> tuple:
+        """关闭朋友圈等残留子窗口（点右上角叉号；兜底 Alt+F4/WM_CLOSE）。"""
+        try:
+            from . import wechat_ui
+            gui = self._get_gui()
+            closed = wechat_ui.close_leftover_windows(gui)
+            return True, "已关闭残留子窗口%d个：%s" % (len(closed), "、".join(closed) or "无")
+        except Exception as e:
+            return False, str(e)
+
+    # ── 朋友圈完整鼠标操作（UI 实测：相机长按发表纯文字 / 蓝点赞评论 / 滚动刷）──
+
+    def _moments_focus(self):
+        """确保朋友圈窗口在前台（枚举到即激活）。"""
+        from . import wechat_ui
+        gui = self._get_gui()
+        for hwnd, title, rect in wechat_ui._wechat_subwindows(gui.main_hwnd):
+            if "朋友圈" in title or title == "Weixin":
+                import ctypes
+                ctypes.windll.user32.SetForegroundWindow(int(hwnd))
+                return rect
+        return None
+
+    def moments_scroll(self, direction: int = 1, times: int = 1) -> tuple:
+        """滚动朋友圈：先置前台焦点 → 光标移到窗口内（避开图片/按钮，用右侧空白带）
+        → 每次 -120 步进（微信滚轮标准刻度）×N 次×times，滚后验证窗口仍在前台。"""
+        try:
+            import ctypes
+            gui = self._get_gui()
+            from . import wechat_ui as _wu
+            if _wu.stop_requested():
+                return False, "已停止"
+            rect = self._moments_focus()
+            if not rect:
+                return False, "朋友圈窗口未打开"
+            h = int(self._moments_hwnd() or gui.main_hwnd)
+            ctypes.windll.user32.SetForegroundWindow(h)
+            time.sleep(0.5)
+            user32 = ctypes.windll.user32
+            # 滚动带：窗口右缘内侧一条细带（避开头像/蓝点/输入框）
+            cx = rect[2] - 30
+            cy = (rect[1] + rect[3]) // 2
+            user32.SetCursorPos(cx, cy)
+            time.sleep(0.25)
+            step = -120 if direction > 0 else 120
+            total = 0
+            for _ in range(times):
+                for _ in range(8):
+                    if _wu.stop_requested():
+                        return True, "已停止（已滚动 %d 格）" % total
+                    user32.mouse_event(0x0800, 0, 0, step, 0)
+                    time.sleep(0.12)
+                    total += 1
+                time.sleep(0.4)
+            return True, "已滚动朋友圈（%d×%d 格）" % (times, total)
+        except Exception as e:
+            return False, str(e)
+
+    def moments_screenshot(self) -> list:
+        """截图朋友圈当前视口（刷时给模型看；省 token：最多 2 屏）。"""
+        try:
+            gui = self._get_gui()
+            rect = self._moments_focus()
+            if not rect:
+                rect = (gui.origin_x, gui.origin_y,
+                        gui.origin_x + gui.render_w, gui.origin_y + gui.render_h)
+            img = gui._grab_screen(rect)
+            from PIL import Image
+            import io, base64
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=62)
+            return [{"type": "image_url",
+                     "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()}}]
+        except Exception:
+            return []
+
+    # ── 朋友圈交互（实测布局：打开=第一条动态详情；蓝点·(0.89W,0.938H)→弹「赞|评论」菜单）──
+
+    def _moments_bluedot(self, gui, rect):
+        """详情页蓝点位置（相对窗口比例；不同窗口大小自适应）。"""
+        return int(rect[0] + (rect[2] - rect[0]) * 0.89), int(rect[1] + (rect[3] - rect[1]) * 0.938)
+
+    def _moments_menu_item(self, gui, rect, label):
+        """OCR 找菜单里「赞/评论/发送」文字（窗口内坐标→屏幕→ui_adapt 点击）。"""
+        from . import wechat_ui
+        hit = self._moments_menu_item2(gui, rect, label)
+        if not hit:
+            return False
+        from . import ui_adapt
+        t2, x, y, ww, hh = hit
+        sx, sy = rect[0] + x + ww // 2, rect[1] + y + hh // 2
+        ok, _ = ui_adapt.click(gui, sx - gui.origin_x, sy - gui.origin_y,
+                               extra_hwnds=tuple(int(h) for h, t, r in wechat_ui._wechat_subwindows(gui.main_hwnd)))
+        return ok
+
+    def _moments_menu_item2(self, gui, rect, label):
+        """只 OCR 查找菜单项，返回 (text,x,y,w,h) 或 None（不点击，防止取消菜单）。"""
+        for t2, x, y, ww, hh in self.moments_ocr():
+            if label in t2.strip():
+                return (t2, x, y, ww, hh)
+        return None
+
+    def _moments_hover_menu(self, gui, rect, label):
+        """蓝点操作：滚回顶 → **单击**蓝点（菜单持久出现，不能双击）→ OCR 找菜单项并点击。"""
+        import ctypes
+        from . import ui_adapt, wechat_ui as _wu
+        # 滚回顶（朋友圈会记住上次视口；不滚回顶蓝点坐标错位）
+        try:
+            cx, cy = (rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2
+            ctypes.windll.user32.SetCursorPos(cx, cy)
+            for _ in range(8):
+                ctypes.windll.user32.mouse_event(0x0800, 0, 0, 900, 0)
+                time.sleep(0.12)
+            time.sleep(0.8)
+        except Exception:
+            pass
+        bx, by = int(rect[0] + (rect[2] - rect[0]) * 0.89), int(rect[1] + (rect[3] - rect[1]) * 0.938)
+        subs = tuple(int(h) for h, t, r in _wu._wechat_subwindows(gui.main_hwnd))
+        # 单击蓝点（heal=False：不抖动；绝不再点第二下，否则菜单取消）
+        ctypes.windll.user32.SetCursorPos(bx, by)
+        time.sleep(0.25)
+        ui_adapt.click(gui, bx - gui.origin_x, by - gui.origin_y, extra_hwnds=subs, heal=False)
+        for _ in range(3):
+            if _wu.stop_requested():
+                return "STOPPED"
+            time.sleep(0.9)
+            hit = self._moments_menu_item2(gui, rect, label)
+            if hit:
+                t2, x, y, ww, hh = hit
+                sx, sy = rect[0] + x + ww // 2, rect[1] + y + hh // 2
+                ok, _ = ui_adapt.click(gui, sx - gui.origin_x, sy - gui.origin_y,
+                                       extra_hwnds=subs, heal=False)
+                return ok
+        return False
+
+    def moments_like(self, index: int = 0) -> tuple:
+        """点赞（检验版：蓝点悬停出「赞」菜单即视为可点赞，**不实际点击赞**；true 点赞走行为引擎）。"""
+        try:
+            from . import ui_adapt
+            gui = self._get_gui()
+            ui_adapt.prepare_screen(gui)
+            ok_open, msg_open = self.moments_open()
+            if not ok_open:
+                return False, msg_open
+            time.sleep(1.2)
+            rect = self._moments_focus() or gui.render_rect
+            if not rect:
+                self.moments_close()
+                return False, "朋友圈窗口未找到（未点赞）"
+            if not self._moments_hover_menu(gui, rect, "赞"):
+                self.moments_close()
+                return False, "蓝点悬停后未出「赞」菜单（可手动把朋友圈窗口置前再试）"
+            time.sleep(0.5)
+            self.moments_close()
+            return True, "已到「可点赞菜单」（检验未实际点赞），窗口已关"
+        except Exception as e:
+            return False, str(e)
+
+    def _moments_hwnd(self):
+        from . import wechat_ui
+        gui = self._get_gui()
+        for hwnd, title, rect in wechat_ui._wechat_subwindows(gui.main_hwnd):
+            if "朋友圈" in title or title == "Weixin":
+                return hwnd
+        return None
+
+    def _type_into_focused(self, text: str) -> bool:
+        """把文本打进**当前聚焦窗口**（朋友圈等独立窗）：剪贴板 + Ctrl+V + 回车。
+        不要用 gui.input_text（那是主窗输入框！）。"""
+        try:
+            import ctypes
+            from ctypes import wintypes
+            u = ctypes.windll.user32
+            k = ctypes.windll.user32
+            # 剪贴板 UTF-8
+            data = text.encode("utf-16-le")
+            hglob = ctypes.windll.kernel32.GlobalAlloc(0x0042, len(data) + 2)
+            p = ctypes.windll.kernel32.GlobalLock(hglob)
+            ctypes.memmove(p, data, len(data))
+            ctypes.windll.kernel32.GlobalUnlock(hglob)
+            u.OpenClipboard(0)
+            u.EmptyClipboard()
+            u.SetClipboardData(13, hglob)   # CF_UNICODETEXT
+            u.CloseClipboard()
+            time.sleep(0.2)
+            # Ctrl+V
+            u.keybd_event(0x11, 0, 0, 0)      # CTRL down
+            u.keybd_event(0x56, 0, 0, 0)      # V
+            u.keybd_event(0x56, 0, 0x0002, 0)
+            u.keybd_event(0x11, 0, 0x0002, 0)
+            time.sleep(0.3)
+            return True
+        except Exception:
+            return False
+
+    def moments_comment(self, index: int = 0, text: str = "", dry: bool = False) -> tuple:
+        """评论：蓝点 →「评论」→ 输入框（朋友圈窗口内）→ 粘贴 → 关窗。
+        dry=True：只验证到「输入框可输入」即关窗，**不点发送**（用于检验，避免真发评论打扰）。"""
+        try:
+            from . import ui_adapt
+            gui = self._get_gui()
+            if not text.strip():
+                return False, "评论内容不能为空"
+            ui_adapt.prepare_screen(gui)
+            ok_open, msg_open = self.moments_open()
+            if not ok_open:
+                return False, msg_open
+            time.sleep(1.2)
+            rect = self._moments_focus() or gui.render_rect
+            if not rect:
+                self.moments_close()
+                return False, "朋友圈窗口未找到（未评论）"
+            if not self._moments_hover_menu(gui, rect, "评论"):
+                self.moments_close()
+                return False, "蓝点后未出「评论」菜单（可手动把朋友圈窗口置前再试）"
+            time.sleep(1.4)
+            # 输入评论：点一下输入框（确保光标在内）→ 剪贴板粘贴（重试 3 次）
+            import ctypes
+            ctypes.windll.user32.SetForegroundWindow(int(self._moments_hwnd() or gui.main_hwnd))
+            time.sleep(0.5)
+            try:
+                inx, iny = rect[0] + int((rect[2] - rect[0]) * 0.5), rect[1] + int((rect[3] - rect[1]) * 0.965)
+                ui_adapt.click(gui, inx - gui.origin_x, iny - gui.origin_y, extra_hwnds=subs, heal=False)
+                time.sleep(0.6)
+            except Exception:
+                pass
+            ok_in = False
+            for _ in range(3):
+                if self._type_into_focused(text):
+                    ok_in = True
+                    break
+                time.sleep(0.4)
+            if not ok_in:
+                return False, "评论输入失败（输入框已打开，请手动输入后发送；窗口保留）"
+            time.sleep(0.6)
+            if dry:
+                self.moments_close()
+                return True, "已到「评论输入」可输入（未实际发送，dry 模式）"
+            # 发送：OCR「发送」（窗口内）→ 点击；找不到则回车
+            sent = self._moments_menu_item(gui, rect, "发送")
+            if not sent:
+                try:
+                    gui._input.key(0x0D)
+                except Exception:
+                    pass
+            time.sleep(1.2)
+            self.moments_close()
+            return True, "已评论（%s…），窗口已关" % text[:10]
+        except Exception as e:
+            return False, str(e)
+
+
+    def moments_publish_text(self, text: str) -> tuple:
+        """长按左上角相机 ~2 秒 → 纯文字输入栏 → 输入 → 点「发表」（变绿后）→ 关窗。"""
+        try:
+            import ctypes
+            from . import ui_adapt
+            gui = self._get_gui()
+            ui_adapt.prepare_screen(gui)
+            ok_open, msg_open = self.moments_open()
+            if not ok_open:
+                return False, msg_open
+            time.sleep(1.0)
+            rect = self._moments_focus() or gui.render_rect
+            if not rect:
+                self.moments_close()
+                return False, "朋友圈窗口未找到（未发布）"
+            # 相机位置：朋友圈窗口左上角（约窗口左上 (left+70, top+38) 附近，用 OCR 找「相机」无文字——
+            # 用近似坐标：窗口左上角第二按钮。先试常见位置 (left+66, top+36)
+            cam_x, cam_y = int(rect[0] + 66), int(rect[1] + 36)
+            # 长按：down → 2.0s → up
+            user32 = ctypes.windll.user32
+            user32.SetCursorPos(cam_x, cam_y)
+            user32.mouse_event(0x0002, 0, 0, 0, 0)
+            time.sleep(2.0)
+            user32.mouse_event(0x0004, 0, 0, 0, 0)
+            time.sleep(1.5)
+            # 纯文字输入栏出现：输入
+            if not gui.input_text(text, fast=True):
+                ok_in = gui.input_text(text)
+                if not ok_in:
+                    self.moments_close()
+                    return False, "朋友圈输入栏未找到（未发布，窗口已关）"
+            time.sleep(0.6)
+            # 点「发表」（变绿后）：OCR 找「发表」；找不到再按回车兜底前先找
+            published = False
+            for t2, x, y, ww, hh in self.moments_ocr():
+                if t2.strip() == "发表":
+                    ui_adapt.click(gui, x + ww // 2, y + hh // 2)
+                    published = True
+                    break
+            if not published:
+                try:
+                    gui._input.key(0x0D)  # 回车兜底
+                    published = True
+                except Exception:
+                    pass
+            time.sleep(1.5)
+            self.moments_close()
+            return True, "朋友圈已发布（%s…），窗口已关" % text[:12] if published else ("发布未确认（%s…），窗口已关" % text[:12])
+        except Exception as e:
+            return False, str(e)
+
+
+    def moments_ocr(self) -> list:
+        """对**朋友圈窗口**（独立子窗）截图 OCR——返回 [(text, 窗口内x, y, w, h)]。"""
+        try:
+            rect = self._moments_focus()
+            if not rect:
+                return []
+            from PIL import ImageGrab
+            img = ImageGrab.grab((rect[0], rect[1], rect[2], rect[3]))
+            from wechatauto import ScreenOCR
+            res = ScreenOCR.recognize(img)
+            out = []
+            for item in (res or []):
+                # ScreenOCR 返回结构兼容处理：tuple(text,x,y,w,h) 或 dict
+                if isinstance(item, dict):
+                    t = str(item.get("text") or ""); x = int(item.get("x") or 0)
+                    y = int(item.get("y") or 0); w = int(item.get("w") or 0); h = int(item.get("h") or 0)
+                else:
+                    t, x, y, w, h = (list(item) + [0, 0, 0, 0])[:5]
+                out.append((t, int(x), int(y), int(w), int(h)))
+            return out
+        except Exception:
+            return []
+
+
+    def parse_forward_card(self, chat_id: str, local_id: int) -> dict:
+        """解析「文件/链接/卡片」里的合并转发/多条目内容。
+        返回 {kind, title, items:[{title, desc}], raw}；非合转返回 {kind:"other"}。"""
+        try:
+            row = self._db.get_message_row(chat_id, int(local_id))
+            if not row:
+                return {"kind": "other"}
+            content = row.get("content")
+            if not isinstance(content, bytes) or not content.startswith(b"\x28\xb5\x2f\xfd"):
+                return {"kind": "other"}
+            import zstandard
+            txt = zstandard.ZstdDecompressor().decompress(content, max_output_size=400000).decode("utf-8", "ignore")
+            # 类型与多条目特征
+            t_m = re.search(r"<type>(\d+)</type>", txt)
+            t = t_m.group(1) if t_m else ""
+            titles = [re.sub(r"<[^>]+>", "", x).strip() for x in re.findall(r"<title>(.*?)</title>", txt, re.S)]
+            titles = [x for x in titles if x]
+            # 合并转发的子消息块：<record>、<msgchunk>、多个 <appmsg>；含 "聊天记录" 等特征
+            is_merge = (t == "57" and len(titles) >= 2) or ("record" in txt.lower()) or ("多条" in txt) or ("聊天记录" in txt)
+            if is_merge:
+                items = []
+                for i, tl in enumerate(titles[:12]):
+                    items.append({"title": tl, "desc": ""})
+                return {"kind": "merge", "title": titles[0] if titles else "合并转发",
+                        "items": items, "raw": txt[:500]}
+            return {"kind": "card", "title": titles[0] if titles else "", "raw": txt[:300]}
+        except Exception:
+            return {"kind": "other"}
 
     # ── 右键菜单操作（拍一拍 / 引用）──────────────────────────────────
 
@@ -1217,27 +1710,39 @@ class WeChatAdapter:
             return False, "异常：%s" % e
 
     def click_self_test(self) -> dict:
-        """真实点击自检：与「拍一拍检测」完全同链路（定位头像→右键→菜单识别→Esc）。
-
-        直接复用已验证的 verify-only 路径（用户实测拍一拍检测是好的），
-        保证体检结论与拍一拍检测一致；不点菜单项、不发消息、不拍任何人。
+        """真实点击自检（安全版）：不切换会话、不搜索、不翻页——
+        只验证「当前前台会话」头像定位+右键菜单可弹（同拍一拍链路，但绝不动会话列表/搜索框）。
         """
         try:
-            any_group = None
-            for g in self.list_groups():
-                name, sid = self._latest_friend(g["wxid"])
-                if sid:
-                    any_group = (g["wxid"], g["name"], name, sid)
-                    break
-            if any_group is None:
-                return {"ok": False,
-                        "detail": "没有找到有群友消息的群（在任意群里说一句话后再试，不需要控制台存档）"}
-            chat_id, gname, name, sid = any_group
-            result = self.poke_diag(chat_id, name, sid, verify_only=True)
-            detail = result.get("message") or result.get("steps")
-            if not isinstance(detail, str):
-                detail = "；".join(str(s) for s in (detail or [])[:4])
-            return {"ok": bool(result.get("ok")), "detail": detail, "group": gname, "target": name}
+            # 直接用当前已打开的会话（微信前台那个）验证菜单链路；不 open_chat、不搜索
+            gui = self._get_gui()
+            from . import ui_adapt
+            from .ui_adapt import click as _click
+            if not ui_adapt.prepare_screen(gui):
+                return {"ok": False, "detail": "屏幕预检失败（微信窗口不可见）"}
+            box = gui.get_input_box()
+            if not box:
+                return {"ok": False, "detail": "当前没有打开的会话（请先打开任意群聊再体检）"}
+            # 在消息区找一条群友消息做右键验证：限定当前视口（不滚动、不搜索）
+            items = []
+            try:
+                top = max(80, box[1] - 520)
+                items = gui.ocr((gui.right_pane_left, top, gui.render_w, box[1]))
+            except Exception:
+                pass
+            mid_x = (gui.right_pane_left + gui.render_w) // 2
+            items = [it for it in items if it[3] > 30 and (gui.right_pane_left + 60) < it[1] < mid_x]
+            if not items:
+                return {"ok": False, "detail": "当前会话没有可见文字消息（换到一个聊过的群再试）"}
+            items.sort(key=lambda b: b[1])
+            row = items[-1]  # 视口内最后一条可见消息
+            ax = gui.right_pane_left + int((gui.render_w - gui.right_pane_left) * 0.185)
+            ay = row[1] - 32
+            # 候选点右键，验证「拍一拍」菜单（仅验证不点击菜单项）
+            for cx, cy in [(ax + 130, ay + 30), (ax + 80, ay + 30), (ax + 40, ay + 40)]:
+                if self._right_click_menu(gui, cx, cy, "拍一拍"):
+                    return {"ok": True, "detail": "菜单可弹出（识别到「拍一拍」）——仅验证，未执行拍一拍"}
+            return {"ok": False, "detail": "当前会话右键未出「拍一拍」菜单（换一个聊过的群试试）"}
         except Exception as e:
             return {"ok": False, "detail": "异常：%s" % e}
 
@@ -1379,7 +1884,7 @@ class WeChatAdapter:
                     # 候选点：① 气泡中带（OCR 行中心 y + 左缘+60，标定最优）② 中带偏右
                     # ③ 左缘（短气泡）④ 左缘偏右 —— 多点依次试，弹菜单即成功
                     px, py = self._bubble_point(gui, ax, ay, target_text)
-                    points = [(px, py), (ax + 130, ay + 30), (ax + 70, py), (ax + 100, ay + 30)]
+                    points = [(px, py), (ax + 100, ay + 30)]
                 else:
                     # 没有定位到目标行：不做任何"乱点兜底"（防止点到侧栏群名称/空白）。
                     # 滚动搜索交给 _send_poke_locate(scroll=True)，这里直接失败并提示。
@@ -1431,6 +1936,369 @@ class WeChatAdapter:
             self._mark_sent(text)
             self._scroll_to_bottom(gui)
             return True, "已引用并发送"
+        except Exception as e:
+            return False, str(e)
+
+    # ── 消息菜单操作（收藏 / 撤回 / 删除 / 置顶 / 多选转发等）─────────────
+    # 复用引用链路的「头像定位 + 气泡起点右键」：对指定消息弹右键菜单点菜单项。
+    # 微信 4.x 菜单项：复制 / 收藏 / 转发 / 引用(对方) / 撤回 / 删除 / 置顶 / 多选…
+
+    def message_menu(self, chat_id: str, text: str, sender_name: str = "", label: str = "收藏") -> tuple:
+        """对一条消息执行右键菜单操作。text/sender_name 用于定位（数据库归一化消息）。
+        label: 收藏 / 撤回 / 删除 / 置顶 / 转发 / 多选…（失败返回 (False, 原因)，绝不乱点）。"""
+        with self._send_lock:
+            try:
+                gui = self._get_gui()
+                if not chat_id:
+                    return False, "未指定会话（chat_id 为空），不执行任何操作（防止误点搜索框/其它会话）"
+                group = self.group_name(chat_id) or chat_id
+                if not self._ensure_foreground(gui):
+                    return False, "微信窗口未找到或已退出，无法操作"
+                if not gui.open_chat(group):
+                    return False, "打开会话失败"
+                time.sleep(0.8)
+                if not text.strip():
+                    # 未指定文本 → 取数据库最近一条群友消息
+                    for raw in self._db.get_messages(chat_id, limit=20):
+                        norm = self.normalize(raw, chat_id)
+                        if norm and str(norm.get("sender_id") or "").startswith("wxid_") \
+                                and str(norm.get("text") or "").strip():
+                            text = str(norm["text"])
+                            sender_name = str(norm.get("sender_name") or "")
+                            break
+                if not text.strip():
+                    return False, "没有可定位的消息文本"
+                # 只滚到底一次 + 当前视口查找（不翻页循环，避免屏幕来回滚动）
+                self._scroll_to_bottom(gui)
+                time.sleep(0.8)
+                located = self._send_poke_locate(gui, sender_name or "", text, scroll=False)
+                if located:
+                    ax, ay, _ = located
+                    px, py = self._bubble_point(gui, ax, ay, text)
+                    for cx, cy in [(px, py), (ax + 130, ay + 30), (ax + 70, py)]:
+                        if self._right_click_menu(gui, cx, cy, label):
+                            self._scroll_to_bottom(gui)
+                            return True, "已%s" % label
+                # 安全关闭未选中的菜单
+                try:
+                    uia = gui._get_uia()
+                    if uia is not None and uia._uia_find_menu_item("转发") is not None:
+                        gui._input.key(0x1B)
+                except Exception:
+                    pass
+                self._scroll_to_bottom(gui)
+                return False, "右键菜单里没找到「%s」（目标消息可能不在可见区或已是自己刚发的）" % label
+            except Exception as e:
+                return False, str(e)
+
+    def collect_message(self, chat_id: str, text: str = "", sender_name: str = "") -> tuple:
+        """收藏一条消息。"""
+        return self.message_menu(chat_id, text, sender_name, "收藏")
+
+    def recall_message(self, chat_id: str, text: str = "", sender_name: str = "") -> tuple:
+        """撤回自己最近发的一条消息（需 2 分钟内）。"""
+        return self.message_menu(chat_id, text, sender_name, "撤回")
+
+    def collect_emoji_native(self, chat_id: str, text: str = "", sender_name: str = "") -> tuple:
+        """真实路径收藏：右键表情气泡 → 菜单「添加到表情」→ 存入微信表情库。
+        与 collect_emoji（本地截图收藏夹）并存：本方法走真微信操作。"""
+        return self.message_menu(chat_id, text, sender_name, "添加到表情")
+
+    # ── 微信表情面板（真实路径发收藏表情）────────────────────────────
+    # 路径：点输入栏左下角「笑脸」→ 弹出面板 → 底部右侧「爱心」（收藏的表情）
+    # → 点目标表情 → 发送。全部用相对输入栏坐标 + ui_adapt（DPI 无关）+ 验证。
+
+    def _search_group(self, gui, name: str) -> bool:
+        """搜索群聊进群：官方 open_chat（UIA 优先+侧栏 OCR 点击+搜索兜底），重试 2 次。"""
+        for i in range(2):
+            try:
+                if gui.open_chat(name):
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.4)
+        return False
+
+    def _emoji_btn_pos(self, gui):
+        """笑脸按钮（输入框左下方工具栏第一个）——按实测截图比例（与输入框联动，自适应窗口）。
+        实测：box(249,1073,1133,1254) 时笑脸在渲染 (366,1317) → x=box.left+0.132*box.w, y=box.bottom+63。"""
+        box = gui.get_input_box()
+        if not box:
+            return None
+        # 固定几何（恒定窗口）实测：笑脸位于 (0.297*sw, 0.879*sh)（截图 1234×1055 基准）
+        render = gui.render_rect or gui._update_render_rect() or (0, 0, 0, 0)
+        # 对准笑脸**中上部往右上一点**（中心略偏下会落到图标下缘/空白；右上更稳）
+        return (int(render[2] * 0.302), int(render[3] * 0.879 - 18))
+
+    def _panel_rect(self, gui):
+        """动态定位表情面板（WinUI Popup/SiteBridge 可见窗）矩形（屏幕坐标）。
+        面板几何随窗口尺寸变化，绝对比例不准；按面板自身矩形相对定位才稳定。"""
+        try:
+            import ctypes
+            from ctypes import wintypes
+            user32 = ctypes.windll.user32
+            pid = ctypes.c_ulong()
+            user32.GetWindowThreadProcessId(int(gui.main_hwnd), ctypes.byref(pid))
+            wx_pid = pid.value
+            CB = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+            out = [None]
+            def cb(h, l):
+                if h == int(gui.main_hwnd) or not user32.IsWindowVisible(h):
+                    return True
+                p2 = ctypes.c_ulong()
+                user32.GetWindowThreadProcessId(h, ctypes.byref(p2))
+                if p2.value != wx_pid:
+                    return True
+                buf = ctypes.create_unicode_buffer(256)
+                user32.GetClassNameW(h, buf, 256)
+                cls = buf.value or ""
+                if "SiteBridge" in cls or cls.startswith("PopupWindow"):
+                    r = wintypes.RECT(); user32.GetWindowRect(h, ctypes.byref(r))
+                    w, hh = r.right - r.left, r.bottom - r.top
+                    if w < 400 or hh < 380 or w > 1200 or hh > 900:
+                        return True
+                    out[0] = (r.left, r.top, r.right, r.bottom)
+                    return False
+                return True
+            ref = CB(cb); user32.EnumWindows(ref, 0)
+            return out[0]
+        except Exception:
+            return None
+
+    def _panel_visible(self, gui, sx, sy, sw, sh) -> bool:
+        """表情面板在吗？判定：面板标签行（下部 0.78~0.84sh、左 0.02~0.24sw）有图标暗点。"""
+        try:
+            from PIL import ImageGrab as _IG
+            img = _IG.grab((sx, sy, sx + sw, sy + sh)).convert("L")
+            px = img.load()
+            dark = 0
+            for yy in range(int(sh * 0.78), int(sh * 0.84), 2):
+                for xx in range(int(sw * 0.02), int(sw * 0.24), 2):
+                    if px[xx, yy] < 210:
+                        dark += 1
+            return dark >= 6
+        except Exception:
+            return False
+
+    def emoji_panel_open(self, group_name: str = "") -> tuple:
+        """点笑脸打开表情面板（恒定方案：先搜索群名进入会话——不管画面空不空）。返回 (ok, msg)。"""
+        try:
+            gui = self._get_gui()
+            from . import ui_adapt
+            if not ui_adapt.prepare_screen(gui):
+                return False, "屏幕预检失败"
+            # ① 恒用「搜索群名进入」（wechatauto open_chat 内部即搜索点击；画面空/非空都走）
+            if group_name:
+                # 进群=手写搜索（点搜索框→粘贴群名→点弹出的群聊）；失败才兜底 wechatauto open_chat
+                if not self._search_group(gui, group_name):
+                    try:
+                        gui.open_chat(group_name)
+                    except Exception:
+                        pass
+                time.sleep(0.7)   # 等会话切到目标群、输入栏/界面就绪（缩短会点偏格，勿动）
+            else:
+                # 无会话名：自动开第一个群（只探测一次，避免 UIA 连续失败重试）
+                try:
+                    for g in self.list_groups():
+                        if g.get("name"):
+                            gui.open_chat(g["name"])
+                            time.sleep(1.0)
+                            break
+                except Exception:
+                    pass
+            # ② 点笑脸
+            render = gui.render_rect or gui._update_render_rect() or (0, 0, 0, 0)
+            sx, sy, sw, sh = render
+            try:
+                # 温和关掉可能残留的表情面板（点击消息区空白，不用 Esc——Esc 易卡死微信）
+                ui_adapt.click(gui, int(sw * 0.72), int(sh * 0.45), heal=False)
+                time.sleep(0.4)
+            except Exception:
+                pass
+            pos = self._emoji_btn_pos(gui)
+            if not pos:
+                return False, "输入栏定位失败（会话未打开？）"
+            ok, why = ui_adapt.click(gui, pos[0], pos[1], heal=False)   # 点表情菜单必须 heal=False（heal 抖动会取消菜单）
+            if not ok:
+                return False, "点笑脸失败：%s" % why
+            time.sleep(0.9)   # 等表情面板完整弹出（压短会导致面板未弹稳→点偏格，必须保留）
+            return True, "表情面板已打开（只点一下，绝不重复点击）"
+        except Exception as e:
+            return False, str(e)
+
+    # 表情格为固定物理尺寸：表情图≈105×107px、行距≈132px（不随窗口 sh 缩放）。
+    # 因此用「窗口比例」算点击中心会在 sh 变化后漂移偏上。用「视口固定 top 完整行中心 base
+    # + 行距 132×click_row」定位点击点，精确落在格正中心、自适应任意 DPI/窗口。
+    EMOJI_ROW_PX = 132          # 行距（物理px，用户实测 表情图107+间隙25≈130~140）
+
+    def _emoji_base_center(self, gui):
+        """检测表情面板「第一列最顶部完整表情行」的中心 y（渲染相对坐标）= 视口 row0 中心。
+        限定 y 范围排除顶栏搜索区与底部 爱心/输入栏 干扰；失败返回 None。"""
+        try:
+            from PIL import ImageGrab
+            gui._update_render_rect()
+            sx, sy, sw, sh = gui.render_rect
+            if not sw or not sh:
+                return None
+            img = ImageGrab.grab((sx, sy, sx + sw, sy + sh)).convert("RGB")
+            W_, H_ = img.size
+            px = img.load()
+            cx0 = int(W_ * 0.092)
+            x0, x1 = max(0, cx0 - 52), min(W_, cx0 + 52)
+            y_lo, y_hi = int(H_ * 0.20), int(H_ * 0.92)   # 排除顶栏 / 底部栏
+            bands = []; cur = None
+            for y in range(y_lo, y_hi):
+                c = 0
+                for x in range(x0, x1):
+                    r, g, b = px[x, y]
+                    if max(r, g, b) - min(r, g, b) > 45 or max(r, g, b) < 195:
+                        c += 1
+                if c > 22:
+                    if cur is None: cur = [y, y]
+                    else: cur[1] = y
+                else:
+                    if cur is not None: bands.append(tuple(cur)); cur = None
+            if cur is not None: bands.append(tuple(cur))
+            m = []
+            for b in bands:
+                if m and b[0] - m[-1][1] <= 6: m[-1] = (m[-1][0], b[1])
+                else: m.append(b)
+            full = [b for b in m if 90 <= (b[1] - b[0]) <= 130 and b[0] >= y_lo + 20]  # 完整表情图≈107px
+            if not full:
+                return None
+            return (top + bot) // 2                  # 格中心 y（渲染相对）
+        except Exception:
+            return None
+
+    def _emoji_bottom_center(self, gui):
+        """检测表情面板「第一列最底部完整表情行」中心 y（渲染相对）。用于「最后一行/滚到底」
+        场景：此时目标行=最底部完整行（顶部露半行、下方4行完整可点）。失败返回 None。"""
+        try:
+            from PIL import ImageGrab
+            gui._update_render_rect()
+            sx, sy, sw, sh = gui.render_rect
+            if not sw or not sh:
+                return None
+            img = ImageGrab.grab((sx, sy, sx + sw, sy + sh)).convert("RGB")
+            W_, H_ = img.size
+            px = img.load()
+            cx0 = int(W_ * 0.092)
+            x0, x1 = max(0, cx0 - 52), min(W_, cx0 + 52)
+            y_lo, y_hi = int(H_ * 0.20), int(H_ * 0.92)
+            bands = []; cur = None
+            for y in range(y_lo, y_hi):
+                c = 0
+                for x in range(x0, x1):
+                    r, g, b = px[x, y]
+                    if max(r, g, b) - min(r, g, b) > 45 or max(r, g, b) < 195:
+                        c += 1
+                if c > 22:
+                    if cur is None: cur = [y, y]
+                    else: cur[1] = y
+                else:
+                    if cur is not None: bands.append(tuple(cur)); cur = None
+            if cur is not None: bands.append(tuple(cur))
+            m = []
+            for b in bands:
+                if m and b[0] - m[-1][1] <= 6: m[-1] = (m[-1][0], b[1])
+                else: m.append(b)
+            full = [b for b in m if 90 <= (b[1] - b[0]) <= 130]   # 完整表情图≈107px
+            if not full:
+                return None
+            top, bot = full[-1]                      # 最底部完整行
+            return (top + bot) // 2
+        except Exception:
+            return None
+
+    def emoji_panel_send(self, index: int = 0) -> tuple:
+        """点爱心（标签行最右）→ 点第 index 个收藏表情格（单击即发送）。
+
+        自适应几何（全部用「渲染窗比例」，随 DPI/分辨率缩放；窗口被 _force_geometry 固定为标准尺寸）：
+          · 5 列；第一格中心 (0.092, 0.277)；列距 0.107；行距 0.125（客服实测：表情图107px+间隙23px≈130~140px/格，=132/1055）。
+          · 顶/底特殊半行 ≈0.081（=85px/1055，用户实测 84/86px），只是布局说明，目标行只在完整行内点。
+        滚轮（实测方向）：+wheel=向顶部/更早滚，-wheel=向后面/底部滚；微信为平滑滚动会并吞快速事件，
+          故每格留 0.35~0.5s。滚一行所需 wheel 单位 = 行距px / 0.44（每单位约滚 0.44 渲染px），随 DPI/分辨率自适应。
+        """
+        import ctypes, os as _os
+        _u32 = ctypes.windll.user32
+        try:
+            gui = self._get_gui()
+            from . import ui_adapt
+            render = gui.render_rect or gui._update_render_rect() or (0, 0, 0, 0)
+            sx, sy, sw, sh = render
+            # ① 点爱心（面板底栏标签行最右）
+            tags_x = sx + int(sw * 0.171)
+            tags_y = sy + int(sh * 0.804 - 13)
+            ui_adapt.click(gui, tags_x - sx, tags_y - sy, heal=False)
+            time.sleep(0.6)
+            # ② 点第 index 个表情格（5 列网格）
+            cols = 5
+            col = index % cols
+            row = index // cols
+            VISIBLE = 4          # 每屏完整行数（顶部/底部另有 85px 半行）
+            ROW0, PITCH_R, COL0, PITCH_C = 0.277, 0.125, 0.092, 0.107
+            # 滚轮：+wheel=顶部/更早，-wheel=底部/更后；实测「每 -150 ≈ 整一行(132px)」
+            #（-300 会一次滚约2行，导致目标行滚过一行；故每行用 -150）。
+            WHEEL_ROW = 150
+            click_row = row
+            _base = None
+            if row >= VISIBLE:
+                # 光标移到表情区（第一格中心，确定在项上——滚动才生效）
+                inp = gui._input
+                inp._user32.SetCursorPos(sx + int(sw * COL0), sy + int(sh * ROW0))
+                time.sleep(0.4)
+                # 先【向上滚大值】到最顶（+wheel=向上/顶部；速动会并吞，必须留间隔）
+                for _top in range(12):
+                    inp.wheel(500)
+                    time.sleep(0.35)
+                time.sleep(0.8)
+                # 到顶后取「视口顶部完整行中心 base」（视口 row0 固定屏幕位置，检测一次即可）
+                _base = self._emoji_base_center(gui)
+                # 向下滚到目标行：要 row R 落到「底部完整行」(viewport row 3)，需下滚 (R-3) 行
+                _rolls = row - (VISIBLE - 1)
+                for _s in range(_rolls):
+                    inp.wheel(-WHEEL_ROW)      # -wheel = 向列表后面/底部滚；每格≈一行
+                    time.sleep(0.45)
+                time.sleep(0.6)
+                click_row = VISIBLE - 1
+                print("[emoji] top then down {} rows (wheel_step={}); click_row={} (index={})"
+                      .format(_rolls, WHEEL_ROW, click_row, index), flush=True)
+            # 点击点（渲染相对坐标）：
+            #  · 中间行(目标不是最底)：视口 base+click_row×132（实测对 第21/27/24）。
+            #  · 最后一行(滚到底/顶部露半行)：用「检测最底部完整行中心」（实测对 第31）。
+            grid_x = sx + int(sw * (COL0 + col * PITCH_C))
+            if row >= 6:                      # 较晚的行视为接近末尾，用检测最底部完整行中心
+                _rc = self._emoji_bottom_center(gui)
+                if _rc is not None:
+                    grid_y = sy + _rc
+                else:
+                    grid_y = sy + _base + int(click_row * self.EMOJI_ROW_PX)
+            elif _base is not None:
+                grid_y = sy + _base + int(click_row * self.EMOJI_ROW_PX)
+            else:
+                grid_y = sy + int(sh * (ROW0 + click_row * PITCH_R))
+            # 调试截图：画十字标记点击点并裁剪该格（存到 _scratch/shots/ 供核对）
+            try:
+                from PIL import ImageGrab, ImageDraw as _ID
+                _img = ImageGrab.grab((sx, sy, sx + sw, sy + sh)).convert("RGB")
+                _d = _ID.Draw(_img)
+                _px, _py = grid_x - sx, grid_y - sy
+                _d.line([(_px - 20, _py), (_px + 20, _py)], fill=(255, 0, 0), width=3)
+                _d.line([(_px, _py - 20), (_px, _py + 20)], fill=(255, 0, 0), width=3)
+                _dbg = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                                     "_scratch", "shots")
+                _os.makedirs(_dbg, exist_ok=True)
+                _img.save(_os.path.join(_dbg, "panel_click_%d.png" % index))
+                _img.crop((max(0, _px - 90), max(0, _py - 90),
+                           min(_img.size[0], _px + 90), min(_img.size[1], _py + 90))
+                          ).save(_os.path.join(_dbg, "panel_click_%d_crop.png" % index))
+            except Exception:
+                pass
+            ok, why = ui_adapt.click(gui, grid_x - sx, grid_y - sy, heal=False)
+            if not ok:
+                return False, "点表情失败：%s" % why
+            time.sleep(1.0)
+            return True, "已点击第 %d 个收藏表情（点击即发送）" % (index + 1)
         except Exception as e:
             return False, str(e)
 

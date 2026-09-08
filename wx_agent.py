@@ -19,6 +19,7 @@ import subprocess
 import sys
 import threading
 import time
+import random
 import webbrowser
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -212,10 +213,215 @@ class Orchestrator:
         finally:
             with self._lock:
                 self.running_chats.discard(chat_key)
+            # 反应评分：为本次发言打分（群友有回应=正分；孤立=负分）
+            try:
+                self._score_feedback(chat_key)
+            except Exception:
+                pass
             if not self.paused and not self.stopped:
                 if self.store.unread_count(chat_key) > 0:
                     self.schedule_wake(chat_key, get_config().get("drain_delay_ms", 1200))
                 self._maybe_consolidate(chat_key)
+
+    def _score_feedback(self, chat_key: str):
+        """给机器人最近一条 reaction 记录正/负反馈：
+        若该消息后 10 分钟内有人群友回话 → 加分；否则孤立 → 减分（权重由回复热议度）。"""
+        try:
+            from agent.scoring import note_feedback
+        except Exception:
+            from scoring import note_feedback
+        try:
+            msgs = self.store.recent(chat_key, limit=20)
+            self_idx = None
+            for i in range(len(msgs) - 1, -1, -1):
+                if msgs[i].get("self"):
+                    self_idx = i
+                    break
+            if self_idx is None:
+                return
+            mine = msgs[self_idx]
+            my_ts = int(mine.get("ts") or 0)
+            replies = [m for m in msgs[self_idx + 1:]
+                       if not m.get("self") and str(m.get("text") or "").strip()]
+            replies = [m for m in replies if abs(int(m.get("ts") or 0) - my_ts) <= 10 * 60000]
+            text = str(mine.get("text") or "").strip()
+            if not text:
+                return
+            if replies:
+                note_feedback(text, positive=True, weight=min(2.0, 0.5 + len(replies) * 0.5))
+            else:
+                note_feedback(text, positive=False, weight=0.5)
+        except Exception:
+            pass
+
+    # ── 主动开话题（proactive，默认关）──────────────────────────────────
+
+    def start_proactive_loop(self):
+        """启动主动话题循环（定时+概率，从候选群里选一个冷场群开话题）。"""
+        try:
+            self._proactive_timer.cancel()
+        except Exception:
+            pass
+        if get_config().get("proactive", {}).get("enabled") is not True:
+            self._proactive_timer = None
+            return
+
+        def tick():
+            cfg = get_config().get("proactive", {})
+            try:
+                self._run_proactive_tick(cfg)
+            except Exception as e:
+                log.warning("主动话题 tick 异常：%s", e)
+            # 下一轮调度（无论本轮结果，只要仍启用就排下一轮）
+            try:
+                if self.stopped:
+                    return
+                if get_config().get("proactive", {}).get("enabled") is not True:
+                    self._proactive_timer = None
+                    return
+                lo = max(60000, int(cfg.get("check_interval_min_ms") or 1800000))
+                hi = max(lo, int(cfg.get("check_interval_max_ms") or 5400000))
+                nxt = random.randint(lo, hi) / 1000.0
+                self._proactive_timer = threading.Timer(nxt, tick)
+                self._proactive_timer.daemon = True
+                self._proactive_timer.start()
+            except Exception:
+                pass
+
+        tick()
+
+    def _run_proactive_tick(self, cfg):
+        if self.paused or self.stopped:
+            return
+        if random.random() > max(0.0, min(1.0, float(cfg.get("probability") or 0.25))):
+            return
+        idle_ms = max(300000, int(cfg.get("idle_threshold_ms") or 1800000))
+        now = time.time()
+        candidates = []
+        try:
+            for g in self.wechat.groups():
+                chat_key = "group:" + g["wxid"]
+                # 冷场判定：群最后一条消息距今超过阈值
+                recent = self.store.recent(chat_key, limit=5) or []
+                if recent:
+                    last_ts = max(int(m.get("ts") or 0) for m in recent)
+                    if (now * 1000 - last_ts) < idle_ms:
+                        continue
+                candidates.append((chat_key, g["name"]))
+        except Exception as e:
+            log.warning("候选群获取异常：%s", e)
+        if not candidates:
+            return
+        chat_key, name = random.choice(candidates)
+        log.info("主动话题：群[%s]（冷场）", name)
+        # 主动话题用 wake 带空触发（模型在提示词里看到「主动开话题」场景）
+        self._schedule_proactive_wake(chat_key)
+
+    def _schedule_proactive_wake(self, chat_key: str):
+        def _run():
+            try:
+                if self.paused or self.stopped:
+                    return
+                self._executor.submit(self._run_proactive_agent, chat_key)
+            except Exception:
+                pass
+        t = threading.Timer(random.uniform(1.0, 3.0), _run)
+        t.daemon = True
+        t.start()
+
+    def _run_proactive_agent(self, chat_key: str):
+        """主动开话题的一次运行：无未读触发，走 run_agent 但触发批为空（proactive 标记）。"""
+        try:
+            if self.paused or self.stopped:
+                return
+            self_nickname = get_config().get("persona", {}).get("self_nickname") or get_config().get("wechat", {}).get("bot_nickname") or ""
+            bot_name = get_config().get("persona", {}).get("bot_name") or ""
+            cfg = get_config()
+            if not str(cfg.get("api", {}).get("base_url") or "").strip() or not str(cfg.get("api", {}).get("model") or "").strip():
+                return
+            session = {"chat_key": chat_key, "sent": [], "usage": empty_usage(), "past_state_count": 0,
+                       "feedbacks": [], "finish_reason": None, "web_search_count": 0, "activity": "",
+                       "model": cfg.get("api", {}).get("model"), "prompt_chars": 0}
+            # 主动话题 = 无触发批；档位按 4 档处理（能说话就说话）
+            tier_result = {"tier": 4, "count": 0, "reason": "主动话题", "should_respond": True}
+            self._last_trigger[chat_key] = (tuple(), time.time(), True)
+            try:
+                self.run_agent(chat_key, [], tier_result, session, proactive=True)
+            except Exception as e:
+                log.warning("主动话题运行异常：%s", e)
+        except Exception as e:
+            log.warning("主动话题异常：%s", e)
+
+    def _maybe_human_behaviors(self, chat_key: str, pending):
+        """人性化行为（纯本地规则，零 token）：
+        · 收到 [表情]/[图片] → 用户明确要求（艾特文本含「收藏/发同款」）→ 强制收藏；
+          否则按概率收藏（collect_emoji 截图/下载）
+        · 群里有表情且收藏夹非空 → 概率回发一个（send_emoji）
+        · 新对话时机 → 概率 @ 活跃成员（at_member）
+        频率由 behavior.* 配置 + 人设 participation/sticker_level 系数决定；
+        自定义角色卡不额外改频率（角色卡管"怎么说"，这里管"做不做"）。"""
+        try:
+            import random
+            from . import behavior as bh
+            kind, chat_id = chat_key.split(":", 1)
+            # 0) 用户明确指令关键词（艾特文本里出现 → 本次强制执行该行为）
+            force_collect = force_send = False
+            for m in pending:
+                t = str(m.get("text") or "")
+                if "收藏" in t or "收下" in t or "加表情" in t:
+                    force_collect = True
+                if "发表情" in t or "发出来" in t or "一样发" in t or "发同款" in t or "一起发" in t:
+                    force_send = True
+            # 1) 收藏表情/图片
+            media_entries = [m for m in pending
+                             if any((mm.get("kind") in ("emoji", "image")) for mm in (m.get("media") or []))]
+            if media_entries and bh.decider.should("collect_emoji", {"force": force_collect}):
+                e = media_entries[0]
+                lid = next((mm.get("local_id") for mm in (e.get("media") or []) if mm.get("local_id")), None)
+                if lid:
+                    path = self.wechat.collect_emoji(chat_id, lid)
+                    log.info("%s 人性化动作：收藏表情 %s", chat_key, path or "(失败)")
+                    try:
+                        self.session_log.append({
+                            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "chat_key": chat_key,
+                            "chat_name": self.wechat.group_name(chat_id) or chat_id,
+                            "trigger": "人性化:收藏表情", "reasoning": "", "tools": [{"name": "collect_emoji", "args": {"path": path or "失败"}}],
+                            "status": "ok" if path else "error", "ok": bool(path)})
+                    except Exception:
+                        pass
+                    if path and force_collect:
+                        try:
+                            self.wechat.send_text(chat_id, "收进我的表情库了，这就发～")
+                        except Exception:
+                            pass
+            # 2) 回发表情（对方发了表情，收藏夹有货才回）
+            if media_entries and bh.decider.should("send_emoji", {"force": force_send}):
+                emojis = self.wechat.list_emojis()
+                if emojis:
+                    pick = random.choice(emojis)
+                    try:
+                        self.wechat.send_emoji(chat_id, pick["path"])
+                        log.info("%s 人性化动作：回发表情 %s", chat_key, pick["name"])
+                        try:
+                            self.session_log.append({
+                                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "chat_key": chat_key,
+                                "chat_name": self.wechat.group_name(chat_id) or chat_id,
+                                "trigger": "人性化:回发表情", "reasoning": "", "tools": [{"name": "send_emoji", "args": {"name": pick["name"]}}],
+                                "status": "ok", "ok": True})
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        log.debug("回发表情失败：%s", e)
+            # 3) 概率 @ 活跃成员（放在消息多、可能开新话题时；低频）
+            if len(pending) >= 2 and bh.decider.should("at_member"):
+                try:
+                    members = self.store.active_members(chat_key, 10)
+                    if members and any(m.get("user_id") and m.get("user_id") != self.wechat.self_wxid for m in members):
+                        pass  # @ 的具体内容交给模型（在提示词里给 hint），这里不直接发
+                except Exception:
+                    pass
+        except Exception as e:
+            log.debug("人性化行为决策异常：%s", e)
 
     # ── 核心循环 ─────────────────────────────────────────────────────────
 
@@ -228,6 +434,13 @@ class Orchestrator:
         pending = self.store.peek_unread(chat_key, 200)
         if not pending:
             return
+
+        # ── 人性化行为决策（省 token 规则引擎，不调 LLM）──────────────
+        # 收到表情 → 概率收藏；群里有表情时 → 概率回发收藏的表情；新话题 → 概率 @ 活跃成员
+        try:
+            self._maybe_human_behaviors(chat_key, pending)
+        except Exception:
+            pass
 
         # 触发去重：5 分钟内同一批未读消息（上次处理成功过）→ 跳过，防补发唤醒重复发言
         try:
@@ -300,14 +513,14 @@ class Orchestrator:
             except Exception:
                 pass
 
-    def run_agent(self, chat_key: str, trigger, tier_result, session: dict):
+    def run_agent(self, chat_key: str, trigger, tier_result, session: dict, proactive: bool = False):
         cfg = get_config()
         kind, chat_id = chat_key.split(":", 1)
         chat_name = self.wechat.group_name(chat_id) if kind == "group" else chat_id
         # 运行明细：思考过程 / token / 工具调用（控制台「运行明细」）
         _t0 = time.time()
         _entry = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "chat_key": chat_key, "chat_name": chat_name,
-                  "trigger": "\n".join(str(t.get("text") or "")[:120] for t in (trigger or [])),
+                  "trigger": ("[主动话题]" if proactive else "\n".join(str(t.get("text") or "")[:120] for t in (trigger or []))),
                   "reasoning": "", "tools": [], "status": "running", "ok": None}
         persona = cfg.get("persona", {})
         self_nickname = persona.get("self_nickname") or cfg.get("wechat", {}).get("bot_nickname") or persona.get("bot_name")
@@ -330,7 +543,7 @@ class Orchestrator:
             "self_nickname": self_nickname, "self_last_message_at": self_last_message_at,
             "last_message_at": last_message_at, "recent_count": recent_count,
             "run_seq": 1, "more_unread_during_run": self.store.unread_count(chat_key) > 0,
-            "context_limit": tier_result["count"], "session": session,
+            "context_limit": tier_result["count"], "session": session, "proactive": proactive,
         })
         session["prompt_chars"] = len(system_prompt) + len(user_prompt)
         session["model"] = cfg.get("api", {}).get("model")
@@ -589,6 +802,12 @@ class Orchestrator:
             for t in self.wake_timers.values():
                 t.cancel()
             self.wake_timers.clear()
+        try:
+            if self._proactive_timer:
+                self._proactive_timer.cancel()
+                self._proactive_timer = None
+        except Exception:
+            pass
         self._executor.shutdown(wait=False, cancel_futures=True)
 
 
@@ -669,12 +888,14 @@ def _poke_name_of(nm: dict) -> str:
 
 
 def _schedule_poke_back(wechat, store, chat_key: str, chat_id: str, group_name: str, nm: dict):
-    """别人拍了机器人 → 延迟 ~18 秒后系统回拍（90% 概率 + 30 分钟冷却）。
+    """别人拍了机器人 → 延迟 ~18 秒后触发回拍。
 
     延迟是为了让模型先自然回应一句，并保证拍一拍事件先落库；
-    结果只写日志（poker 自己能看到被回拍），不对群发言、不打扰讨论。
+    概率（默认 90%）与冷却（默认 30 分钟）由 try_send_poke_back 内统一判定，
+    这里只负责延迟调度；结果只写日志（poker 自己能看到被回拍），不对群发言。
     """
     try:
+        delay_s = max(1.0, float(get_config().get("poke", {}).get("delay_seconds", 18.0) or 18.0))
         poker_name = _poke_name_of(nm)
         poker_wxid = str(nm.get("poker_wxid") or "")
         if not poker_wxid:
@@ -699,7 +920,7 @@ def _schedule_poke_back(wechat, store, chat_key: str, chat_id: str, group_name: 
             except Exception as e:
                 log.warning("回拍异常：%s", e)
 
-        t = threading.Timer(18.0, _do)
+        t = threading.Timer(delay_s, _do)
         t.daemon = True
         t.start()
     except Exception as e:
@@ -731,40 +952,16 @@ def _version_issues() -> list:
 
 
 def _maybe_auto_fix():
-    """启动时自动版本体检：发现不匹配 → 弹窗询问是否立即自动修正。
-
-    仅在 pythonw（一键启动）下会弹窗；命令行启动时只打印提示。
-    """
+    """启动时自动版本体检：只记录日志（不弹窗——pythonw 下 MessageBox 会卡死启动，
+    用户可能看不到；升级走控制台/说明文档，控制台永远先弹出来）。"""
     try:
         issues = _version_issues()
         if not issues:
             return
-        tip = "\n" + "\n".join("- " + s for s in issues)
-        log.warning("启动体检发现版本不匹配：%s", tip.replace("\n", "；"))
-        import ctypes
-        msg = ("wx-agent 启动体检发现版本不匹配：%s\n\n"
-               "是否现在自动升级修正？（升级 wechatauto-replica 与全部关键依赖；"
-               "微信本体请从官网更新）\n\n点「是」立即修正，点「否」以当前环境启动。" % tip)
-        resp = ctypes.windll.user32.MessageBoxW(None, msg, "wx-agent 版本体检", 0x34)
-        if resp != 6:  # IDYES
-            return
-        import subprocess as _sp
-        pkgs = ["wechatauto-replica", "psutil", "uiautomation", "comtypes", "pywin32",
-                "zstandard", "Pillow", "requests", "urllib3", "cryptography", "pyperclip",
-                "colorama", "winsdk", "imageio-ffmpeg"]
-        log.info("自动修正：pip install -U %s", " ".join(pkgs))
-        _sp.run([sys.executable, "-m", "pip", "install", "-U", *pkgs],
-                creationflags=0x08000000 if os.name == "nt" else 0,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
-        done = _version_issues()
-        if done:
-            log.warning("自动修正后仍存在不匹配：%s", "；".join(done))
-        ctypes.windll.user32.MessageBoxW(None,
-                                         ("已自动升级完成。%s\n请重启 wx-agent（双击 启动机器人.vbs）。"
-                                          % ("本次修正后已全部匹配 ✔" if not done else "仍有不匹配项：" + "；".join(done))),
-                                         "wx-agent 版本体检", 0x40)
+        tip = "\n".join("- " + s for s in issues)
+        log.warning("启动体检发现版本不匹配（不影响启动，可稍后升级）：%s", tip.replace("\n", "；"))
     except Exception as e:
-        log.warning("自动版本修正流程失效（不影响启动）：%s", e)
+        log.warning("自动版本体检失效（不影响启动）：%s", e)
 
 
 def _wechat_watchdog(wechat):
@@ -823,8 +1020,37 @@ def _wechat_watchdog(wechat):
 
 
 def main():
+    # 注意：不要在 pythonw 下调用 os.system("chcp")——会弹出控制台窗口（闪窗）。
+    # 代码已用 UTF-8 模式运行（-X utf8 / 编码头），无需 chcp。
+
+    # ── 单实例锁：防止旧进程/多实例并存（根治「旧版本界面/接口 not found」）──
     try:
-        os.system("chcp 65001 >nul 2>&1")
+        _lock = os.path.join(ROOT, "data", "bot.lock")
+        os.makedirs(os.path.dirname(_lock), exist_ok=True)
+        if os.path.exists(_lock):
+            import ast
+            with open(_lock, "r", encoding="utf-8") as _lf:
+                _ltxt = _lf.read().strip()
+                _lpid = int(_ltxt) if _ltxt.isdigit() else 0
+            if _lpid and _lpid != os.getpid():
+                try:
+                    _alive = False
+                    if os.name == "nt":
+                        import ctypes
+                        _alive = bool(ctypes.windll.kernel32.OpenProcess(0x1000, False, _lpid))
+                        ctypes.windll.kernel32.CloseHandle(_lpid)
+                    else:
+                        os.kill(_lpid, 0); _alive = True
+                except Exception:
+                    _alive = False
+                if _alive:
+                    log.error("已有 wx-agent 实例在运行（pid=%s）。为避免旧版本/接口冲突，本实例退出；请先「停止机器人」再启动。", _lpid)
+                    print("已有 wx-agent 实例在运行（pid=%s）。本实例退出；请先停止旧实例再启动。" % _lpid)
+                    sys.exit(3)
+        with open(_lock, "w", encoding="utf-8") as _lf:
+            _lf.write(str(os.getpid()))
+        import atexit
+        atexit.register(lambda: os.path.exists(_lock) and os.remove(_lock))
     except Exception:
         pass
 
@@ -844,18 +1070,22 @@ def main():
 
     cfg = get_config()
     log.info("===== wx-agent 启动 =====")
+    log.info("[checkpoint] 配置与就绪检查…")
     problems = _check_prerequisites(cfg)
     if problems:
         log.warning("就绪度体检未通过：%s（机器人会读消息但不调用模型，配置好 config.json 后重启）", "；".join(problems))
 
-    # 初始化微信接入（微信未登录时自动重试）
-    wechat = None
-    while wechat is None:
-        try:
-            wechat = WeChatAdapter(cfg)
-        except Exception as e:
-            log.warning("微信接入初始化失败：%s（微信可能尚未登录，10 秒后重试）", e)
-            time.sleep(10)
+
+    # 微信接入：主线程同步构造（微信在线=0 秒；同线程使用保证 UIA/COM 不锁）。
+    # 失败则仅警告继续（控制台先行）；监听循环内每 10 秒由主线程重试接入。
+    wechat_box = [None]
+    try:
+        wechat_box[0] = WeChatAdapter(cfg)
+        log.info("微信接入成功（主线程同步）")
+    except BaseException as e:
+        log.warning("微信暂未接入（控制台仍打开；监听循环内持续重试）：%s【%s】", str(e)[:120], type(e).__name__)
+    wechat = wechat_box[0]
+    log.info("[checkpoint] 微信段:结束(零等待) wechat=%s", bool(wechat))
 
     try:
         _wv = wechat_version_info()
@@ -863,8 +1093,11 @@ def main():
     except Exception:
         pass
 
-    groups = wechat.list_groups()
-    log.info("发现群聊 %d 个", len(groups))
+    try:
+        groups = wechat.list_groups() if wechat else []
+    except Exception as e:
+        log.warning("list_groups 失败：%s", e)
+        groups = []
     # 微信卡死守护：无响应自动关闭重启 + 弹窗叫用户重新登录
     try:
         threading.Thread(target=_wechat_watchdog, args=(wechat,), daemon=True).start()
@@ -878,7 +1111,7 @@ def main():
 
     store = ChatStore(int(cfg.get("store", {}).get("max_messages_per_chat") or 0))
     memory = MemoryStore()
-    sender = SendQueue(wechat, store)
+    sender = SendQueue(None if wechat is None else wechat, store)
     orch = Orchestrator(store, memory, sender, wechat)
 
     # 启动后默认暂停：不监听群消息，控制台点「恢复」才工作（防一开机就刷群/回应积压旧消息）
@@ -889,9 +1122,104 @@ def main():
     # ── Web 控制台 ─────────────────────────────────────────────────────
     target_wxids = {g["wxid"] for g in targets}
 
+    def _tool_llm_count(usage, system=""):
+        """把工具类 LLM 调用（评分/补足/总结/测试等任一 LLM 调用）记入 tool_usage.json（其它工具消耗）。"""
+        try:
+            import json as _json
+            u = usage or {}
+            toks = int(u.get("total_tokens") or u.get("prompt_tokens") or 0)
+            if not toks:
+                return
+            cost = 0.0
+            try:
+                ptok = int(u.get("prompt_tokens") or 0)
+                ctok = int(u.get("completion_tokens") or 0)
+                cost = (ptok * 0.000002 + ctok * 0.000008)
+            except Exception:
+                pass
+            p = os.path.join(ROOT, "data", "tool_usage.json")
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    d = _json.load(f)
+            except Exception:
+                d = {}
+            if not d.get("base_cost"):
+                # 首次记账（本进程启动后第一条）→ 基准=这条之前的值（0）
+                d["base_cost"] = 0.0
+                d["base_tokens"] = 0
+            d["tokens"] = int(d.get("tokens") or 0) + toks
+            d["cost"] = round(float(d.get("cost") or 0) + cost, 4)
+            d["n"] = int(d.get("n") or 0) + 1
+            d["last"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(p, "w", encoding="utf-8") as f:
+                _json.dump(d, f, ensure_ascii=False, indent=1)
+        except Exception:
+            pass
+
+    # 注册全局用量记账：任何 LLM 调用（评分/补足/摘要/测试…）都进"其它工具消耗"（本次=本进程启动以来）
+    from agent.llm import set_usage_hook as _set_hook
+    _set_hook(_tool_llm_count)
+    log.info("工具类消耗记账已启用（其它工具成本）")
+
     def status_provider():
         _cfg_live = get_config()
         gs = [{"name": g["name"], "wxid": g["wxid"], "target": g["wxid"] in target_wxids} for g in groups]
+        if not gs:
+            # 微信未接入时回退：白名单/存档群名（保证群名区可显示）
+            try:
+                wl = _cfg_live.get("wechat", {}).get("group_name_white_list") or []
+                gs = [{"name": str(n), "wxid": "", "target": True} for n in wl]
+            except Exception:
+                pass
+        st = dict(orch.stats)
+        # 成本明细：最近 5 条 / 平均每条（从会话记录真实计算；无记录=0）
+        try:
+            import glob as _glob
+            import json as _json
+            costs = []
+            for fp in _glob.glob(os.path.join(ROOT, "data", "sessions", "*.jsonl")):
+                try:
+                    with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            try:
+                                row = _json.loads(line)
+                                c = float(row.get("cost") or row.get("tokens_cost") or 0)
+                                t = int(row.get("tokens") or 0)
+                                if c > 0 or t > 0:
+                                    costs.append((c, t))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+            recent = costs[-5:]
+            st["recent5_cost"] = round(sum(c[0] for c in recent), 4)
+            st["recent5_tokens"] = sum(c[1] for c in recent)
+            st["avg_cost"] = round(sum(c[0] for c in costs) / len(costs), 4) if costs else 0.0
+            st["sessions_n"] = len(costs)
+            st["extra_cost"] = round(max(0.0, st.get("cost", 0.0) - sum(c[0] for c in costs)), 4)
+        except Exception:
+            st.setdefault("recent5_cost", 0.0)
+            st.setdefault("avg_cost", 0.0)
+            st.setdefault("extra_cost", 0.0)
+        # 其它工具消耗：本次（本进程启动以来）+ 累计（tool_usage.json）
+        try:
+            import json as _json
+            tu = {}
+            try:
+                with open(os.path.join(ROOT, "data", "tool_usage.json"), "r", encoding="utf-8") as f:
+                    tu = _json.load(f)
+            except Exception:
+                tu = {}
+            total_cost = float(tu.get("cost") or 0)
+            total_tok = int(tu.get("tokens") or 0)
+            base_cost = float(tu.get("base_cost") or 0)
+            base_tok = int(tu.get("base_tokens") or 0)
+            st["extra_now_cost"] = round(max(0.0, total_cost - base_cost), 4)
+            st["extra_now_tokens"] = max(0, total_tok - base_tok)
+            st["extra_total_cost"] = round(total_cost, 4)
+            st["extra_total_tokens"] = total_tok
+        except Exception:
+            pass
         return {
             "paused": orch.paused,
             "wechat_connected": wechat is not None,
@@ -900,7 +1228,7 @@ def main():
             "model": _cfg_live.get("api", {}).get("model", ""),
             "groups": gs,
             "running_chats": sorted(orch.running_chats),
-            "stats": dict(orch.stats),
+            "stats": st,
             "usage": orch.stats_store.snapshot(),
             "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -915,13 +1243,207 @@ def main():
     def balance_fn():
         return query_balance()
 
+    _UI_TEST_LIST = [
+        ("moments_open", "朋友圈打开"), ("moments_close", "朋友圈关闭"),
+        ("moments_like", "朋友圈点赞"), ("moments_comment", "朋友圈评论"),
+        ("moments_scroll", "朋友圈滚动"), ("emoji_collect", "表情收藏(右键)"),
+        ("emoji_panel", "表情面板发送"), ("message_collect", "消息收藏"),
+        ("message_recall", "消息撤回"), ("windows_clean", "窗口清理"),
+        ("recalibrate", "UI 标定"),
+    ]
+    # 一键体检取消标志（前端「停止检测」设置；体检循环每步检查）
+    _selfcheck_cancel = [False]
+
+    def selfcheck_stop_fn():
+        _selfcheck_cancel[0] = True
+
+    def ui_stop_fn():
+        """单项鼠标检验「停止」（POST；主要操作循环检查后立即中止）。"""
+        try:
+            from agent.wechat_ui import request_stop
+            request_stop()
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def persona_scores_fn():
+        """角色评分表：系统自动贴合分（scripts/persona_check 同算法）+ 用户已打分。"""
+        try:
+            from agent.persona import PERSONAS
+            import sys as _sys
+            _sys.path.insert(0, ROOT)
+            from scripts import persona_check  # 保证算法单一来源
+            ratings = {}
+            try:
+                import json as _json
+                with open(os.path.join(ROOT, "data", "persona_ratings.json"), "r", encoding="utf-8") as f:
+                    ratings = _json.load(f)
+            except Exception:
+                ratings = {}
+            rows = []
+            for k, c in PERSONAS.items():
+                r = persona_check.evaluate(k, c)
+                u = ratings.get(k) or {}
+                rows.append({"key": k, "name": c.get("name") or k,
+                             "sys": r["score"], "silent": r["silent"],
+                             "user": u.get("score"), "model": u.get("model"),
+                             "model_reason": u.get("model_reason", ""),
+                             "note": u.get("note", "")})
+            rows.sort(key=lambda x: -x["sys"])
+            return {"ok": True, "rows": rows, "total": len(rows)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def persona_rate_fn(key, score, note=""):
+        """用户打分（1-5）落盘 data/persona_ratings.json。"""
+        try:
+            import json as _json
+            p = os.path.join(ROOT, "data", "persona_ratings.json")
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    ratings = _json.load(f)
+            except Exception:
+                ratings = {}
+            try:
+                s = int(score) if score not in (None, "") else None
+                s = s if s is None else max(1, min(5, s))
+            except Exception:
+                s = None
+            ratings[key] = {"score": s, "note": str(note or "")[:200],
+                            "ts": time.strftime("%Y-%m-%d %H:%M:%S")}
+            with open(p, "w", encoding="utf-8") as f:
+                _json.dump(ratings, f, ensure_ascii=False, indent=1)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def persona_score_custom_fn(text, llm=False):
+        """自定义角色卡评分：默认本地（零 token）；llm=True 时交给模型结合角色设定评分。
+        分数全部来自对卡文本的实际分析（口头禅/口吻/AI 腔/占位符等），非凭空。"""
+        try:
+            if not (text or "").strip():
+                return {"ok": False, "error": "角色文本为空"}
+            if llm:
+                from agent.persona_rating import WEIGHTS as _W2, RULES_TEXT, compute as _compute
+                prompt = (
+                    "你是角色设定严格评审员。按细则给分（细则如下），每维 0~100.00（精确 0.01）。\n"
+                    + RULES_TEXT +
+                    "\n第一行输出：{\"dims\":{\"style\":<估>,\"fit\":<估>,\"coher\":<估>,\"natural\":<估>,\"usable\":<估>}}"
+                    "（0.01 精度，如 84.37）\n"
+                    "第二行输出：{\"reason\":\"一句话指出人设层面最大缺点（必须针对该卡）\"}\n"
+                    "重要：数值必须根据卡片内容独立评估（0.01 精度），禁止整十/整五整分，禁止抄示例。\n\n"
+                    "角色设定卡(节选 2600 字)：\n" + text[:2600]
+                )
+                from agent.llm import chat_completion
+                r = chat_completion([{"role": "user", "content": prompt}])
+                _tool_llm_count(r.get("usage"))
+                content = (r.get("message") or {}).get("content") or ""
+                import json as _json
+                import re as _re
+                m = _re.search(r'"dims"\s*:\s*\{([^}]*)\}', content, _re.S)
+                rm = _re.search(r'"reason"\s*:\s*"([^"]*)"', content, _re.S)
+                if m:
+                    d = {}
+                    for pair in _re.findall(r'"(\w+)"\s*:\s*([\d.]+)', m.group(1)):
+                        d[pair[0]] = float(pair[1])
+                    if not d:
+                        return {"ok": False, "error": "模型未输出维度分：" + content[:120]}
+                    score = _compute(d)
+                    reason = rm.group(1) if rm else "（模型未给出原因）"
+                    # 写回评分表（模型分独立字段，UI 卡片显示）
+                    try:
+                        import json as _j2
+                        _rp = os.path.join(ROOT, "data", "persona_ratings.json")
+                        try:
+                            with open(_rp, "r", encoding="utf-8") as f:
+                                _rts = _j2.load(f)
+                        except Exception:
+                            _rts = {}
+                        _cur = dict(_rts.get("__custom__") or {})
+                        _cur["model"] = score
+                        _cur["model_reason"] = reason
+                        _rts["__custom__"] = _cur
+                        with open(_rp, "w", encoding="utf-8") as f:
+                            _j2.dump(_rts, f, ensure_ascii=False, indent=1)
+                    except Exception:
+                        pass
+                    return {"ok": True, "score": score, "reason": reason,
+                            "dims": {k: round(float(d.get(k, 0)), 2) for k in _W2}, "via": "llm"}
+                return {"ok": False, "error": "模型返回无法解析：" + content[:120]}
+            from scripts import persona_check
+            r = persona_check.score_text(text)
+            return {"ok": True, "score": r["score"], "reason": persona_check.fit_desc(r), "via": "local",
+                    "detail": {"chars": r["chars"], "quotes": r["quote"],
+                               "silent": r["silent"]}}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def persona_ai_enrich_fn(name, text="", rounds=1):
+        """模型补足（轮数可调）：每轮=按人设重写→模型评分→分升则下一轮，否则停止。
+        目标：让模型输出更贴近本人（人设导向，绝不围绕打分维度/分数调整）。"""
+        try:
+            if not (name or "").strip():
+                return {"ok": False, "error": "请先填角色名"}
+            from agent.llm import chat_completion
+            from agent.persona_rating import compute as _compute
+            cur = (text or "").strip()
+            last_score = None
+            trace = []
+            for rnd in range(1, max(1, min(3, int(rounds or 1))) + 1):
+                prompt = (
+                    "你是角色塑造专家。请让下面的机器人角色卡**更像角色本人脱口而出**（人设导向）：\n"
+                    "只做三件事：① 让口头禅/台词更符该角色（增加 2~3 条该角色原汁原味的句子）"
+                    "② 按该角色的说话习惯重写「说话规则」（短句/分条/被@必回/不用Markdown）"
+                    "③ 重写 3 个对话示例（群友在吗/今天好累/再来一句），每句像本人说的。\n"
+                    "禁止：不要围绕夸奖/评分/逐条打分做优化；不要把角色改得不像本人以迎合任何标准；"
+                    "不要写通用套话。直接输出完整新角色卡（纯文本，含 # 角色卡：<名>）。\n\n"
+                    "角色名：%s\n当前卡：\n%s" % (name, cur[:2200])
+                )
+                r = chat_completion([{"role": "user", "content": prompt}])
+                _tool_llm_count(r.get("usage"))
+                card = ((r.get("message") or {}).get("content") or "").strip()
+                if len(card) < 120:
+                    break
+                from agent.persona_enrich import enrich as _enrich
+                card = _enrich(card)
+                # 补足轮次评分（复用严格评分器，0.01）
+                sc_prompt = (
+                    "你是角色设定严格评审员。按细则给分（0~100.00，精确 0.01）："
+                    "风格辨识25%/角色贴合30%/内在一致20%/表达自然15%/完整可用10%。"
+                    "扣分上限：无口头禅→风格≤45；通用词口头禅→风格≤70；AI套话→表达≤65；"
+                    "客服口吻→贴合≤60；换角色都能用→贴合≤50；示例占位→完整≤75；沉默类无扩展→完整≤70；缺说话规则→完整≤70。"
+                    "满分唯一条件：仅凭此提示词+一次提醒即可逐句贴合本人；否则一律<95（优秀88~94.99）。\n"
+                    "输出：{\"dims\":{\"style\":<估>,\"fit\":<估>,\"coher\":<估>,\"natural\":<估>,\"usable\":<估>}}\n"
+                    "重要：0.01 精度独立评估，禁止整分。\n\n角色卡：\n" + card[:2600]
+                )
+                r2 = chat_completion([{"role": "user", "content": sc_prompt}])
+                import re as _re
+                m = _re.search(r'"dims"\s*:\s*\{([^}]*)\}', (r2.get("message") or {}).get("content") or "", _re.S)
+                d = {}
+                if m:
+                    for pair in _re.findall(r'"(\w+)"\s*:\s*([\d.]+)', m.group(1)):
+                        d[pair[0]] = float(pair[1])
+                score = _compute(d) if d else None
+                trace.append({"round": rnd, "score": score, "chars": len(card)})
+                if score is not None and last_score is not None and score <= last_score:
+                    # 分数未升 → 保留上一轮结果，停止
+                    cur_prev = cur
+                    break
+                last_score = score
+                cur = card
+            return {"ok": True, "text": cur, "score": last_score, "rounds_done": len(trace), "trace": trace,
+                    "note": "" if not trace else "共 %d 轮，最终 %s 分" % (len(trace), last_score)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     def selfcheck_fn():
-        """一键体检：把「换电脑容易踩的坑」做成可自助检查的清单。
+        """一键体检：环境/配置/点击 + 程序鼠标操作检验（约 40~70 秒）。
 
         只读检查（不动微信、不发消息）；点击类项会移动光标做命中测试。
         每项返回 ok/warn/fail + 说明 + 建议。
         """
         checks = []
+        _selfcheck_cancel[0] = False   # 重新开始体检：清除「停止」标记
 
         def add(name, status, detail, hint=""):
             checks.append({"name": name, "status": status, "detail": detail, "hint": hint})
@@ -1016,11 +1538,38 @@ def main():
         add("拍一拍", "info", "请用「拍一拍诊断」按钮实测（定位/右键/验证一步一报告）")
         add("发送防重复", "info", "已启用 3 秒重复发送拦截（回车重试竞态防护）")
 
+        # 5) 程序鼠标操作检验（11 项；每项约 3~8 秒，合计约 60~100 秒；期间请勿动鼠标）
+        add("程序鼠标检验", "info",
+            "以下 11 项为「程序直接操控微信鼠标」实测：朋友圈打开/关闭/点赞/评论/滚动、表情收藏/面板发送、消息收藏/撤回、窗口清理、UI 标定（消息收藏/撤回/表情收藏3项体检中不自动执行，防误点，单项按钮可测）",
+            "全程接管鼠标约 40~70 秒，请勿动鼠标；评论为真实操作（会在你的朋友圈留下记录）")
+        for kind, label in _UI_TEST_LIST:
+            if _selfcheck_cancel[0]:
+                add("程序鼠标检验", "warn", "检测已被手动停止",
+                    "可再点「一键体检」重新开始；停止不会影响机器人与微信")
+                break
+            t0 = time.time()
+            try:
+                # 高险/易误击三项：体检中不自动执行（避免点开别的会话/搜索框），改为指引手测
+                if kind in ("emoji_collect", "message_collect", "message_recall"):
+                    add("鼠标·" + label, "info",
+                        "已跳过自动执行（防止误点其它会话/搜索框）——点下方对应单独按钮人工触发",
+                        "单独按钮执行时会显示详细结果")
+                    continue
+                r = ui_test_fn(kind)
+                ok = bool(r.get("ok"))
+                add("鼠标·" + label,
+                    "ok" if ok else "fail",
+                    (r.get("note") or "成功") if ok else ("失败：" + str(r.get("error") or r.get("note") or ""))[:120],
+                    "" if ok else "可点下方单独按钮重测该单项（看具体原因）")
+            except Exception as e:
+                add("鼠标·" + label, "fail", str(e)[:120], "可点对应单独按钮重测")
+
         ok_n = sum(1 for c in checks if c["status"] == "ok")
         warn_n = sum(1 for c in checks if c["status"] == "warn")
         fail_n = sum(1 for c in checks if c["status"] == "fail")
         return {"ok": fail_n == 0, "checks": checks,
-                "summary": "通过 %d 项 / 注意 %d 项 / 失败 %d 项" % (ok_n, warn_n, fail_n)}
+                "summary": "通过 %d 项 / 注意 %d 项 / 失败 %d 项" % (ok_n, warn_n, fail_n),
+                "cancelled": _selfcheck_cancel[0]}
 
     def poke_test_fn(group_wxid="", verify_only=False):
         # 拍一拍诊断：目标直接从微信数据库取（不依赖控制台存档，任何群有人说过话即可）；
@@ -1068,8 +1617,8 @@ def main():
             gs = []
         return {"ok": True, "groups": gs}
 
-    def memory_fn(action, chat_key="", user_id=""):
-        # 记忆页面：list（各群成员印象） / delete（删某成员印象）
+    def memory_fn(action, chat_key="", user_id="", name="", contents=None):
+        # 记忆页面：list（各群成员印象） / delete（删某成员印象） / update（编辑成员印象）
         try:
             if action == "list":
                 chats = []
@@ -1094,16 +1643,135 @@ def main():
                     except Exception:
                         members = []
                 return {"ok": True, "chats": chats, "chat_key": chat_key, "members": members}
+            if action == "clear_all":
+                # 清除全部记忆：所有群的成员印象 + 共享记忆 + 会话日志（运行明细/对话历史）
+                try:
+                    for ck in list(orch.store.list_chats()):
+                        try:
+                            for mem_id in [str(m.get("id") or m.get("memberId") or m.get("userId") or "")
+                                           for m in (orch.memory.members(ck) or [])]:
+                                if mem_id:
+                                    orch.memory.remove(ck, "memberImpression", user_id=mem_id)
+                        except Exception:
+                            pass
+                    orch.memory.clear_all()
+                    # 会话日志（运行明细 JSONL）
+                    import glob as _glob
+                    removed = 0
+                    for fp in _glob.glob(os.path.join(ROOT, "data", "sessions", "*.jsonl")):
+                        try:
+                            os.remove(fp); removed += 1
+                        except Exception:
+                            pass
+                    try:
+                        _cl = os.path.join(ROOT, "data", "session_log.jsonl")
+                        if os.path.exists(_cl):
+                            os.remove(_cl); removed += 1
+                    except Exception:
+                        pass
+                    return {"ok": True, "note": "会员印象+共享记忆+会话日志已清除（%d 个文件）" % removed}
+                except Exception as e:
+                    return {"ok": False, "error": str(e)}
+            if action == "clear_sessions":
+                # 仅清除会话日志（运行明细/对话历史），不碰记忆
+                import glob as _glob
+                removed = 0
+                for fp in _glob.glob(os.path.join(ROOT, "data", "sessions", "*.jsonl")):
+                    try:
+                        os.remove(fp); removed += 1
+                    except Exception:
+                        pass
+                try:
+                    _cl = os.path.join(ROOT, "data", "session_log.jsonl")
+                    if os.path.exists(_cl):
+                        os.remove(_cl); removed += 1
+                except Exception:
+                    pass
+                return {"ok": True, "note": "已清除 %d 个会话日志文件" % removed}
             if action == "delete":
                 ok = orch.memory.remove(chat_key, "memberImpression", user_id=user_id)
                 return {"ok": bool(ok)}
+            if action == "update":
+                # 手动编辑成员印象（replace_member）
+                try:
+                    member = orch.memory.replace_member(chat_key, user_id, name or "", list(contents or []))
+                    return {"ok": True, "member": member}
+                except ValueError as ve:
+                    return {"ok": False, "error": str(ve)}
+                except Exception as e:
+                    return {"ok": False, "error": str(e)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
         return {"ok": False, "error": "未知操作"}
 
+    summarize_msg = ["<#系统> 你正在与被呼叫的机器人对话，请用一句话描述自己或提问。"]
+
+    def _summarize_on_exit():
+        """关闭时把本次会话的群友发言总结成印象（只在此刻调模型一次；平时绝不调）。"""
+        try:
+            cfg = get_config()
+            if not (cfg.get("memory", {}).get("summarize_on_exit", True)):
+                return
+            # 取最近的群友发言（本进程存活期间新增）；无则跳过
+            recent = []
+            try:
+                for g in (orch.wechat.list_groups() if orch.wechat else [])[:3]:
+                    wxid = g.get("wxid") or g.get("id") or ""
+                    if not wxid:
+                        continue
+                    for raw in orch.wechat._db.get_messages(wxid, limit=40):
+                        n = orch.wechat.normalize(raw, wxid)
+                        if n and str(n.get("sender_id") or "").startswith("wxid_") and str(n.get("text") or "").strip():
+                            recent.append((str(n.get("sender_name") or "?"), str(n["text"])[:60]))
+            except Exception:
+                recent = []
+            if not recent:
+                log.info("本次无可总结的对话，跳过关机印象")
+                return
+            from agent.llm import chat_completion
+            text = "\n".join("%s：%s" % (a, b) for a, b in recent[-60:])
+            prompt = (
+                "下面是本次微信群里机器人的群友发言（已去重）。请总结每位群友的**人物印象**，"
+                "输出 JSON 数组：[{\"name\":\"群友名\",\"impressions\":[\"性格/偏好/黑话/语气，每条一句话\"]}]。"
+                "只输出 JSON；信息不足的名字可以不出现在结果里。\n\n" + text
+            )
+            r = chat_completion([{"role": "user", "content": prompt}])
+            content = ((r.get("message") or {}).get("content") or "").strip()
+            import re as _re
+            m = _re.search(r"\[.*\]", content, _re.S)
+            if not m:
+                log.info("关机总结解析失败，跳过")
+                return
+            import json as _json
+            rows = _json.loads(m.group(0))
+            n_ok = 0
+            for row in rows:
+                name = str(row.get("name") or "").strip()
+                imps = [str(i).strip() for i in (row.get("impressions") or []) if str(i).strip()]
+                if not name or not imps:
+                    continue
+                # 在每个有该成员发言的群里写入（group 由 memory 结合 chat_key）
+                try:
+                    orch.memory.remember(text=" ".join(imps), member_name=name)
+                    n_ok += 1
+                except Exception:
+                    pass
+            log.info("关机总结完成：更新 %d 位群友印象" % n_ok)
+        except Exception as e:
+            log.info("关机总结失败：%s" % e)
+
     def shutdown_fn():
         log.info("收到停止指令，正在停止机器人…")
-        # 先杀看门狗：否则 5 秒后被自动拉起，会「停止后又弹出新控制台」
+        try:
+            _summarize_on_exit()
+        except Exception:
+            pass
+        # 先写「停止」标记 + 杀看门狗：否则 5 秒后被自动拉起，会「停止后又弹出新控制台」
+        try:
+            with open(os.path.join(ROOT, "data", "stopped.flag"), "w", encoding="utf-8") as f:
+                f.write(time.strftime("%Y-%m-%d %H:%M:%S"))
+        except Exception:
+            pass
         _kill_watchdog()
         try:
             orch.shutdown()
@@ -1142,20 +1810,366 @@ def main():
             os._exit(0)
         threading.Timer(1.5, _exit_now).start()
 
-    # ── 控制台访问口令：留空则启动时自动生成一串随机口令，避免和别人撞端口/被猜到 ──
+    # ── 控制台访问口令：空/过短（<16 位易被猜）→ 启动时自动生成强随机口令 ──
     server_cfg = cfg.get("server", {})
-    if not str(server_cfg.get("token") or "").strip():
-        server_cfg["token"] = secrets.token_hex(24)  # 48 位随机十六进制
+    _tok = str(server_cfg.get("token") or "").strip()
+    if len(_tok) < 16:
+        server_cfg["token"] = secrets.token_urlsafe(24)  # 32 位强随机（字母数字-_）
         save_config(cfg)
-        log.info("已自动生成控制台访问口令（保存在 config.json 的 server.token）")
+        log.info("已自动生成控制台访问口令（%d 位，保存在 config.json 的 server.token）", len(server_cfg["token"]))
+
+    def community_export_fn(kind="holyshits"):
+        """导出：金句/意见/聊天记录 → 本地文件（export_dir 可配）。"""
+        try:
+            from agent.scoring import seed_library, stats as _scoring_stats
+        except Exception:
+            seed_library = lambda: []
+        try:
+            cfg = get_config().get("community", {}) or {}
+            out_dir = os.path.join(ROOT, str(cfg.get("export_dir") or "exports"))
+            os.makedirs(out_dir, exist_ok=True)
+            ts = time.strftime("%Y%m%d-%H%M%S")
+            if kind == "holyshits":
+                lines = seed_library()
+                path = os.path.join(out_dir, "holyshits-%s.txt" % ts)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("# 金句（种子库，含内置+导入）\n" + "\n".join(lines))
+                return {"ok": True, "path": path, "count": len(lines)}
+            if kind == "feedback":
+                # 意见反馈导出（feedback 复述存到 sessions.jsonl 里，简化：导出会话里的反馈）
+                path = os.path.join(out_dir, "feedback-%s.json" % ts)
+                rows = []
+                try:
+                    import glob
+                    for fp in glob.glob(os.path.join(ROOT, "data", "sessions", "*.jsonl")):
+                        with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                            for line in f:
+                                try:
+                                    j = json.loads(line)
+                                except Exception:
+                                    continue
+                                if j.get("feedbacks"):
+                                    rows.append({"ts": j.get("ts"), "chat": j.get("chat_name"),
+                                                 "feedbacks": j.get("feedbacks")})
+                except Exception:
+                    pass
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(rows, f, ensure_ascii=False, indent=1)
+                return {"ok": True, "path": path, "count": len(rows)}
+            if kind == "persona_ratings":
+                # 角色评分表导出（系统分 + 用户分；可再上传到社区）
+                try:
+                    with open(os.path.join(ROOT, "data", "persona_ratings.json"), "r", encoding="utf-8") as f:
+                        ratings = json.load(f)
+                except Exception:
+                    ratings = {}
+                try:
+                    from scripts import persona_check
+                    from agent.persona import PERSONAS
+                    rows = []
+                    for k, c in PERSONAS.items():
+                        r = persona_check.evaluate(k, c)
+                        u = ratings.get(k) or {}
+                        rows.append({"key": k, "name": c.get("name") or k, "sys": r["score"],
+                                     "user": u.get("score"), "note": u.get("note", "")})
+                except Exception:
+                    rows = []
+                path = os.path.join(out_dir, "persona_ratings-%s.json" % ts)
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(rows, f, ensure_ascii=False, indent=1)
+                return {"ok": True, "path": path, "count": len(rows)}
+            # 聊天记录导出
+            path = os.path.join(out_dir, "messages-%s.json" % ts)
+            export_chats = {}
+            try:
+                import glob
+                for fp in glob.glob(os.path.join(ROOT, "data", "messages", "*.json")):
+                    try:
+                        with open(fp, "r", encoding="utf-8") as f:
+                            d = json.load(f)
+                        if isinstance(d, dict) and d.get("messages"):
+                            export_chats[os.path.basename(fp)] = d.get("messages")
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(export_chats, f, ensure_ascii=False, indent=1)
+            return {"ok": True, "path": path, "count": sum(len(v) for v in export_chats.values())}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def community_upload_fn(data):
+        """社区分享：POST 到可配置 URL（upload_enabled + 对应 URL，默认关）→ 仅提示未配置。"""
+        try:
+            cfg = get_config().get("community", {}) or {}
+            if not cfg.get("upload_enabled"):
+                return {"ok": False, "error": "社区上传未开启（community.upload_enabled=false）"}
+            kind = str(data.get("kind") or "")
+            url = str(cfg.get("holyshits_upload_url") or "") if kind == "holyshits" else str(cfg.get("feedback_upload_url") or "")
+            if not url:
+                return {"ok": False, "error": "未配置 %s 上传 URL" % kind}
+            import requests as _req
+            payload = data.get("payload") or {}
+            r = _req.post(url, json=payload, timeout=10)
+            r.raise_for_status()
+            return {"ok": True, "resp": r.text[:200]}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def scoring_import_fn(text):
+        """导入金句进评分种子库。"""
+        try:
+            from agent.scoring import import_seeds
+            n = import_seeds(text)
+            return {"ok": True, "imported": n}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def _recalibrate_ui(orch):
+        """控制台「重新标定」：接管鼠标一次，自动检测微信侧栏图标序列并写 ui_layout.json。"""
+        try:
+            from agent import wechat_ui
+            gui = orch.wechat._get_gui()
+            lay = wechat_ui.calibrate_ui(gui)
+            if lay.get("sidebar_items"):
+                return {"ok": True, "count": len(lay["sidebar_items"])}
+            return {"ok": False, "error": "标定未检测到侧栏图标（微信窗口可见？请确保微信在前台后重试）"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def _open_export_path(path):
+        """打开导出文件/文件夹所在位置（不存在时创建目录；绝对/相对均支持）。"""
+        try:
+            import os
+            import subprocess
+            p = str(path or "").strip() or "exports"
+            if not os.path.isabs(p):
+                p = os.path.join(ROOT, p)
+            if os.path.isdir(p):
+                os.makedirs(p, exist_ok=True)
+                os.startfile(p)
+                return {"ok": True}
+            d = os.path.dirname(p)
+            if not os.path.isdir(d):
+                os.makedirs(d, exist_ok=True)
+            if os.path.exists(p):
+                subprocess.Popen(["explorer", "/select,", os.path.abspath(p)])
+            else:
+                os.startfile(d)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def ui_test_fn(kind, data=None):
+        """程序鼠标检验：直接操控微信鼠标执行，不耗 token、不靠模型。
+        单项执行中可用「停止检验」按钮中止（主要操作循环检查标志）。"""
+        data = data or {}
+        try:
+            from agent import wechat_ui as _wu
+            _wu.clear_stop()
+            wx = orch.wechat
+
+            # 检验默认在「文件传输助手」进行（不打扰真人；失败则空参由各流程兜底）
+            def _open_test_chat(_wx):
+                try:
+                    return bool(_wx._get_gui().open_chat("文件传输助手"))
+                except Exception:
+                    return False
+
+            if kind == "moments_open":
+                ok, msg = wx.moments_open()
+                return {"ok": ok, "note": msg}
+            if kind == "moments_close":
+                ok, msg = wx.moments_close()
+                return {"ok": ok, "note": msg}
+            if kind == "moments_like":
+                # 不执行「赞」最后一步：只打开朋友圈并弹出点赞菜单即视为通过（避免真点赞）
+                ok, msg = wx.moments_like()
+                return {"ok": ok if ok and "已" in msg else ok, "note": ("（仅验证到可点赞，未真赞）" if ok else msg)}
+            if kind == "moments_comment":
+                # 不执行「发送」最后一步：dry 模式只到输入框即视为通过
+                ok, msg = wx.moments_comment(0, "检验评论：程序鼠标没问题", dry=True)
+                return {"ok": ok, "note": msg}
+            if kind == "moments_scroll":
+                ok, msg = wx.moments_open()
+                if ok:
+                    wx.moments_scroll(1, 2)
+                    time.sleep(0.8)
+                    ok2, msg2 = wx.moments_close()
+                    return {"ok": True, "note": "已滚动 2 屏并关窗：" + msg2}
+                return {"ok": False, "error": msg}
+            if kind == "emoji_collect":
+                # 最近一条 emoji/image 消息右键收藏（真操作；用任一有表情消息的群）
+                try:
+                    wxid = ""
+                    for g in (wx.list_groups() or []):
+                        wxid = g.get("wxid") or g.get("id") or ""
+                        if wxid and any((r.get("local_type") or 0) & 0xFF in (3, 47)
+                                        for r in wx._db.get_messages(wxid, limit=30)):
+                            break
+                    raws = wx._db.get_messages(wxid, limit=30) if wxid else []
+                except Exception:
+                    raws = []
+                for r in raws:
+                    n = wx.normalize(r, wxid)
+                    if n and any(m.get("kind") in ("emoji", "image") and m.get("local_id")
+                                 for m in (n.get("media") or [])):
+                        ok, msg = wx.collect_emoji_native(wxid, str(n.get("text") or ""),
+                                                          str(n.get("sender_name") or ""))
+                        return {"ok": ok, "note": msg or "已尝试右键添加到表情"}
+                return {"ok": False, "error": "最近 30 条里没有表情/图片消息可收藏"}
+            if kind == "emoji_panel":
+                from agent.emoji_pick import pick as _pick
+                _idx = 0
+                try:
+                    _idx = int(data.get("index", -1))
+                except Exception:
+                    _idx = -1
+                if _idx < 0:
+                    _idx = _pick(str(data.get("context") or ""))   # 模型判别点哪个
+                data["index"] = _idx
+                # ① 目标会话：优先 data.group（如「aa」）；否则默认「文件传输助手」（检验不打扰真人）
+                _grp = str(data.get("group") or "").strip()
+                if not _grp:
+                    if _open_test_chat(wx):
+                        _grp = "文件传输助手"
+                    else:
+                        return {"ok": False,
+                                "error": "无法打开「文件传输助手」；请在检验参数里指定 group，或确认微信会话列表含文件传输助手"}
+                if not _grp:
+                    return {"ok": False, "error": "没有可打开的会话（微信会话列表为空）"}
+                # ② 点笑脸 → ③ 点爱心 → ④ 点模型判别选中的表情（单击即发）
+                ok, msg = wx.emoji_panel_open(_grp)
+                if not ok:
+                    return {"ok": False, "error": msg}
+                ok2, msg2 = wx.emoji_panel_send(int(data.get("index") or 0))
+                return {"ok": ok2, "note": ok2 and ("已发第 %s 个收藏表情：%s" % (data.get("index"), msg2)) or msg2}
+            if kind == "emoji_roll_probe":
+                # 滚动校准探针：开面板→爱心→到顶(+wheel)→单次滚 delta→保留面板给用户观察。
+                from agent import ui_adapt as _ua
+                _grp = str(data.get("group") or "").strip()
+                _delta = int(data.get("delta") or -300)
+                ok, msg = wx.emoji_panel_open(_grp)
+                if not ok:
+                    return {"ok": False, "error": msg}
+                time.sleep(0.6)
+                _gui = wx._get_gui()
+                _gui._update_render_rect()
+                _sx, _sy, _sw, _sh = _gui.render_rect
+                _ua.click(_gui, int(_sw*0.171), int(_sh*0.804-13), heal=False)   # 爱心
+                time.sleep(1.0)
+                _gui._update_render_rect()
+                _sx, _sy, _sw, _sh = _gui.render_rect
+                _inp = _gui._input
+                _inp._user32.SetCursorPos(_sx + int(_sw*0.092), _sy + int(_sh*0.277))
+                time.sleep(0.4)
+                for _ in range(12):    # +wheel=向上滚到顶
+                    _inp.wheel(500); time.sleep(0.35)
+                time.sleep(1.0)
+                # 到顶基线截图
+                _sdir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "_scratch", "shots")
+                os.makedirs(_sdir, exist_ok=True)
+                _dn = str(_delta).replace("-", "n")
+                def _snap(_n):
+                    try:
+                        _gui._update_render_rect()
+                        _sx, _sy, _sw, _sh = _gui.render_rect
+                        if _sw and _sh:
+                            from PIL import ImageGrab
+                            ImageGrab.grab((_sx, _sy, _sx+_sw, _sy+_sh)).save(os.path.join(_sdir, _n))
+                    except Exception:
+                        pass
+                _snap("cal_%s_top.png" % _dn)
+                _inp.wheel(_delta)     # 单次滚 delta
+                time.sleep(0.7)
+                _snap("cal_%s_after.png" % _dn)   # 保留面板，截图存证
+                return {"ok": True, "note": "已到顶并单次滚 delta=%d，请观察网格上移了几行（已存 cal_%s_top/after）" % (_delta, _dn)}
+            if kind == "message_collect":
+                # 自动找「最近有群友发言」的会话（不搜索其它会话）；无则明确提示
+                try:
+                    target = None
+                    for g in (wx.list_groups() or []):
+                        wxid = g.get("wxid") or g.get("id") or ""
+                        if not wxid:
+                            continue
+                        for raw in wx._db.get_messages(wxid, limit=30):
+                            n = wx.normalize(raw, wxid)
+                            if n and str(n.get("sender_id") or "").startswith("wxid_") and str(n.get("text") or "").strip():
+                                target = (wxid, str(n["text"]), str(n.get("sender_name") or ""))
+                                break
+                        if target:
+                            break
+                    if not target:
+                        return {"ok": False, "error": "没有可收藏的消息（请先让群友在群里说话）"}
+                    ok, msg = wx.collect_message(target[0], target[1], target[2])
+                    return {"ok": ok, "note": msg or ("已对【%s】执行收藏" % target[1][:12])}
+                except Exception as e:
+                    return {"ok": False, "error": str(e)}
+            if kind == "message_recall":
+                # 自动找「自己最近 2 分钟内发的消息」；无则明确提示
+                try:
+                    target = None
+                    for g in (wx.list_groups() or []):
+                        wxid = g.get("wxid") or g.get("id") or ""
+                        if not wxid:
+                            continue
+                        for raw in wx._db.get_messages(wxid, limit=20):
+                            n = wx.normalize(raw, wxid)
+                            if n and str(n.get("sender_id") or "") == str(n.get("self_id") or "") and str(n.get("text") or "").strip():
+                                target = (wxid, str(n["text"]))
+                                break
+                        if target:
+                            break
+                    if not target:
+                        return {"ok": False, "error": "没有自己 2 分钟内的消息可撤回（先让机器人在群里说句话）"}
+                    ok, msg = wx.recall_message(target[0], target[1])
+                    return {"ok": ok, "note": msg or ("已尝试撤回【%s】" % target[1][:12])}
+                except Exception as e:
+                    return {"ok": False, "error": str(e)}
+            if kind == "windows_clean":
+                ok = True
+                note = ""
+                try:
+                    from agent import wechat_ui
+                    closed = wechat_ui.close_leftover_windows(wx._get_gui())
+                    note = "已清理 " + str(len(closed)) + " 个残留窗口"
+                except Exception as e:
+                    ok, note = False, str(e)
+                return {"ok": ok, "note": note}
+            if kind == "recalibrate":
+                return _recalibrate_ui(orch)
+            return {"ok": False, "error": "未知检验项：" + kind}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     webui = WebUI(status_provider, log_buffer, test_api_fn=test_api_fn, balance_fn=balance_fn,
                   pause_fn=lambda: orch.set_paused(True), resume_fn=lambda: orch.set_paused(False),
                   shutdown_fn=shutdown_fn, whale=orch.whale,
                   poke_test_fn=poke_test_fn, selfcheck_fn=selfcheck_fn, restart_fn=restart_fn,
                   groups_fn=groups_fn, memory_fn=memory_fn,
-                  sessions_fn=lambda limit: orch.session_log.recent(limit))
+                  sessions_fn=lambda limit: orch.session_log.recent(limit),
+                  community_export_fn=community_export_fn,
+                  community_upload_fn=community_upload_fn,
+                  scoring_import_fn=scoring_import_fn,
+                  emojis_fn=lambda: (orch.wechat.list_emojis() if getattr(orch, "wechat", None) else []),
+                  recalibrate_fn=lambda: _recalibrate_ui(orch),
+                  open_path_fn=lambda path: _open_export_path(path),
+                  ui_test_fn=ui_test_fn,
+                  selfcheck_stop_fn=lambda: selfcheck_stop_fn(),
+                  ui_stop_fn=lambda: ui_stop_fn(),
+                  persona_scores_fn=persona_scores_fn,
+                  persona_rate_fn=persona_rate_fn,
+                  persona_score_custom_fn=persona_score_custom_fn,
+                  persona_ai_enrich_fn=persona_ai_enrich_fn)
     try:
+        # 首步：把微信窗口移到固定位置+标准大小（几何恒定，坐标只按 DPI 换算）
+        try:
+            if wechat is not None:
+                from agent.ui_adapt import _force_geometry as _fg
+                _fg(wechat._get_gui())
+        except Exception:
+            pass
         port = webui.start()
         if port:
             token = str(server_cfg.get("token") or "").strip()
@@ -1163,17 +2177,38 @@ def main():
             log.info("Web 控制台：%s", url)
             if server_cfg.get("auto_open_browser", True) is not False:
                 try:
-                    webbrowser.open(url)
-                    log.info("已在默认浏览器打开控制台")
-                except Exception:
-                    pass
+                    # 只开一次：已有同地址浏览器窗口则不再开（防连续启动重复弹）
+                    import subprocess as _sp
+                    _already = False
+                    try:
+                        _out = _sp.run(["wmic", "process", "where",
+                                         "name like '%msedge%' or name like '%chrome%' or name like '%firefox%'",
+                                         "get", "commandline"],
+                                        capture_output=True, timeout=8,
+                                        creationflags=0x08000000)
+                        _cmdline = (_out.stdout or b"").decode("gbk", "ignore").lower()
+                        _already = ("127.0.0.1:%d" % port) in _cmdline
+                    except Exception:
+                        _already = False
+                    if _already:
+                        log.info("浏览器已有控制台窗口，不再重复打开")
+                    else:
+                        _sp.Popen(["cmd", "/c", "start", "", url],
+                                  creationflags=0x08000000,
+                                  stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+                        log.info("已在默认浏览器打开控制台")
+                except Exception as e:
+                    log.warning("打开浏览器失败（请手动访问 %s）：%s", url, e)
     except Exception as e:
         log.warning("Web 控制台启动失败：%s", e)
 
     # 初始化轮询游标（只处理启动之后的新消息，不重放历史）
     since_seq = {}
     for g in targets:
-        since_seq[g["wxid"]] = wechat.latest_seq(g["wxid"])
+        try:
+            since_seq[g["wxid"]] = (wechat_box[0] or wechat).latest_seq(g["wxid"])
+        except Exception:
+            since_seq[g["wxid"]] = 0
 
     def _stop(signum=None, frame=None):
         log.info("收到退出信号，正在停止…")
@@ -1186,6 +2221,11 @@ def main():
         pass
 
     log.info("开始监听群消息（目标群 %d 个）… Ctrl+C 退出（轮询间隔在控制台修改保存即生效）", len(targets))
+    # 主动开话题（默认关；控制台开启后循环启动，暂停/停止时跳 tick）
+    try:
+        orch.start_proactive_loop()
+    except Exception as e:
+        log.warning("主动话题循环启动失败：%s", e)
 
     while not orch.stopped:
         poll_interval = max(1.0, float(get_config().get("wechat", {}).get("poll_interval") or 3))
@@ -1210,8 +2250,17 @@ def main():
                 if not new:
                     continue
                 max_seq = since_seq.get(wxid, 0)
+                # 屏蔽名单（按群）：{群名: [昵称/wxid...]}——命中的不存档、不触发
+                blist = (get_config().get("store", {}).get("group_blocklist") or {}).get(g["name"]) or []
+                blocked = {str(b).strip().lower() for b in blist if str(b).strip()}
                 for nm in new:
                     max_seq = max(max_seq, nm["sort_seq"])
+                    if blocked:
+                        who = str(nm.get("sender_name") or "").strip().lower()
+                        wid = str(nm.get("sender_id") or "").strip().lower()
+                        if who in blocked or wid in blocked:
+                            log.info("群[%s]屏蔽用户消息已丢弃（%s/%s）", g["name"], who or wid, who or wid)
+                            continue
                     store.append_incoming(chat_key, nm["mid"], nm["ts"], nm["sender_id"],
                                           nm["sender_name"], nm["text"], media=nm["media"])
                     # ── 系统自动回拍：别人拍一拍机器人 → 延迟 ~18 秒后按概率回拍（90%）──

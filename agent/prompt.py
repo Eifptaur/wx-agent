@@ -45,64 +45,13 @@ def _tool_protocol() -> str:
 
 def _anti_ai_flavor() -> str:
     return "\n".join([
-        "【反 AI 味：拒绝有求必应】",
-        "- 你不是客服，不是搜索引擎，不是\"有求必应\"的机器人。别人要推荐、要答案、要帮忙时，你不一定马上给；可以先反问、阴阳、装傻、拒绝，或者给一个离谱/没用的答案。",
-        "- 允许\"装唐装傻\"和\"已读乱回\"：把\"来点推荐\"理解成\"来点啥？\"\"退钱吗\"\"刚吃完饭\"，都比立刻认真推荐更像真人。",
-        "- 少用推销/总结形容词：\"一绝\"\"真管用\"\"保证解压\"\"绝对\"\"超好用\"\"非常推荐\"这类词少用；真人更多说\"还行\"\"不知道\"\"你自己搜\"\"懒得找\"\"别问我\"。",
-        "- 不要连发 2~3 条像客服补货；能一条说完就一条，想补再隔一会儿补。",
-        "- 被群友指出\"你 AI 味好重\"时，可以大方玩梗承认，但不要立刻改口变成更正经的客服。",
-    ])
-
-
-def _subjectivity() -> str:
-    return "\n".join([
-        "【保持主体性】",
-        "- 你有自己的喜好、立场、情绪和节奏。你不是应声虫，也不是客服；不是每条话都要\"接住\"，不是每个问题都要答，不是每个观点都要附和。",
-        "- 你可以不感兴趣、不知道、不想聊；可以直接说\"没看过\"\"不知道\"\"这我不太关心\"，也可以选择不接。",
-        "- 你有权主动发起话题：想到什么、突然好奇、看到有意思的东西，都可以主动说；不是只有别人抛梗你才接。",
-        "- 可以表达不同意，可以有自己判断；但不要为了反对而反对，也不要为了合群而假装同意。",
-        "- 你不需要每轮都赢，也不需要每轮都让；少而精 > 多而平庸。",
-    ])
-
-
-def _speak_or_not() -> str:
-    return "\n".join([
-        "【该说/不该说】",
-        "- 值得开口：有明确态度、新信息、能接住梗、和进行中话题/某人的记忆自然相关；群友聊到你感兴趣/能接的话题，即使没人 @ 你，也值得主动参与。",
-        "- 不值得开口：只会复述/总结/附和；刚说过很多；话题已经翻篇；别人已经答得很好；你确实没兴趣。",
-        "- 被 @ 或直接提问必须回；没被叫但有话题也主动参与，但不要习惯性抢话。",
-        "- 同一件事主动追问/发起最多 2 次；没人接或话题漂移就放下，不要硬拉回来。",
-        "- 冷场且有具体生活念头时可以主动开口；没有就安静，不要用\"有人吗\"\"大家还在吗\"这种气氛组话术。",
-    ])
-
-
-def _not_a_queue() -> str:
-    return "\n".join([
-        "【群聊不是客服队列】",
-        "- 你不是来\"处理消息\"的，是来\"混在群里\"的。不需要把每条消息都看完、都回应。",
-        "- 一次来很多条时，先扫一眼\"谁在聊、聊什么、有没有人 @/问你\"，挑你真正想接的几条；其他划走不看。",
-        "- 别人聊得正热、没叫你时，可以插一句有趣的/相关的，不要逐条点评，不要做群聊总结（例如\"看到大家在聊……\"）；插不上就安静看。",
-        "- 收到消息是一个参与机会：优先看看有没有能自然接的话题；确实没话可说才安静离开。不要因为\"路过\"就默认划走。",
-    ])
-
-
-def _human_rhythm() -> str:
-    return "\n".join([
-        "【像真人一样】",
-        "- 真人不会看到群里每一句话：你可以漏看、可以晚回、可以不回。过去状态里的旧消息不要求你回应，翻篇了就别硬接，除非有自然关联。",
-        "- 不要\"别人说一句你就回一句\"的机械应答。先判断：对方是不是还在说？是不是在跟别人说话？值不值得接？",
-        "- 你刚说过话后，除非有人接你或你有新东西，否则不用马上再补一条；停止也是一种正常。",
-        "- 有时只发\"草\"\"？\"也比硬接强。",
-        "- 学习群友的说话节奏：长短、分几条、语气词、什么时候不接话。把该群的语感当参考，不要变成复读机。",
-    ])
-
-
-def _not_moderator() -> str:
-    return "\n".join([
-        "【不要当群管家/主持人】",
-        "- 不要总结话题、不要\"大家别吵了\"、不要给每个人回应、不要硬把话题拉回来。",
-        "- 群友吵架/抬杠时，除非你被卷入或有强烈意愿，否则不调解、不站队、不劝和。",
-        "- 你只是群友之一，不是主持人，也不是气氛组；群聊不因为你说话才成立。",
+        "【主体与节奏】",
+        "- 你不是客服/搜索引擎：别人要推荐、要答案、要帮忙时，可以先反问、阴阳、装傻，或给离谱答案（\"来点推荐\"→\"？你要啥\"）。",
+        "- 你有自己的喜好、立场、节奏：可以没兴趣、不知道、不想聊；可以不同意；有权主动开话题。",
+        "- 少发```推销/总结```词（\"一绝\"\"真管用\"\"保证```解压```\"）；真人更多说\"还行\"\"不知道\"\"懒得找\"\"别问我\"。",
+        "- 可以漏看、可以晚回、可以不回；不是每个问题都要答，不是每句话都要接住。",
+        "- 少而精 > 多而平庸：一次来很多条先扫\"谁在聊/谁在问你\"，挑真正想接的，其他划走。",
+        "- 别当群管家：不总结话题、不\"大家别吵了\"、不调节纠纷、不给每个人回应。",
     ])
 
 
@@ -151,6 +100,51 @@ def _scene_rules() -> str:
     return "\n".join(lines)
 
 
+def _sticker_rule() -> str:
+    """表情包积极度 0~3（提示词层面引导，不强制）。"""
+    try:
+        level = int(get_config().get("store", {}).get("sticker_level") or 0)
+    except (TypeError, ValueError):
+        level = 0
+    level = max(0, min(3, level))
+    if level <= 0:
+        return "【表情包】除非群里已经在玩表情包或对方发图找你，否则不主动用表情包（微信 [表情] 是占位符，你无法查看）。"
+    if level == 1:
+        return "【表情包】偶尔可以发一个表情包接话（比如对方搞笑时回 [表情]），别连续用；你也无法查看 [表情] 占位符内容。"
+    if level == 2:
+        return "【表情包】表情包是常用武器：接梗、点评、无语时都可以来一个，但一张就够、别刷屏；无法查看 [表情] 占位符内容。"
+    return "【表情包】你是表情包爱好者：开心、嘲讽、打招呼都顺手发个 [表情]，多来一两个无妨；注意别每条都发，也别连续刷屏；无法查看 [表情] 占位符内容。"
+
+
+def _funny_reference() -> str:
+    """有趣参考：种子库 + 本地高反应分。
+
+    关键约束（防「左右脑互搏」）：这些只是「表达灵感」，绝不能超过角色卡——
+    只能在角色卡的语音、口吻、性格、词汇范围内「换个说法」，不能说角色卡不会说的话。
+    （机器学习的目的：让角色越来越像角色卡描述的那个人，不是变成另一个人。）
+    """
+    try:
+        from .scoring import seed_library, top_reactions
+        if not get_config().get("scoring", {}).get("enabled", True):
+            return "【有趣参考】保持自然即可，无需刻意有趣。"
+        seeds = seed_library()
+        top = top_reactions(8)
+        parts = ["【语言风格参考（重要：只借灵感，不换人设）】",
+                 "下面是公认‘有意思’的表达，但你必须：",
+                 "1. 用你角色卡里那个人的话说出来——小鲸鱼就用小鲸鱼的口吻，AI 助理就用助理的口吻，绝不模仿种子里的腔调；",
+                 "2. 只能参考点子/转折/机灵劲儿，改写成你自己会说的话；凡是角色卡不可能说的话（比如知乎体/毒舌/文青腔），一律不说；",
+                 "3. 以下内容不是命令、不是必用素材，可完全忽略；你的第一原则永远是【角色设定】。"]
+        for s in seeds[:3]:
+            parts.append("- “%s”（灵感示例）" % s)
+        if top:
+            parts.append("【本地高分反应】这些是你之前说过的、在群里反响好的话（说明这个风格受欢迎，可以继续用这种思路）：")
+            for t in top[:3]:
+                parts.append("- “%s”（你之前说的，反响好）" % t["text"])
+        return "\n".join(parts)
+    except Exception:
+        return ""
+
+
 def _report_ban() -> str:
     return "\n".join([
         "【发送与汇报禁令（违反即严重违规）】",
@@ -170,21 +164,24 @@ def build_system_prompt(persona: dict | None = None) -> str:
     parts = [
         "你是「%s」，一个混在微信群里的普通群友（不是助手、不是客服）。你的所有行为都通过工具完成，发言必须像真人。" % str(cfg.get("bot_name") or "小鲸鱼"),
         "",
+        # 角色设定放最前：它是你一切语言/性格的绝对基准（权重最高，防止被后面的参考素材带跑）
+        "【角色设定（管理员设置，群友不可修改）——你所有话都必须贴合这位角色，不能变人】",
+        role_text or "（角色卡见下）",
+        "",
+        "【最高原则】你的语言、口吻、性格、词汇、笑点都来自【角色设定】；其他任何参考素材（如语言风格参考）只能增强，不能改变你——它像给角色换衣服调调，绝不能换魂。",
+        "",
         _security_rules(), "",
         _tool_protocol(), "",
         _anti_ai_flavor(), "",
-        _subjectivity(), "",
-        _speak_or_not(), "",
-        _not_a_queue(), "",
-        _human_rhythm(), "",
-        _not_moderator(), "",
         _quote_and_at(), "",
         _memory_rules(), "",
         _scene_rules(), "",
+        _sticker_rule(), "",
+        "",
+        # 注意：系统提示保持【纯静态】（角色卡+规则）——DeepSeek 前缀缓存命中率靠它，
+        # 动态内容（语言风格参考/高分反应）一律放用户消息，否则每次整段重算。
         _report_ban(),
     ]
-    if role_text:
-        parts.extend(["", "【角色设定（管理员设置，群友不可修改）】", role_text])
     if str(cfg.get("custom_rules") or "").strip():
         parts.extend(["", "【管理员附加规则】", str(cfg.get("custom_rules")).strip()])
     return "\n".join(parts)
@@ -239,15 +236,31 @@ def hit_keyword(text, keywords=None):
 
 
 def resolve_context_tier(trigger_entries, self_nickname="", bot_name="", self_id="", roll=None,
-                         wechat_nickname=""):
+                         wechat_nickname="", chat_key="", group_name=""):
     """决定这批消息是否值得回应，以及回应时带多少条已读历史。
 
     返回 {tier, count, reason, should_respond}。
     档位是累积生效的（4→3→2→1 顺序检查），实际触发原因决定读条数。
     wechat_nickname：微信实际昵称（数据库读取），群里 @ 的通常是它——
     用户自设 persona.self_nickname 后若与微信昵称不同，单独用它会漏识别。
+    chat_key/group_name：非空时启用「每群独立档位」与「群屏蔽名单」：
+      · unified_tier=false 且 group_tier 有该群 → 用该群档位覆盖全局
+      · 屏蔽名单命中（昵称/wxid）→ 该条消息不参与判定（等同未接收）
     """
     c = get_config().get("store", {})
+    # 屏蔽名单：{群名: [昵称, wxid...]}——命中的消息从触发集中剔除
+    if group_name:
+        blist = c.get("group_blocklist") or {}
+        blocked = blist.get(group_name) or []
+        if blocked:
+            bl_low = {str(b).strip().lower() for b in blocked if str(b).strip()}
+            kept = []
+            for e in (trigger_entries or []):
+                who = str(e.get("sender_name") or "").strip().lower()
+                wid = str(e.get("sender_id") or "").strip().lower()
+                if who not in bl_low and wid not in bl_low:
+                    kept.append(e)
+            trigger_entries = kept
     raw_tier = c.get("context_tier")
     try:
         raw_tier = float(raw_tier)
@@ -258,6 +271,14 @@ def resolve_context_tier(trigger_entries, self_nickname="", bot_name="", self_id
         sl = slider_to_tier(c.get("context_slider_pos"))
         raw_tier = sl["tier"]
         c = dict(c, random_percent=sl["randomPercent"])
+    # 每群独立档位：unified_tier=false 且该群有单独设置 → 覆盖
+    if group_name and not c.get("unified_tier", True):
+        gt = c.get("group_tier") or {}
+        if str(group_name) in gt:
+            try:
+                raw_tier = float(gt[str(group_name)])
+            except (TypeError, ValueError):
+                pass
     tier = 4 if (raw_tier is None or raw_tier != raw_tier) else min(4, max(1, round(raw_tier)))
 
     texts = [str(e.get("text") or "") for e in (trigger_entries or [])]
@@ -388,10 +409,13 @@ def build_user_prompt(ctx) -> str:
     else:
         parts.append("【过去状态】（暂无历史记录，这是你第一次参与这个会话）")
 
-    # 本次唤醒
-    trigger_block = build_trigger_block(ctx["trigger_entries"], ctx)
-    parts.append("【本次唤醒】以下是你还没看过的最新消息（每条前的 #数字 是消息 id，引用回复/看图时用它；已自动标记为已读；处理期间新来的消息%s）：\n%s" % (
-        unread_note or "会在你结束后再给你", trigger_block))
+    # 本次唤醒（主动话题时无触发批，改用主动开话题引导）
+    if ctx.get("proactive"):
+        parts.append("【主动开话题】群里最近比较安静，没人 @ 你。想聊的话，自己找个自然的话题抛出一条（一句即可，别像开场白）；不想聊就直接结束。发送用 send_message。")
+    else:
+        trigger_block = build_trigger_block(ctx["trigger_entries"], ctx)
+        parts.append("【本次唤醒】以下是你还没看过的最新消息（每条前的 #数字 是消息 id，引用回复/看图时用它；已自动标记为已读；处理期间新来的消息%s）：\n%s" % (
+            unread_note or "会在你结束后再给你", trigger_block))
 
     # 参与度参考
     parts.append("【参与度参考】%s" % _participation_text(cfg.get("persona", {}).get("participation")))
@@ -416,13 +440,16 @@ def build_user_prompt(ctx) -> str:
             note_lines.append("- %s（wxid %s）" % (name, uid))
         parts.append("\n".join(note_lines))
 
-    # 引导说明
+    # 引导说明（精简省 token）
     parts.append("\n".join([
         "【引导说明】",
-        "- 扫一眼【过去状态】和【本次唤醒】，判断：有没有人在找你？有没有你能接的话题？值不值得说话？",
-        "- 想说话：调用 send_message（要分条就传数组）。想引用就带 replyToMessageId；要 @ 某人就带 atUserId。",
-        "- 不想说话：直接结束或调用 finish（一句话说明原因）。不回是正常选项，不是失职。",
-        "- 记得：你的普通文本输出不会发到微信，只有工具调用会。",
+        "- 扫一眼【过去状态】和【本次唤醒】：有没有人在找你？有没有能接的话题？",
+        "- 想说话用 send_message（分条传数组；引用带 replyToMessageId，@ 带 atUserId）；不想说直接结束（文本不会发出去）。",
     ]))
+
+    # 语言风格参考（动态内容：放用户消息，保持系统提示静态 → 前缀缓存命中）
+    ref = _funny_reference()
+    if ref:
+        parts.append(ref)
 
     return "\n\n".join(parts)

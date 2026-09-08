@@ -17,10 +17,148 @@ HTML = r"""<!DOCTYPE html>
 <link rel="icon" href="/assets/icon.png" type="image/png">
 <style>
 :root{
-  --blue:#4D6BFE; --blue2:#3D5BF0; --blue-soft:#EEF2FF; --blue-line:#DCE4FF;
-  --bg:#F4F6FC; --card:#FFFFFF; --bd:#E6EAF5; --tx:#1F2937; --tx2:#6B7280;
-  --ok:#10B981; --warn:#F59E0B; --err:#EF4444; --shadow:0 1px 3px rgba(31,41,55,.06),0 8px 24px rgba(77,107,254,.06);
+  /* ── 默认主题：「鲸落」深蓝海（whale）——海浪底图 + 深蓝 tint + 慢速动效 ──
+     背景=实拍海浪（assets/wallpaper/ocean1.jpg，本机文件），深蓝 tint 与慢速缩放；
+     卡片=浅蓝半透毛玻璃、导航栏=更深蓝实体——色差分三层凸显透明 */
+  --blue:#63C8FF; --blue2:#2FA6F0; --blue-soft:rgba(63,168,240,.16); --blue-line:rgba(90,180,255,.4);
+  --bg:linear-gradient(160deg,rgba(8,30,58,.62),rgba(12,44,84,.45) 45%,rgba(18,48,96,.55) 100%);
+  --bg-solid:rgba(12,34,62,.86);
+  --card:rgba(150,206,255,.14);
+  --bd:rgba(170,215,255,.34); --tx:#EAF6FF; --tx2:#A9D1EC;
+  --ok:#35F0C0; --warn:#FFD166; --err:#FF8A8A;
+  --shadow:inset 0 1px 0 rgba(255,255,255,.26),0 10px 34px rgba(10,40,80,.5),0 2px 8px rgba(0,20,40,.4);
+  --input-bg:rgba(255,255,255,.09); --hover-bg:rgba(255,255,255,.16); --input-bd:rgba(160,210,255,.35); --topbar:rgba(8,24,46,.7);
+  --code-bg:rgba(4,16,32,.7); --code-tx:#BFE9FF; --ok-soft:rgba(53,240,192,.14); --ok-tx:#7AF9E2;
+  --err-soft:rgba(255,138,138,.16); --err-tx:#FFB0B0; --menu-bg:rgba(12,36,64,.94);
 }
+/* 浅色主题（手动）——明亮蓝白 */
+:root[data-theme=light]{
+  --blue:#4D6BFE; --blue2:#3D5BF0; --blue-soft:#EEF2FF; --blue-line:#DCE4FF;
+  --bg:#F4F6FC; --bg-solid:#F4F6FC; --card:#FFFFFF; --bd:#E6EAF5; --tx:#1F2937; --tx2:#6B7280;
+  --ok:#10B981; --warn:#F59E0B; --err:#EF4444; --shadow:0 1px 3px rgba(31,41,55,.06),0 8px 24px rgba(77,107,254,.06);
+  --input-bg:#F8FAFE; --hover-bg:#F8FAFF; --input-bd:#DCE4FF; --topbar:rgba(255,255,255,.92);
+  --code-bg:#0F172A; --code-tx:#D8E0F0; --ok-soft:#D1FAE5; --ok-tx:#047857;
+  --err-soft:#FEE2E2; --err-tx:#B91C1C; --menu-bg:#FFFFFF;
+}
+/* 深色主题（手动） */
+:root[data-theme=dark]{
+  --blue:#7C96FF; --blue2:#5F7BFF; --blue-soft:#1E2A4A; --blue-line:#2A3A66;
+  --bg:#0E1420; --bg-solid:#131A27; --card:#151D2E; --bd:#263348; --tx:#E6EAF3; --tx2:#98A6C0;
+  --ok:#34D399; --warn:#FBBF24; --err:#F87171;
+  --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  --input-bg:#0F1626; --hover-bg:#1B2438; --input-bd:#2A3A66; --topbar:rgba(21,29,46,.92);
+  --code-bg:#0A0E16; --code-tx:#A9B8D0; --ok-soft:#10352A; --ok-tx:#5EEAD4;
+  --err-soft:#3A1A1A; --err-tx:#FCA5A5; --menu-bg:#1B2438;
+}
+/* 系统跟随（仅未手动设置主题（无 data-theme=跟随系统）时生效；whale/light/dark 都不跟随） */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme]){
+    --blue:#7C96FF; --blue2:#5F7BFF; --blue-soft:#1E2A4A; --blue-line:#2A3A66;
+    --bg:#0E1420; --bg-solid:#131A27; --card:#151D2E; --bd:#263348; --tx:#E6EAF3; --tx2:#98A6C0;
+    --ok:#34D399; --warn:#FBBF24; --err:#F87171;
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    --input-bg:#0F1626; --hover-bg:#1B2438; --input-bd:#2A3A66; --topbar:rgba(21,29,46,.92);
+    --code-bg:#0A0E16; --code-tx:#A9B8D0; --ok-soft:#10352A; --ok-tx:#5EEAD4;
+    --err-soft:#3A1A1A; --err-tx:#FCA5A5; --menu-bg:#1B2438;
+  }
+}
+body.whale-anim{background:var(--bg) fixed}
+body.whale-anim::before{content:"";position:fixed;inset:-60px;z-index:-1;pointer-events:none;
+  background-image:url(/assets/ocean1.jpg);
+  background-size:cover;background-position:center;
+  filter:saturate(1.1) brightness(.55) hue-rotate(-8deg) contrast(1.05);
+  animation:oceanDrift 46s ease-in-out infinite alternate}
+@keyframes oceanDrift{from{transform:scale(1) translateY(0)}to{transform:scale(1.08) translateY(-18px)}}
+body.whale-anim::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(560px 560px at 12% 8%,rgba(120,210,255,.20),transparent 62%),
+    radial-gradient(420px 420px at 88% 20%,rgba(150,180,255,.15),transparent 64%),
+    radial-gradient(300px 300px at 78% 68%,rgba(120,220,200,.12),transparent 65%),
+    radial-gradient(240px 240px at 36% 26%,rgba(255,220,170,.10),transparent 65%),
+    var(--bg)}
+/* 导航栏：更深蓝实体（与卡片/背景拉开色差） */
+.side{background:rgba(8,26,48,.66);border:1px solid rgba(120,180,240,.28);box-shadow:var(--shadow)}
+.side::after{background:repeating-linear-gradient(115deg,rgba(255,255,255,.10) 0 1px,transparent 1px 22px);opacity:.5}
+.side .nav a{color:var(--tx2);border-radius:9px;margin:1px 0}
+.side .nav a.on{background:rgba(63,168,240,.20);color:#fff;font-weight:600}
+/* ── 海洋动态背景：三层大波浪 + 浪尖高光线（SVG 平移；无外部素材依赖）── */
+.ocean-wave{position:fixed;left:0;right:0;bottom:0;height:40vh;z-index:-1;pointer-events:none;opacity:.95}
+.ocean-wave svg{position:absolute;bottom:0;left:-50%;width:200%;height:100%;display:block}
+.ocean-wave .w1{animation:waveMove 9s linear infinite}
+.ocean-wave .w2{animation:waveMove 14s linear infinite reverse;opacity:.7}
+.ocean-wave .w3{animation:waveMove 20s linear infinite;opacity:.45}
+@keyframes waveMove{from{transform:translateX(0)}to{transform:translateX(25%)}}
+body.whale-anim::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    repeating-radial-gradient(160% 90% at 18% 12%,rgba(255,255,255,.22) 0 2px,transparent 2px 26px),
+    repeating-radial-gradient(150% 80% at 82% 30%,rgba(120,210,255,.16) 0 2px,transparent 2px 40px),
+    radial-gradient(560px 560px at 12% 8%,rgba(255,255,255,.50),transparent 62%),
+    radial-gradient(420px 420px at 88% 20%,rgba(190,240,255,.45),transparent 64%),
+    radial-gradient(300px 300px at 78% 68%,rgba(186,240,190,.38),transparent 65%),
+    radial-gradient(300px 300px at 20% 78%,rgba(210,205,255,.38),transparent 65%),
+    radial-gradient(240px 240px at 58% 40%,rgba(255,220,240,.30),transparent 65%),
+    radial-gradient(200px 200px at 36% 26%,rgba(255,232,170,.28),transparent 65%);
+  animation:whaleDrift 26s ease-in-out infinite alternate, seaFlow 9s linear infinite}
+@keyframes whaleDrift{
+  from{transform:translateY(0) scale(1) hue-rotate(0deg)}
+  to{transform:translateY(-22px) scale(1.04) hue-rotate(10deg)}
+}
+@keyframes seaFlow{
+  from{background-position:0 0,0 0,0 0,0 0,0 0,0 0,0 0,0 0}
+  to{background-position:-60px 30px,60px -30px,0 0,0 0,0 0,0 0,0 0,0 0}
+}
+/* ── 自定义背景（JS 设 CSS 变量，绕开一切选择器冲突；无变量=默认海浪图）── */
+body.whale-anim::before,body.custom-bg::before{
+  background-image:var(--bgimg, url(/assets/ocean1.jpg))!important}
+body.custom-bg::after{background:linear-gradient(160deg,rgba(15,35,65,.10),rgba(20,45,80,.05) 50%,rgba(25,50,90,.08))}
+body.wall-video #wallVideo{display:block}
+body.wall-video #wallTint{display:block}
+body.wall-video:not(.custom-bg)::before{opacity:0}   /* 视频模式隐藏静态背景；自定义背景优先 */
+body.custom-bg::before{opacity:1!important}
+/* ── 毛玻璃卡片（正常玻璃+雾蒙蒙；浅蓝为主 + 七彩折射；无划痕）── */
+.card,.side{backdrop-filter:blur(22px) saturate(1.6)}
+.card,.side{border:1px solid rgba(190,228,255,.45);box-shadow:var(--shadow)}
+.card,.side{background:transparent}
+.card::before,.side::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(120% 120% at 50% 50%,rgba(180,222,255,.20),rgba(214,242,255,.055) 92%)}
+.card::after,.side::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:
+    radial-gradient(300px 220px at 14% 0%,rgba(255,255,255,.17),transparent 62%),
+    radial-gradient(280px 200px at 88% 10%,rgba(190,240,255,.15),transparent 62%),
+    radial-gradient(260px 200px at 80% 90%,rgba(220,205,255,.13),transparent 62%),
+    radial-gradient(240px 180px at 18% 88%,rgba(255,220,240,.11),transparent 62%),
+    radial-gradient(200px 160px at 45% 20%,rgba(255,232,170,.09),transparent 62%);
+  opacity:.9}
+:root[data-theme=dark] .card::after,:root[data-theme=dark] .side::after{opacity:.25}
+/* ── 涟漪 v4（经典"文字浮动"实现：逐字 span + delay 递增 波浪上浮；光标处细环）
+   方案来源：hover 文字波浪式效果（CSS animation + per-letter delay）——细浪一波波，静时平如镜 ── */
+.ripple{position:absolute;width:16px;height:16px;border-radius:50%;pointer-events:none;z-index:1;
+  border:1.5px solid rgba(150,214,255,.5);box-shadow:0 0 10px rgba(150,214,255,.3);
+  transform:translate(-50%,-50%) scale(.4);opacity:.8;
+  animation:rippleWave 1.15s cubic-bezier(.2,.8,.3,1) forwards}
+.ripple.r2{border-color:rgba(200,235,255,.3);animation-delay:.12s}
+@keyframes rippleWave{
+  0%{transform:translate(-50%,-50%) scale(.4);opacity:.8}
+  60%{transform:translate(-50%,-50%) scale(1.7);opacity:.4}
+  100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}
+}
+/* 逐字浮动：每个字一个 span，波浪相位递增（"细浪一波波打过来"） */
+.wave-char{display:inline-block;animation:charFloat 3.2s ease-in-out infinite}
+@keyframes charFloat{
+  0%,100%{transform:translateY(0)}
+  45%{transform:translateY(-2px)}
+}
+
+.card.float-a{animation:waveFloat 5.2s ease-in-out infinite}
+@keyframes waveFloat{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-1.5px)}
+}
+input,select,textarea{backdrop-filter:blur(8px)}
+.pri{background:linear-gradient(135deg,#39B6F0,#1E9BE8 55%,#6C8CFF);box-shadow:0 4px 16px rgba(30,155,232,.38),inset 0 1px 0 rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.72);color:#fff}
+.pri:hover{filter:brightness(1.06)}
+.danger{color:#fff}
+.topbar{backdrop-filter:blur(14px) saturate(1.4)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--tx);font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;min-height:100vh}
 a{color:var(--blue)}
@@ -28,11 +166,26 @@ a{color:var(--blue)}
 
 /* ── 顶栏 ── */
 .topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;padding:10px 20px;
-  background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--bd)}
+  background:var(--topbar);backdrop-filter:blur(8px);border-bottom:1px solid var(--bd)}
 .topbar .logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700}
-.topbar .logo canvas{width:100px;height:70px;display:block;cursor:pointer}
+/* 鲸鱼徽章：绿底 + 白鲸主体（可拖拽：按住鲸鱼拖出，松开随机三态返回） */
+.whale-badge{position:relative;width:52px;height:52px;border-radius:13px;overflow:hidden;cursor:grab;
+  background:url(/assets/logo-bg.png) center/cover;box-shadow:0 2px 8px rgba(31,41,55,.15)}
+.whale-badge.whale-open{overflow:visible}      /* 拖拽中取消裁切 */
+.whale-badge img{position:absolute;left:8px;bottom:6px;width:36px;height:36px;
+  transform-origin:bottom center;will-change:transform}
+.whale-badge img.whale-grabbing{filter:brightness(1.15) drop-shadow(0 6px 12px rgba(0,0,0,.45))}
+.whale-badge:active{cursor:grabbing}
+/* 游离鲸鱼（拖出后 & 返回动画载体；与帧独立，保证拖出框外可见） */
+.whale-fly{position:fixed;z-index:99998;pointer-events:none;width:44px;height:44px;
+  filter:drop-shadow(0 4px 8px rgba(0,0,0,.35))}
+.whale-fly img{width:44px;height:44px;position:absolute;left:0;top:0;transition:opacity .05s}
+.whale-fly .paper-plane{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);opacity:0;
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.3))}
+.whale-bubble{position:fixed;z-index:99997;font-style:normal;font-size:13px;color:var(--blue);
+  pointer-events:none;opacity:.9;transition:opacity .55s, transform .55s ease-out}
 .topbar .sp{flex:1}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:16px;background:var(--bg);
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:16px;background:var(--bg-solid);
   border:1px solid var(--bd);color:var(--tx2);font-size:12px;white-space:nowrap}
 .chip b{color:var(--tx)}
 .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--err)}
@@ -42,10 +195,18 @@ a{color:var(--blue)}
 /* ── 布局 ── */
 .shell{display:grid;grid-template-columns:216px 1fr;gap:16px;max-width:1280px;margin:16px auto;padding:0 16px}
 @media(max-width:900px){.shell{grid-template-columns:1fr}}
-.side{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;height:fit-content;
-  position:sticky;top:70px;max-height:calc(100vh - 96px);overflow-y:auto;box-shadow:var(--shadow)}
+/* 侧栏：完全不透明实色（滚动到底也无色差）+ sticky 让开顶栏 */
+.side{background:rgba(12,32,58,1);border:1px solid var(--bd);border-radius:12px;padding:10px;
+  position:sticky;top:88px;max-height:calc(100vh - 112px);overflow-y:auto;overscroll-behavior:contain;
+  z-index:20;box-shadow:var(--shadow);backdrop-filter:none}
+.side::-webkit-scrollbar{width:6px}
+.side::-webkit-scrollbar-track{background:transparent}
+.side::-webkit-scrollbar-thumb{background:rgba(148,196,255,.18);border-radius:3px}
+.side::-webkit-scrollbar-thumb:hover{background:rgba(148,196,255,.32)}
+.side .nav a{color:var(--tx2);border-radius:9px;margin:1px 0;background:transparent}
+.side .nav a.on{background:rgba(63,168,240,.20);color:#fff;font-weight:600}
 .side::-webkit-scrollbar{width:8px}
-.side::-webkit-scrollbar-thumb{background:#DCE4FF;border-radius:4px}
+.side::-webkit-scrollbar-thumb{background:var(--input-bd);border-radius:4px}
 .side::-webkit-scrollbar-thumb:hover{background:var(--blue)}
 .side .status{background:var(--blue-soft);border:1px solid var(--blue-line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
 .side .status b{font-size:13px;color:var(--blue)}
@@ -56,7 +217,7 @@ a{color:var(--blue)}
 .nav a{position:relative;z-index:1}
 .nav a{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;color:var(--tx2);
   text-decoration:none;font-size:13.5px;margin:2px 0}
-.nav a:hover{background:var(--bg)}
+.nav a:hover{background:var(--bg-solid)}
 .nav a.on{background:var(--blue-soft);color:var(--blue);font-weight:600;position:relative}
 .nav a.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--blue)}
 .card{transition:box-shadow .2s ease,transform .2s ease}
@@ -70,40 +231,41 @@ button:active{transform:scale(.97)}
 .pick{margin-top:4px}
 .pick .opt{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;column-gap:8px;
   padding:8px 12px;border:1px solid var(--bd);border-radius:10px;margin-bottom:6px;cursor:pointer}
-.pick .opt:hover{border-color:var(--blue);background:#F8FAFF}
+.pick .opt:hover{border-color:var(--blue);background:var(--hover-bg)}
 .pick .opt b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pick .opt .hint{margin:0;white-space:nowrap;font-size:11px;color:var(--tx2)}
 .pick .opt input{width:16px;height:16px;accent-color:var(--blue)}
 /* 群列表容器：固定高度滚动槽 + 顶部搜索框 */
 .group-box{max-height:340px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:6px;margin-top:6px}
 .group-box .opt{margin-bottom:4px}
-.group-search{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;font:inherit;margin-top:6px;box-sizing:border-box}
+.group-search{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;font:inherit;margin-top:6px;box-sizing:border-box;
+  background:var(--input-bg);color:var(--tx)}
 .group-search:focus{border-color:var(--blue);outline:none}
-.dlist{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:4px;font-size:13px}
+.dlist{background:var(--menu-bg);border:1px solid var(--bd);border-radius:8px;padding:4px;font-size:13px}
 .main{min-width:0}
 
-.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .card h2{font-size:15px;margin-bottom:4px;color:var(--blue);display:flex;align-items:center;gap:6px}
 .card .desc{font-size:12.5px;color:var(--tx2);margin-bottom:12px}
 .row{display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
 .row label{width:150px;color:var(--tx2);flex-shrink:0;font-size:13px}
 .row .grow{flex:1;min-width:220px}
 .row input[type=text],.row input[type=password],.row input[type=number],.row select,.row textarea{
-  width:100%;background:#F8FAFE;border:1px solid #DCE4FF;color:var(--tx);
+  width:100%;background:var(--input-bg);border:1px solid var(--input-bd);color:var(--tx);
   border-radius:10px;padding:8px 12px;font:inherit;outline:none;transition:border .15s,box-shadow .15s}
 .row input:focus,.row select:focus,.row textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(77,107,254,.12)}
 .row select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23 4D6BFE' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;border-radius:10px}
-.row select option{border-radius:10px;background:#fff;color:var(--tx);padding:6px}
+.row select option{border-radius:10px;background:var(--menu-bg);color:var(--tx);padding:6px}
 /* 自绘下拉（原生弹层无法样式化，全部替换为这个） */
 .dsel{position:relative;width:100%}
 .dsel-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
-  background:#F8FAFE;border:1px solid #DCE4FF;border-radius:10px;padding:8px 12px;color:var(--tx);
+  background:var(--input-bg);border:1px solid var(--input-bd);border-radius:10px;padding:8px 12px;color:var(--tx);
   font:inherit;font-weight:500;text-align:left;cursor:pointer}
 .dsel-btn:hover{border-color:var(--blue)}
 .dsel-btn .arr{color:var(--blue);font-size:11px;transform:translateY(-1px)}
-.dsel-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;background:#fff;
-  border:1px solid #DCE4FF;border-radius:10px;box-shadow:0 10px 30px rgba(77,107,254,.14);
+.dsel-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;background:var(--menu-bg);
+  border:1px solid var(--input-bd);border-radius:10px;box-shadow:0 10px 30px rgba(77,107,254,.14);
   max-height:260px;overflow:auto;padding:5px}
 .dsel-menu li{list-style:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13.5px;color:var(--tx)}
 .dsel-menu li:hover{background:var(--blue-soft);color:var(--blue)}
@@ -114,13 +276,13 @@ body.locked{overflow:hidden}
 .row .val{width:44px;text-align:right;color:var(--blue);font-weight:600}
 .row input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue)}
 /* 省 token 开关：醒目的卡片式勾选 */
-.think-card{display:flex;gap:12px;align-items:flex-start;background:linear-gradient(135deg,#EFF4FF,#F7FAFF);
-  border:1.5px solid #BFD3FE;border-radius:12px;padding:12px 14px;margin-bottom:12px;cursor:pointer}
+.think-card{display:flex;gap:12px;align-items:flex-start;background:linear-gradient(135deg,var(--blue-soft),var(--hover-bg));
+  border:1.5px solid var(--blue-line);border-radius:12px;padding:12px 14px;margin-bottom:12px;cursor:pointer}
 .think-card input[type=checkbox]{width:20px;height:20px;accent-color:var(--blue);margin-top:2px;flex:none}
-.think-card.on{background:linear-gradient(135deg,#E7F8EE,#F2FBF5);border-color:#9FD8B8}
+.think-card.on{background:linear-gradient(135deg,var(--ok-soft),var(--hover-bg));border-color:var(--ok)}
 .think-card .tc-title{font-weight:700;font-size:13.5px;color:var(--tx)}
 .think-card .tc-sub{font-size:12px;color:var(--tx2);margin-top:3px;line-height:1.6}
-.think-card .tc-badge{display:inline-block;background:#0E9F6E;color:#fff;font-size:11px;border-radius:8px;
+.think-card .tc-badge{display:inline-block;background:var(--ok);color:#fff;font-size:11px;border-radius:8px;
   padding:1px 8px;margin-left:6px;vertical-align:1px}
 .mid{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .mid > *{flex:1;min-width:240px}
@@ -130,44 +292,63 @@ button.pri{background:var(--blue);color:#fff;box-shadow:0 4px 12px rgba(77,107,2
 button.pri:hover{background:var(--blue2)}
 button.ghost{background:var(--card);border:1px solid var(--bd);color:var(--tx)}
 button.ghost:hover{border-color:var(--blue);color:var(--blue)}
-button.danger{background:#FEE2E2;color:#B91C1C}
-button.danger:hover{background:#FECACA}
+button.danger{background:var(--err-soft);color:var(--err-tx)}
+button.danger:hover{filter:brightness(1.12)}
 button:disabled{opacity:.5;cursor:not-allowed}
 .hint{color:var(--tx2);font-size:12px;margin-top:6px}
 .hint a{color:var(--blue)}
-pre.out{background:#0F172A;color:#D8E0F0;border-radius:10px;padding:12px 14px;font:12px/1.55 ui-monospace,Consolas,monospace;
+pre.out{background:var(--code-bg);color:var(--code-tx);border-radius:10px;padding:12px 14px;font:12px/1.55 ui-monospace,Consolas,monospace;
   overflow:auto;margin-top:8px;white-space:pre-wrap;word-break:break-all}
 
 /* ── 概览 ── */
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
-.stat .s{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:12px 14px}
+.stat .s{background:var(--bg-solid);border:1px solid var(--bd);border-radius:10px;padding:12px 14px}
 .stat .s b{font-size:20px;display:block;color:var(--blue)}
 .stat .s span{color:var(--tx2);font-size:12px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd)}
 th{color:var(--tx2);font-weight:500}
-.pill{display:inline-block;padding:1px 10px;border-radius:10px;font-size:11px;background:var(--bg)}
-.pill.ok{background:#D1FAE5;color:#047857}
-.pill.off{background:#FEE2E2;color:#B91C1C}
+.pill{display:inline-block;padding:1px 10px;border-radius:10px;font-size:11px;background:var(--bg-solid)}
+.pill.ok{background:var(--ok-soft);color:var(--ok-tx)}
+.pill.off{background:var(--err-soft);color:var(--err-tx)}
 
 /* ── 弹层 ── */
 #toast{position:fixed;right:20px;bottom:20px;background:#0F172A;color:#fff;padding:11px 18px;border-radius:10px;
   display:none;z-index:9999;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-.mask{position:fixed;inset:0;background:rgba(244,246,252,.96);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px}
+.mask{position:fixed;inset:0;background:var(--bg-solid);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px}
 .mask .box{max-width:560px;width:100%;background:var(--card);border:1px solid var(--blue-line);border-radius:16px;
   padding:28px 30px;box-shadow:0 20px 60px rgba(77,107,254,.18);text-align:center}
 .mask .box img{width:72px;height:72px;border-radius:18px;margin-bottom:12px;box-shadow:0 6px 20px rgba(77,107,254,.3)}
 .mask .box h1{font-size:19px;margin-bottom:8px}
 .mask .box p{color:var(--tx2);font-size:13px;margin-bottom:14px}
-.mask .box input{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;font:inherit;margin-bottom:10px}
+.mask .box input{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;font:inherit;margin-bottom:10px;
+  background:var(--input-bg);color:var(--tx)}
 .dn{display:none}
 </style>
 </head>
 <body>
 
+<!-- 波浪滤镜（卡片翻涌效果：feTurbulence+feDisplacementMap，JS 随光标实时调参） -->
+<svg width="0" height="0" style="position:absolute"><defs>
+  <filter id="cardWave" x="-20%" y="-20%" width="140%" height="140%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.014 0.022" numOctaves="1" seed="5" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</defs></svg>
+<!-- 海洋动态波浪（三层 SVG 曲线平移；无外部素材依赖） -->
+<div class="ocean-wave">
+  <svg class="w3" viewBox="0 0 1440 320" preserveAspectRatio="none"><path d="M0,230 C240,150 480,290 720,230 C960,150 1200,290 1440,230 L1440,320 L0,320 Z" fill="rgba(120,200,255,.40)"/></svg>
+  <svg class="w2" viewBox="0 0 1440 320" preserveAspectRatio="none"><path d="M0,200 C240,120 480,280 720,200 C960,120 1200,280 1440,200 L1440,320 L0,320 Z" fill="rgba(160,222,255,.55)"/></svg>
+  <svg class="w1" viewBox="0 0 1440 320" preserveAspectRatio="none"><path d="M0,160 C240,80 480,240 720,160 C960,80 1200,240 1440,160 L1440,320 L0,320 Z" fill="rgba(235,250,255,.80)"/><path d="M0,160 C240,80 480,240 720,160 C960,80 1200,240 1440,160" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="5"/></svg>
+</div>
+<!-- 视频壁纸（Wallpaper Engine「海的眼睛.mp4」本地文件；加载失败自动回退 CSS 海浪） -->
+<video id="wallVideo" autoplay muted loop playsinline
+  src="/wallpaper/海的眼睛.mp4"
+  style="position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;pointer-events:none;display:none"></video>
+<div id="wallTint" style="position:fixed;inset:0;z-index:-1;pointer-events:none;display:none;background:linear-gradient(160deg,rgba(150,200,235,.30),rgba(210,232,248,.22) 60%,rgba(225,215,245,.28))"></div>
+
 <div class="topbar">
-  <div class="logo"><canvas id="logoFx" width="152" height="60" title="小鲸鱼"></canvas><span>wx-agent 控制台</span></div>
-  <div class="sp"></div>
+  <div class="logo"><div class="whale-badge" id="whaleBadge" title="小鲸鱼"><img src="/assets/icon-whale.png" alt=""></div><span>wx-agent 控制台 <small style="font-weight:400;color:var(--tx2);font-size:12px" title="构建号（换新包后如果这里不变，说明连的是旧实例——先停止再启动）">__VER__ · Ⅱ</small></span></div>  <div class="sp"></div>
   <span class="chip"><span class="dot" id="dot"></span><b id="runText">连接中…</b></span>
   <span class="chip">模型 <b id="model-badge">? </b></span>
   <span class="chip" id="balance-badge" title="点击刷新余额">余额：查询中…</span>
@@ -182,15 +363,20 @@ th{color:var(--tx2);font-weight:500}
     <nav class="nav" id="nav">
       <a href="#sec-overview" class="on">概览</a>
       <a href="#sec-check">体检与功能自检</a>
+      <a href="#sec-advanced">调试·高级功能</a>
       <a href="#sec-sessions">运行明细</a>
       <a href="#sec-model">模型 API</a>
       <a href="#sec-wechat">微信</a>
+      <a href="#sec-poke">拍一拍</a>
       <a href="#sec-memory">记忆</a>
+      <a href="#sec-memory-set">记忆共享</a>
       <a href="#sec-persona">人设与响应</a>
+      <a href="#sec-community">社区与学习</a>
       <a href="#sec-send">发送限制</a>
       <a href="#sec-search">联网搜索</a>
       <a href="#sec-server">服务器</a>
       <a href="#sec-ui">界面适配</a>
+      <a href="#sec-cursor">光标设置</a>
       <a href="#sec-log">运行日志</a>
       <a href="#sec-json">原始 JSON</a>
     </nav>
@@ -209,6 +395,10 @@ th{color:var(--tx2);font-weight:500}
         <div class="s" style="grid-column:span 2"><b id="st-dcost">—</b><span id="st-dlabel">今日用量</span></div>
         <div class="s"><b id="st-pcost">—</b><span id="st-plabel">本周期</span></div>
         <div class="s"><b id="st-groups">0</b><span>目标群</span></div>
+        <div class="s"><b id="st-r5c">—</b><span>最近5条成本</span></div>
+        <div class="s"><b id="st-ac">—</b><span>平均每条成本</span></div>
+        <div class="s"><b id="st-extra">—</b><span>本次其他工具成本</span></div>
+        <div class="s"><b id="st-extra2">—</b><span>累计其他工具成本</span></div>
       </div>
       <div class="group-box" style="max-height:240px">
         <table id="group-table" style="margin:0"><thead><tr><th>群名</th><th>目标</th></tr></thead><tbody></tbody></table>
@@ -220,12 +410,17 @@ th{color:var(--tx2);font-weight:500}
     </section>
 
     <section id="sec-check" class="card" data-sec>
-      <h2>体检与功能自检</h2>
-      <div class="desc">按重要性从上到下逐项检测。先跑「一键体检」（环境/配置/点击），再按清单逐项验证功能；拍一拍建议用「简易检测」确认菜单可弹，避免误拍。</div>
-      <div id="depHint" style="padding:8px 12px;border-radius:10px;background:var(--bg);margin-bottom:10px">版本体检：检测中…</div>
+      <h2>检测中心（代码检测 / 鼠标操作检测）</h2>
+      <div class="desc">「代码检测」= 纯代码层检查（编译/依赖/角色卡评估/种子库/UI 标定/提示词静态/保护机制——不动鼠标、零风险，实测约 0.5~3 秒）；「鼠标操作检测」= 环境/配置/点击 + 程序鼠标操作检验（约 40~70 秒，期间接管鼠标请勿动；评论/收藏为真实操作）。想单独测某项用下方「🖱️ 程序鼠标检验」的独立按钮。</div>
       <div class="btns">
-        <button id="selfCheck" class="pri">一键体检</button>
-        <span class="hint" id="selfCheckTip" style="align-self:center"></span>
+        <button id="codeCheck" class="pri">代码检测</button>
+        <button id="codeCheckDeps" class="ghost" title="额外跑依赖版本详细核对（55 项，稍慢）">代码检测＋依赖核对</button>
+        <span class="hint" id="codeCheckTip" style="align-self:center"></span>
+      </div>
+      <div class="btns">
+        <button id="selfCheck" class="pri">鼠标操作检测</button>
+        <button id="selfCheckStop" class="ghost" disabled>停止检测</button>
+        <span class="hint" id="selfCheckTip" style="align-self:center">进行中约 40~70 秒（含程序鼠标操作；可随时「停止检测」）</span>
       </div>
       <pre class="out dn" id="selfCheckResult"></pre>
       <hr style="border:none;border-top:1px solid var(--bd);margin:14px 0">
@@ -241,14 +436,21 @@ th{color:var(--tx2);font-weight:500}
         <button id="pokeTest" class="pri">拍一拍检测</button>
         <span class="hint" id="uiTestResult" style="align-self:center"></span>
       </div>
-      <div class="hint" style="color:#B91C1C">⚠️ 拍一拍是右键「对方头像」触发：头像由程序识别，若群内同名/头像辨识不清，理论上有拍到其他群友的风险——所以默认用「简易检测」，确认无误后再完整执行。</div>
+      <div class="hint" style="color:var(--err-tx)">⚠️ 拍一拍是右键「对方头像」触发：头像由程序识别，若群内同名/头像辨识不清，理论上有拍到其他群友的风险——所以默认用「简易检测」，确认无误后再完整执行。</div>
       <div class="hint" id="uiTestDetail"></div>
+      <hr style="border:none;border-top:1px solid var(--bd);margin:14px 0">
+      <h2>🖱️ 程序鼠标检验（点按钮 → 程序直接操控微信鼠标执行；不耗 token、不靠模型）</h2>
+      <div class="desc">检验的是「程序能否正确执行鼠标操作」——每项点一下，程序自动开窗/定位/点击/关窗并回显结果；请确保微信窗口在前台。</div>
+      <input type="text" id="uiTestSearch" class="group-search" placeholder="🔍 搜索检验项…">
+      <div id="uiTestBox" style="max-height:300px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:8px 10px;background:var(--input-bg)">
+        <!-- 检验项由 JS 渲染 -->
+      </div>
       <hr style="border:none;border-top:1px solid var(--bd);margin:14px 0">
       <h2>功能自检清单（按重要性排序）</h2>
       <table id="checkList">
         <thead><tr><th style="width:26px">✓</th><th>项目</th><th>怎么测</th><th>预期</th></tr></thead>
         <tbody>
-          <tr><td><input type="checkbox" class="ck"></td><td>1. 环境体检</td><td>点上方「一键体检」</td><td>无 ❌ 项（允许 ⚠️ 提示）</td></tr>
+          <tr><td><input type="checkbox" class="ck"></td><td>1. 环境体检</td><td>点上方「鼠标操作检测」</td><td>无 ❌ 项（允许 ⚠️ 提示）</td></tr>
           <tr><td><input type="checkbox" class="ck"></td><td>2. 发消息</td><td>群里 @机器人 说句话</td><td>机器人正常回复，且不重复</td></tr>
           <tr><td><input type="checkbox" class="ck"></td><td>3. 拍一拍</td><td>先「简易检测」，再完整检测</td><td>简易=菜单可弹；完整=群里出现拍一拍提示</td></tr>
           <tr><td><input type="checkbox" class="ck"></td><td>4. 引用回复</td><td>让机器人 引用某条消息回复</td><td>出现引用样式（灰底卡片）且内容正确</td></tr>
@@ -264,6 +466,72 @@ th{color:var(--tx2);font-weight:500}
       <div class="btns" style="margin-top:8px"><button id="ckReset" class="ghost">重置勾选</button><span class="hint" id="ckCount" style="align-self:center"></span></div>
     </section>
 
+    <section id="sec-advanced" class="card" data-sec>
+      <h2>调试 · 高级功能</h2>
+      <div class="desc">一般用户不用、其他分区没覆盖的可调项（行为引擎完整参数 / UI 图标库 / 学习机制）。</div>
+
+      <hr style="border:none;border-top:1px solid var(--bd);margin:14px 0">
+      <div class="desc">🐋 人性化行为完整参数（一般用户不用；微信卡只有概率，这里调冷却/每日上限/开关）：</div>
+      <div class="mid">
+        <div class="row"><label>收藏表情-冷却(秒)</label><input type="number" min="0" data-cfg="behavior.collect_emoji.cooldown_s"></div>
+        <div class="row"><label>收藏表情-每日上限</label><input type="number" min="0" data-cfg="behavior.collect_emoji.daily_limit"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>回发表情-冷却(秒)</label><input type="number" min="0" data-cfg="behavior.send_emoji.cooldown_s"></div>
+        <div class="row"><label>回发表情-每日上限</label><input type="number" min="0" data-cfg="behavior.send_emoji.daily_limit"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>@群友-冷却(秒)</label><input type="number" min="0" data-cfg="behavior.at_member.cooldown_s"></div>
+        <div class="row"><label>@群友-每日上限</label><input type="number" min="0" data-cfg="behavior.at_member.daily_limit"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>点赞-每日上限</label><input type="number" min="0" data-cfg="behavior.like_moments.daily_limit"></div>
+        <div class="row"><label>点赞-冷却(秒)</label><input type="number" min="0" data-cfg="behavior.like_moments.cooldown_s"></div>
+      </div>
+      <div class="desc">📷 朋友圈（刷/点赞/评论/发布；默认全关=机器人不主动碰朋友圈，打开后按概率低频触发）：</div>
+      <div class="mid">
+        <div class="row"><label>刷朋友圈</label><input type="checkbox" data-cfg="behavior.moments_surf.enabled"><span class="hint">开启后按概率自动刷（截图给模型看更耗 token，频率请保守）</span></div>
+        <div class="row"><label>刷-概率</label><input type="number" min="0" max="1" step="0.05" data-cfg="behavior.moments_surf.probability"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>刷-每日上限</label><input type="number" min="0" data-cfg="behavior.moments_surf.daily_limit"></div>
+        <div class="row"><label>刷-冷却(秒)</label><input type="number" min="0" data-cfg="behavior.moments_surf.cooldown_s"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>点赞</label><input type="checkbox" data-cfg="behavior.like_moments.enabled"></div>
+        <div class="row"><label>评论朋友圈</label><input type="checkbox" data-cfg="behavior.moments_comment.enabled"><span class="hint">默认关（评论是有感而发不该高频）</span></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>评-概率</label><input type="number" min="0" max="1" step="0.05" data-cfg="behavior.moments_comment.probability"></div>
+        <div class="row"><label>评-每日上限</label><input type="number" min="0" data-cfg="behavior.moments_comment.daily_limit"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>发朋友圈</label><input type="checkbox" data-cfg="behavior.moments_publish.enabled"><span class="hint">默认关（公开发布，慎重）</span></div>
+        <div class="row"><label>发-概率</label><input type="number" min="0" max="1" step="0.05" data-cfg="behavior.moments_publish.probability"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>发-每日上限</label><input type="number" min="0" data-cfg="behavior.moments_publish.daily_limit"></div>
+        <div class="row"><label>发-冷却(秒)</label><input type="number" min="0" data-cfg="behavior.moments_publish.cooldown_s"></div>
+      </div>
+      <div class="desc">🐋 微信 UI 图标库（一次性标定；自动检测侧栏图标序列，坐标按窗口尺寸换算）：</div>
+      <div class="row"><label>当前布局</label><div class="grow">
+        <span class="hint" id="uiLayoutStat">加载中…</span>
+        <button id="uiLayoutReload" class="ghost" style="margin-left:8px">刷新</button>
+        <button id="uiRecalibrate" class="pri" style="margin-left:8px">重新标定（接管鼠标）</button>
+        <div class="hint">自动检测微信侧栏图标序列写入 data/ui_layout.json；请确保微信窗口在前台再点（会瞬间点击左栏）</div>
+      </div></div>
+      <div class="desc">🧠 语言风格训练（机器学习）</div>
+      <div class="hint" style="margin-top:0">
+        机制：机器人每次发言后，若群友在 24h 内热烈回应（@ 它 / 接话 / 追问）→ 该条话术加分；冷场 → 降权。热度半衰期 7 天，老梗自动衰减，防饱和。<br>
+        <b>不变人原则</b>：学习只调整语言风格（机灵/更有人情味/更机敏），<b>绝不改变角色卡人设</b>——角色设定是绝对基准权重最高，参考素材只能"换衣服不能换魂"，你的角色卡是什么样，学得越久就越像那个人的语气。用户自定义角色卡同样适用。
+      </div>
+      <div class="row"><label>种子库状态</label><div class="grow">
+        <span class="hint" id="seedStats" style="display:inline-block">加载中…</span>
+        <button id="seedReload" class="ghost" style="margin-left:8px">刷新</button>
+        <span class="hint">官方精选 91 条（data/seed_library.json）；「社区与学习」页可导入你的金句墙种子。</span>
+      </div></div>
+    </section>
+
     <section id="sec-sessions" class="card" data-sec>
       <h2>运行明细</h2>
       <div class="desc">简明日志：发了什么、多少 token、耗时（服务端按天落盘，最近 30 轮）。</div>
@@ -272,7 +540,7 @@ th{color:var(--tx2);font-weight:500}
         <label class="hint" style="align-self:center;cursor:pointer"><input type="checkbox" id="sessExpand"> 展开详情（推理/工具/触发）</label>
         <span class="hint" style="align-self:center">推理文本按输出价计费，控制台「省 token 开关」默认已关闭思考。</span>
       </div>
-      <div id="sessBox" style="max-height:360px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-top:10px;background:#FBFCFE">
+      <div id="sessBox" style="max-height:360px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-top:10px;background:var(--input-bg)">
         <div id="sessList" style="display:flex;flex-direction:column;gap:8px">
           <div class="hint" style="padding:14px;text-align:center;color:var(--tx2)">加载中…</div>
         </div>
@@ -334,6 +602,10 @@ th{color:var(--tx2);font-weight:500}
         <div class="row"><label>缓存单价/百万</label><input type="number" step="0.01" data-cfg="api.price_cached_per_m"><span class="val">元</span></div>
       </div>
       <div class="row"><label>内置官方价</label><input type="checkbox" data-cfg="api.use_official_price"><span class="hint">上面填 0 时用内置官方单价表</span></div>
+      <div class="row"><label>按型号单价(JSON)</label><div class="grow">
+        <textarea data-cfg="api.model_prices" rows="3" spellcheck="false" placeholder='{"deepseek-v4-flash": {"in": 1.5, "out": 4.5, "cached": 0.05}}'></textarea>
+        <div class="hint">优先级最高：按模型 id 覆盖内置价（元/百万 token）。示例见左。</div>
+      </div></div>
       <div class="btns"><button class="pri" data-save>保存设置（模型 API）</button></div>
     </section>
 
@@ -345,12 +617,13 @@ th{color:var(--tx2);font-weight:500}
       <div class="row"><label>启动后暂停</label><input type="checkbox" data-cfg="wechat.start_paused"><span class="hint">勾选：机器人启动后不自动监听，需点「恢复」才工作（防开机刷群/回应积压旧消息）</span></div>
       <div class="row"><label>轮询间隔(秒)</label><div class="grow"><input type="number" step="0.5" min="0.5" data-cfg="wechat.poll_interval"></div></div>
       <div class="row"><label>每分钟限发</label><div class="grow"><input type="number" min="1" data-cfg="wechat.rate_limit_per_minute"></div></div>
+      <div class="row"><label>最小化提醒</label><input type="checkbox" data-cfg="wechat.minimize_warning"><span class="hint">勾选=提示别最小化微信窗口（发送依赖模拟键鼠）</span></div>
       <div class="row"><label>群白名单</label>
         <div class="grow">
           <div class="chips" id="wlChips"></div>
           <div class="btns" style="margin-top:0">
             <button id="pickGroups" class="ghost">检测群聊并勾选</button>
-            <input id="customGroup" type="text" placeholder="自定义群名，回车添加" style="flex:1;background:#FBFCFE;border:1px solid var(--bd);border-radius:8px;padding:7px 10px">
+            <input id="customGroup" type="text" placeholder="自定义群名，回车添加" style="flex:1;background:var(--input-bg);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;color:var(--tx)">
           </div>
           <div class="hint">留空=所有群都监听；勾选的群才响应（也可配合「暂停」）。</div>
         </div>
@@ -358,6 +631,46 @@ th{color:var(--tx2);font-weight:500}
       <div class="row"><label>媒体目录</label><div class="grow"><input type="text" data-cfg="wechat.media_dir"></div></div>
       <div class="row"><label>数据库目录</label><div class="grow"><input type="text" data-cfg="wechat.db_dir" placeholder="留空=自动探测微信数据目录"></div></div>
       <div class="btns"><button class="pri" data-save>保存设置（微信）</button></div>
+      <hr style="border:none;border-top:1px solid var(--bd);margin:14px 0">
+      <div class="desc">😊 表情包（模型-程序协作）：群里收到有趣的表情，机器人用 <code>collect_emoji</code> 收藏（生成极简概述入库，模型-程序协作），需要时 <code>send_emoji</code> 按概述/语境选一个再发出；也可在下面手动管理。</div>
+      <div class="row"><label>收藏夹表情</label><div class="grow">
+        <input type="text" id="emojiSearch" placeholder="🔍 搜索表情（按文件名）" style="margin-bottom:8px">
+        <div id="emojiBox" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;min-height:60px;max-height:240px;overflow-y:auto;border:1px dashed var(--bd);border-radius:10px;padding:10px">
+          <span class="hint">加载中…</span>
+        </div>
+        <button id="emojiRefresh" class="ghost" style="margin-top:6px">刷新</button>
+        <span class="hint" id="emojiCount"></span>
+        <!-- 数据源：搜索只过滤显示，收藏夹太大时自动分页预览（最多显示 60 个 + 滚动） -->
+      </div></div>
+      <div class="row"><label>说明</label><div class="grow">
+        <span class="hint">合并转发消息在聊天记录里显示为「[合并转发] …」，机器人可用 <code>view_merge_forward</code> 查看具体内容。</span>
+      </div></div>
+      <hr style="border:none;border-top:1px solid var(--bd);margin:14px 0">
+      <div class="desc">🤖 人性化自主行为（省 token 规则引擎：纯本地概率+冷却+每日上限，不调模型；人设参与度/表情包等级会调节频率系数，自定义角色卡不影响——角色卡管"怎么说"，引擎管"做不做"）：</div>
+      <div class="mid">
+        <div class="row"><label>收藏表情概率</label><input type="number" min="0" max="1" step="0.05" data-cfg="behavior.collect_emoji.probability"></div>
+        <div class="row"><label>回发表情概率</label><input type="number" min="0" max="1" step="0.05" data-cfg="behavior.send_emoji.probability"></div>
+        <div class="row"><label>@群友概率</label><input type="number" min="0" max="1" step="0.05" data-cfg="behavior.at_member.probability"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>点赞朋友圈</label><input type="checkbox" data-cfg="behavior.like_moments.enabled">
+          <span class="hint">实验性（需入口坐标校准 + 朋友圈窗口可见）</span></div>
+        <div class="row"><label>点赞概率</label><input type="number" min="0" max="1" step="0.05" data-cfg="behavior.like_moments.probability"></div>
+      </div>
+    </section>
+
+    <section id="sec-poke" class="card" data-sec>
+      <h2>拍一拍（行为）</h2>
+      <div class="desc">自动回拍 / 主动皮一下的频率与冷却。注意：拍一拍有误拍风险（同名/头像辨识不清），建议保持「简易检测」优先。</div>
+      <div class="mid">
+        <div class="row"><label>回拍概率%</label><input type="number" min="0" max="100" data-cfg="poke.reply_probability" title="别人拍你，回拍的概率，默认 90"></div>
+        <div class="row"><label>回拍冷却(秒)</label><input type="number" min="0" data-cfg="poke.cooldown_seconds" title="同一人再次被拍后不再回拍的冷却，默认 1800"></div>
+      </div>
+      <div class="mid">
+        <div class="row"><label>主动皮一下概率%</label><input type="number" min="0" max="100" data-cfg="poke.active_probability" title="空闲时主动拍群友的概率，默认 10"></div>
+        <div class="row"><label>主动每日上限</label><input type="number" min="0" data-cfg="poke.active_daily_limit" title="每天最多主动拍几次，默认 3"></div>
+      </div>
+      <div class="btns"><button class="pri" data-save>保存设置（拍一拍）</button></div>
     </section>
 
     <section id="sec-memory" class="card" data-sec>
@@ -370,16 +683,70 @@ th{color:var(--tx2);font-weight:500}
           <button id="memRefresh" class="ghost" style="margin-top:6px">刷新</button>
         </div>
       </div>
-      <table id="memTable"><thead><tr><th>成员</th><th>印象数</th><th>更新时间</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="row"><label>关机总结印象</label><div class="grow">
+        <input type="checkbox" data-cfg="memory.summarize_on_exit" checked title="每次关闭机器人时把本次对话总结成群友印象（只在那时调一次模型，平时绝不计费）">
+        <span class="hint">每次关闭机器人时自动把本对话总结为群友印象（仅关机时调一次模型；平时不调，不耗 token）。</span>
+      </div></div>
+      <div class="row"><label>清除记忆</label><div class="grow">
+        <div class="btns" style="justify-content:flex-start;gap:8px">
+          <button id="memClearSel" class="danger" disabled>清除勾选的印象</button>
+          <button id="memClearAll" class="danger">清除全部</button>
+          <button id="sessClear" class="danger" title="清除运行明细（会话日志/对话历史）——模型将不再记得这些对话">清除会话日志</button>
+          <span class="hint" id="memClearRst"></span>
+        </div>
+        <div class="hint">① 成员印象=记忆页勾选清除/本按钮清除全部；②「清除会话日志」=运行明细里的对话历史（真实删除文件，模型不再记得）；③「清除全部」=印象+共享记忆+会话日志全清。</div>
+      </div></div>
+      <div style="max-height:340px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px">
+        <table id="memTable" style="width:100%"><thead><tr><th style="width:26px"><input type="checkbox" id="memCheckAll" title="全选"></th><th>成员</th><th>印象数</th><th>更新时间</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
       <div class="hint" id="memEmpty">（无记忆数据）</div>
     </section>
 
     <section id="sec-persona" class="card" data-sec>
       <h2>人设与响应</h2>
       <div class="row"><label>人设名</label><div class="grow"><input type="text" data-cfg="persona.bot_name"></div></div>
+      <div class="row"><label>人设选单</label><div class="grow">
+        <div id="personaCats" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;align-items:center">
+          <button id="pCatAdd" class="ghost" style="padding:2px 10px" title="新建分区或添加角色">＋ 新建/添加</button>
+        </div>
+        <div class="btns" style="justify-content:flex-start;gap:8px">
+          <button id="pSort" class="ghost">按评估分数排序</button>
+          <button id="pSortOff" class="ghost">恢复默认顺序</button>
+        </div>
+        <input type="text" id="personaSearch" class="group-search" placeholder="🔍 搜索人设（如 傲娇/毒舌/猫/程序员）…">
+        <div id="personaList" style="max-height:320px;overflow-y:auto;border:1px solid var(--bd);border-radius:10px;padding:6px;background:var(--input-bg)">
+          <div class="hint">加载中…</div>
+        </div>
+        <div class="hint">⭐ 星标=收藏置顶（始终显示在最上）；每张卡右下角 ⋯ =更多操作（为模型打星/编辑/移动/删除）。排序按模型评估分高→低（当前视图=全部或当前分区）。</div>
+      </div></div>
       <div class="row"><label>参与度</label><div class="grow"><select data-cfg="persona.participation">
         <option value="low">安静型</option><option value="medium">普通群友</option><option value="high">活跃型</option></select></div></div>
       <div class="row"><label>自定义角色文本</label><div class="grow"><textarea data-cfg="persona.role_text" placeholder="留空=内置小鲸鱼角色卡；填了=完全替换。可参考 agent/persona.py"></textarea></div></div>
+      <div class="row"><label>评分补足</label><div class="grow">
+        <div class="btns" style="justify-content:flex-start;gap:8px">
+          <button id="pScoreLLM" class="ghost">模型评分</button>
+          <button id="pEnrich" class="ghost">模型补足</button>
+          <label style="display:flex;align-items:center;gap:6px">补足轮数
+            <select id="pRounds" style="width:64px"><option value="1">1 轮</option><option value="2">2 轮</option><option value="3">3 轮</option></select>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="pUseLlm" checked>允许模型处理</label>
+        </div>
+        <span class="hint" id="pScoreRst"></span>
+        <div class="hint">【评分细则】风格辨识25%/角色贴合30%/内在一致20%/表达自然15%/完整可用10%，每维 0~100.00 精确百分位；无口头禅→风格≤45；通用词口头禅→≤70；AI套话→表达≤65；客服口吻→贴合≤60；换角色都能用→≤50；示例占位→完整≤75；沉默类无扩展→≤70；缺说话规则→≤70；满分唯一条件=仅凭提示词+一次提醒即逐句贴合本人（否则一律<95，优秀 88~94.99）。</div>
+        <div class="hint">「模型补足」按人设驱动（让说话更贴近本人，不是为分数调整）；每轮补足后自动重评：分数上升才继续下一轮，不升/降即停止；轮数可选（1~3 轮，每轮约 10~30 秒耗少量 token）；完成后点「保存」落盘。</div>
+      </div></div>
+      <div class="row"><label>角色卡行为推荐</label><div class="grow">
+        <button id="roleHintBtn" class="ghost" type="button">根据角色卡推荐行为档</button>
+        <span class="hint" id="roleHintRst"></span>
+        <div class="hint" id="roleHintDetail" style="display:none">
+          <label style="display:inline-flex;align-items:center;gap:4px;margin-right:10px">参与度
+            <select id="roleHintPart"><option value="low">安静</option><option value="medium">普通</option><option value="high">活跃</option></select></label>
+          <label style="display:inline-flex;align-items:center;gap:4px">表情包
+            <select id="roleHintSticker"><option value="0">少</option><option value="1">偶尔</option><option value="2">较多</option><option value="3">爱好者</option></select></label>
+          <button id="roleHintApply" class="pri" type="button">应用</button>
+        </div>
+        <div class="hint">建议来自角色卡文本关键词（本地零 token）；应用后保存即生效。</div>
+      </div></div>
       <div class="row"><label>额外规则</label><div class="grow"><textarea data-cfg="persona.custom_rules" placeholder="如：回复永远不超过 5 个字"></textarea></div></div>
       <hr style="border:none;border-top:1px solid var(--bd);margin:12px 0">
       <div class="row"><label>响应档位</label><div class="grow"><select data-cfg="store.context_tier" id="ctxTier">
@@ -397,7 +764,64 @@ th{color:var(--tx2);font-weight:500}
       <div class="row"><label>单档上下文上限</label><div class="grow"><input type="number" min="1" data-cfg="store.all_count"></div></div>
       <div class="row"><label>历史窗口(分钟)</label><div class="grow"><input type="number" min="0" data-cfg="store.past_window_min" title="0=不限"> <span class="hint">只把最近 N 分钟内的消息给模型当历史，防它回应很久之前的艾特/旧话题</span></div></div>
       <div class="row"><label>每群消息上限</label><div class="grow"><input type="number" min="0" data-cfg="store.max_messages_per_chat" title="0=不限制"></div></div>
+      <hr style="border:none;border-top:1px solid var(--bd);margin:12px 0">
+      <div class="row"><label>每群独立档位</label><input type="checkbox" data-cfg="store.unified_tier" id="unifiedTierChk" checked><span class="hint">取消勾选后，可在下方按群单独设置响应档位（未设置的群跟随全局）</span></div>
+      <div id="groupTierBox"><div class="hint">勾选"每群独立档位"后，这里按群显示档位下拉并保存到 store.group_tier。</div></div>
+      <div class="row"><label>屏蔽名单(按群)</label><div class="grow">
+        <textarea id="blocklistBox" data-cfg="store.group_blocklist" rows="3" placeholder='{"群名": ["昵称或wxid", ...]}'></textarea>
+        <div class="hint">JSON 格式：{群名: [要屏蔽的昵称/wxid…]}。被屏蔽者消息不存档、不触发、不进提示词。</div>
+      </div></div>
+      <div class="row"><label>表情包积极度</label><div class="grow"><select data-cfg="store.sticker_level">
+        <option value="0">0：不鼓励</option><option value="1">1：偶尔</option>
+        <option value="2">2：较积极</option><option value="3">3：表情包爱好者</option></select>
+        <div class="hint">提示词层面引导，不强制。</div>
+      </div></div>
+      <hr style="border:none;border-top:1px solid var(--bd);margin:12px 0">
+      <div class="row"><label>主动开话题</label><input type="checkbox" data-cfg="proactive.enabled">
+        <span class="hint">群冷场超过阈值后，按概率主动抛一个话题（默认关；费少量 token）</span></div>
+      <div class="mid" id="proactiveRows">
+        <div class="row"><label>冷场阈值(毫秒)</label><input type="number" min="1" data-cfg="proactive.idle_threshold_ms" title="毫秒；默认 1800000（30 分钟）"></div>
+        <div class="row"><label>检查间隔(毫秒)</label><input type="number" min="1" data-cfg="proactive.check_interval_min_ms" title="毫秒；默认 1800000（30 分钟）"></div>
+        <div class="row"><label>检查上限(毫秒)</label><input type="number" min="1" data-cfg="proactive.check_interval_max_ms" title="毫秒；默认 5400000（90 分钟）"></div>
+        <div class="row"><label>触发概率(小数)</label><input type="number" min="0" max="1" step="0.05" data-cfg="proactive.probability" title="0~1；默认 0.25（25%）"></div>
+      </div>
       <div class="btns"><button class="pri" data-save>保存设置（人设与响应）</button></div>
+    </section>
+
+    <section id="sec-community" class="card" data-sec>
+      <h2>社区与学习</h2>
+      <div class="desc">金句/意见/聊天记录本地导出；可选上传到自配服务器；反应评分引擎让机器人越聊越有趣（防饱和）。</div>
+      <div class="row"><label>评分引擎</label><input type="checkbox" data-cfg="scoring.enabled" checked><span class="hint">本地正反馈评分（零 token）；群友回应热烈→高效反应进入提示词参考</span></div>
+      <div class="row"><label>种子库</label><input type="checkbox" data-cfg="scoring.seed_library" checked><span class="hint">内置有趣开场/接梗 small-sample 参考</span></div>
+      <div class="row"><label>在线评分</label><input type="checkbox" data-cfg="scoring.online_scoring"><span class="hint">每次 reaction 后调 LLM 打分（费 token，默认关）</span></div>
+      <div class="row"><label>热度衰减</label><input type="checkbox" data-cfg="scoring.heat_decay" checked><span class="hint">老梗降权，防饱和</span></div>
+      <div class="row"><label>导入金句种子</label><div class="grow"><textarea id="seedImport" rows="2" placeholder="粘贴金句墙导出的文本，每行一条…"></textarea>
+        <div class="btns"><button id="seedImportBtn" class="ghost">导入种子库</button><button id="seedImportFile" class="ghost">选择文件导入</button><input type="file" id="seedFile" accept=".txt,.json,text/plain,application/json" style="display:none"><span class="hint" id="seedImportRst"></span></div>
+        <div class="hint">粘贴导入（每行一条）；或「选择文件导入」读 txt/json 文件——导入自动查重（精确+72% 相似度）后写入并立即生效。</div>
+      </div></div>
+      <div class="row"><label>导出目录</label><div class="grow"><input type="text" data-cfg="community.export_dir" placeholder="exports">
+        <div class="hint">金句/意见/聊天记录导出到项目根下该目录（相对路径）。</div></div></div>
+      <div class="row"><label>导出</label><div class="grow">
+        <div class="btns">
+          <button id="exportHolyshits" class="ghost">导出金句</button>
+          <button id="exportFeedback" class="ghost">导出意见反馈</button>
+          <button id="exportMessages" class="ghost">导出聊天记录</button>
+          <button id="openExportDir" class="ghost">打开导出文件夹</button>
+        </div>
+        <div class="hint" id="exportRst">导出为本地文件（community.export_dir）；「打开导出文件夹」直接用资源管理器定位。</div>
+      </div></div>
+      <div class="row"><label>社区上传</label><input type="checkbox" data-cfg="community.upload_enabled"><span class="hint">开启后金句/意见可 POST 到下方 URL（需自配服务器）</span></div>
+      <div class="row"><label>金句上传 URL</label><div class="grow"><input type="text" data-cfg="community.holyshits_upload_url" placeholder="留空=仅本地导出"></div></div>
+      <div class="row"><label>意见反馈上传 URL</label><div class="grow"><input type="text" data-cfg="community.feedback_upload_url" placeholder="留空=仅本地导出"></div></div>
+      <div class="row"><label>上传动作</label><div class="grow">
+        <div class="btns" style="justify-content:flex-start;gap:8px">
+          <button id="openSeedBtn" class="ghost">打开种子库</button>
+          <button id="uploadSeeds" class="ghost" disabled>确认上传金句</button>
+          <button id="uploadFeedback" class="ghost" disabled>确认上传意见</button>
+          <span class="hint" id="uploadRst">默认关闭（需勾选「社区上传」+填对应 URL）；确认后上传到你的服务器。</span>
+        </div>
+      </div></div>
+      <div class="row"><label>意见上传 URL</label><div class="grow"><input type="text" data-cfg="community.feedback_upload_url" placeholder="留空=仅本地导出"></div></div>
     </section>
 
     <section id="sec-send" class="card" data-sec>
@@ -419,30 +843,46 @@ th{color:var(--tx2);font-weight:500}
         <div class="row"><label>对话冷却(秒)</label><input type="number" min="0" step="30" data-cfg="send.quote_new_talk_gap_s" title="机器人上条消息超过该秒数才算「新一轮对话」"></div>
       </div>
       <div class="hint" style="margin-top:8px">引用规则：机器人上一条消息超过「对话冷却」秒（对话已冷场）时，以「引用概率」（默认 70%）自动引用对方最近的一句话，让"新开头"更像真人接话；模型显式指定引用时以模型为准。</div>
+      <div class="row"><label>UIA 直写输入</label><input type="checkbox" data-cfg="send.uia_setvalue" checked>
+        <span class="hint">勾选=用 UIA SetValue 后台直写输入框（不点输入框/不粘贴）；不勾=点输入框+粘贴（兼容部分微信版本）</span></div>
       <div class="btns"><button class="pri" data-save>保存设置（发送限制）</button></div>
     </section>
 
-    <section id="sec-memory" class="card" data-sec>
-      <h2>记忆</h2>
+    <section id="sec-memory-set" class="card" data-sec>
+      <h2>记忆（共享设置）</h2>
       <div class="row"><label>自动整理</label><input type="checkbox" data-cfg="memory.consolidate_enabled"></div>
+      <div class="row"><label>共享记忆池</label><input type="checkbox" data-cfg="memory.share_across_groups" checked id="memShareChk">
+        <span class="hint">勾选=所有群共享一个记忆池（群间互通）；不勾=每群独立（默认，群间互不串味）</span></div>
+      <div class="row" id="memGroupsRow"><label>共享群（可选）</label><div class="grow">
+        <div id="memGroupsBox" style="display:flex;flex-wrap:wrap;gap:6px"><span class="hint">加载中…</span></div>
+        <div class="hint">勾选几个群 → 只有这些群间共享记忆（比全共享更精准；不勾=用上方总开关）</div>
+      </div></div>
       <div class="row"><label>整理间隔(小时)</label><div class="grow"><input type="number" min="1" data-cfg="memory.consolidate_min_interval_ms"></div></div>
       <div class="mid">
         <div class="row"><label>最少印象数</label><input type="number" min="1" data-cfg="memory.consolidate_min_impressions"></div>
         <div class="row"><label>每成员印象上限</label><input type="number" min="1" data-cfg="memory.max_impressions_per_member"></div>
         <div class="row"><label>发现最少消息</label><input type="number" min="1" data-cfg="memory.discover_min_messages"></div>
+        <div class="row"><label>发现最多成员</label><input type="number" min="1" data-cfg="memory.discover_max_members"></div>
       </div>
-      <div class="btns"><button class="pri" data-save>保存设置（记忆）</button></div>
+      <div class="btns"><button class="pri" data-save>保存设置（记忆共享）</button></div>
     </section>
 
     <section id="sec-search" class="card" data-sec>
       <h2>联网搜索</h2>
       <div class="row"><label>启用</label><input type="checkbox" data-cfg="web_search.enabled"></div>
-      <div class="row"><label>引擎</label><div class="grow"><select data-cfg="web_search.provider">
+      <div class="row"><label>引擎</label><div class="grow"><select data-cfg="web_search.provider" id="wsProvider">
         <option value="bing">Bing（免key）</option><option value="deepseek">DeepSeek</option>
         <option value="zhipu">智谱</option><option value="bocha">博查</option>
-        <option value="baidu">百度千帆</option><option value="metaso">秘塔</option><option value="custom">自定义</option></select></div></div>
+        <option value="baidu">百度千帆</option><option value="metaso">秘塔</option><option value="custom">自定义</option></select>
+        <div class="hint" id="wsHint">Bing 免 Key；其余引擎填「引擎 Key」与「Base URL」（留空=官方默认；DeepSeek 另有模型、智谱另有 engine）。</div></div></div>
       <div class="row"><label>结果数</label><div class="grow"><input type="number" min="1" max="20" data-cfg="web_search.max_results"></div></div>
-      <div class="hint">自定义引擎的 Key/地址：切到「自定义」后，在右下方“原始 JSON”里改 web_search.* 节点，或直接改文件 web_search.provider 对应小节的 api_key/base_url。</div>
+      <hr style="border:none;border-top:1px solid var(--bd);margin:12px 0">
+      <div class="desc">当前引擎参数（切换引擎自动带出对应小节，保存真实落盘 web_search.&lt;provider&gt;）：</div>
+      <div class="row"><label>引擎 Key</label><div class="grow"><input type="password" id="wsKey" placeholder="贴该引擎的 API Key" autocomplete="off"></div></div>
+      <div class="row"><label>Base URL</label><div class="grow"><input type="text" id="wsUrl" placeholder="留空=官方默认"></div></div>
+      <div class="row" data-ws="deepseek"><label>模型</label><div class="grow"><input type="text" id="wsModel" placeholder="deepseek-chat"></div></div>
+      <div class="row" data-ws="zhipu"><label>engine</label><div class="grow"><input type="text" id="wsEngine" placeholder="search_std"></div></div>
+      <div class="row"><label>请求数</label><div class="grow"><input type="number" id="wsCount" min="1" max="50"></div></div>
       <div class="btns"><button class="pri" data-save>保存设置（联网搜索）</button></div>
     </section>
 
@@ -452,17 +892,66 @@ th{color:var(--tx2);font-weight:500}
       <div class="row"><label>端口</label><div class="grow"><input type="number" min="1" max="65535" data-cfg="server.port"></div></div>
       <div class="row"><label>自动开浏览器</label><input type="checkbox" data-cfg="server.auto_open_browser"></div>
       <div class="row"><label>访问口令</label><div class="grow"><input type="text" data-cfg="server.token" placeholder="留空=启动时自动生成"></div></div>
+      <div class="row"><label>统计周期</label><div class="grow"><select data-cfg="stats.period">
+        <option value="daily">每日（每天 0 点重置）</option>
+        <option value="weekly">每周（默认，周一重置）</option>
+        <option value="monthly">每月（1 号重置）</option></select>
+        <div class="hint">概览卡的「今日/本周/本月」用量卡按此周期归零重计（历史保留 24 期）。</div></div></div>
       <div class="btns"><button class="pri" data-save>保存设置（服务器）</button></div>
     </section>
 
     <section id="sec-ui" class="card" data-sec>
-      <h2>界面适配（DPI / 遮挡）</h2>
+      <h2>界面适配（DPI / 遮挡 / 主题）</h2>
       <div class="row"><label>显示缩放</label><div class="grow"><select data-cfg="ui.coord_scale">
         <option value="auto">按系统自动检测</option><option value="1.0">100%</option>
         <option value="1.25">125%</option><option value="1.5">150%</option>
         <option value="1.75">175%</option><option value="2.0">200%</option></select></div></div>
+      <div class="row"><label>自定义背景</label><div class="grow">
+        <div class="btns" style="justify-content:flex-start;gap:8px">
+          <button id="bgUpload" class="ghost">上传背景图</button>
+          <button id="bgClear" class="ghost">恢复默认</button>
+          <span class="hint" id="bgRst"></span>
+        </div>
+        <input type="file" id="bgFile" accept="image/*" style="display:none">
+        <div class="hint">选一张图片（≤1920px，自动压缩）：深蓝海/星河等任意图；点「恢复默认」回到内置背景。</div>
+      </div></div>
+      <div class="row"><label>控制台主题</label><div class="grow"><select data-cfg="ui.theme">
+        <option value="whale">🐋 鲸落（默认：深海蓝渐变）</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+        <option value="system">跟随系统自动</option></select></div></div>
+      <div class="row"><label>界面文案风格</label><div class="grow"><select data-cfg="ui.text_style">
+        <option value="">正常</option>
+        <option value="whale">🐋 鲸语</option>
+      </select><span class="hint">切换后保存设置（自动刷新）即生效；功能完全一致。</span></div></div>
       <div class="row"><label>点击前清遮挡</label><input type="checkbox" data-cfg="ui.clean_overlays"></div>
       <div class="btns"><button class="pri" data-save>保存设置（界面适配）</button></div>
+    </section>
+
+    <section id="sec-cursor" class="card" data-sec>
+      <h2>🐋 光标设置</h2>
+      <div class="desc">把鼠标指针换成鲸鱼（或你自己的图片），点击时向下点头；默认鲸鱼小蓝鲸（22）。</div>
+      <div class="row"><label>启用鲸鱼光标</label><input type="checkbox" data-cfg="ui.whale_cursor"></div>
+      <div class="row"><label>光标图片</label><div class="grow">
+        <input type="file" id="cursorFile" accept="image/png,image/jpeg" style="padding:6px">
+        <span class="hint">选一张 PNG/JPEG（建议透明底、方形，≤8MB），上传后立即预览效果</span>
+      </div></div>
+      <div class="row"><label>当前预览</label><div class="grow">
+        <canvas id="cursorPreview" width="120" height="120" style="border:1px solid var(--bd);border-radius:12px;background:linear-gradient(135deg,var(--blue-soft),var(--hover-bg));cursor:pointer" title="你的光标（点击可试点头）"></canvas>
+        <span class="hint"><button id="cursorReset" class="ghost" style="margin-left:8px">重置为默认鲸鱼</button></span>
+      </div></div>
+      <hr style="border:none;border-top:1px solid var(--bd);margin:14px 0">
+      <div class="desc">🐋 拖拽返回动画速度（拖动顶栏鲸鱼后，松手返回的速度倍率；1=标准，越少越快，0.3~3 可调）。</div>
+      <div class="mid">
+        <div class="row"><label>蠕动速度系数</label><input type="number" min="0.3" max="3" step="0.1" data-cfg="ui.whale_anim.worm">
+          <span class="hint">最慢的方式（蠕动/摆尾）</span></div>
+        <div class="row"><label>纸飞机速度系数</label><input type="number" min="0.3" max="3" step="0.1" data-cfg="ui.whale_anim.plane">
+          <span class="hint">较快（变形滑翔）</span></div>
+        <div class="row"><label>扎入速度系数</label><input type="number" min="0.3" max="3" step="0.1" data-cfg="ui.whale_anim.zap">
+          <span class="hint">距离自适应（含 0.5s 消失）</span></div>
+      </div>
+      <div class="hint">时长公式（dist=拖拽距离 px）：蠕动 260×dist/100×系数④（600~2400ms）；纸飞机 170×dist/100×系数+0.58s（变形/翻回）；扎入 90×dist/100×系数+0.78s（含 0.5s 消失+冒出）。可在控制台 Console 看每次返回的日志（如 [whale-return]）。</div>
+      <div class="btns"><button class="pri" id="cursorSaveBtn">保存光标设置</button></div>
     </section>
 
     <section id="sec-log" class="card" data-sec>
@@ -476,7 +965,7 @@ th{color:var(--tx2);font-weight:500}
 
     <section id="sec-json" class="card" data-sec>
       <h2>完整配置 JSON（高级）</h2>
-      <textarea id="rawjson" spellcheck="false" style="width:100%;min-height:260px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:#FBFCFE;border:1px solid var(--bd);border-radius:8px;padding:10px"></textarea>
+      <textarea id="rawjson" spellcheck="false" style="width:100%;min-height:260px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--input-bg);border:1px solid var(--bd);border-radius:8px;padding:10px;color:var(--tx)"></textarea>
       <div class="btns">
         <button id="saveAll" class="pri">保存全部设置</button>
         <button id="rawJsonBtn" class="ghost">新窗口查看原始 JSON</button>
@@ -501,15 +990,33 @@ function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt
 const URL_TOKEN = new URLSearchParams(location.search).get('token') || '';
 /* 内嵌原版 DeepSeek 蓝鲸 Logo（base64，服务挂了也能显示；渲染与粒子效果都在用） */
 const LOGO_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADoAAAA2CAYAAACWeYpTAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAATOSURBVGhD7ZhPUxpnHMe/xKXCgCPP2EedNIdCb8GT+wbc4itoFfoGTOw0uXXS9hAzxhwar3oweuilFwjTnjsD4gso9oI59EB6KDPClu466gRk0R5g191nd4FdcGoIn5mdWX6/h2W/z+/P8zx4ms3LK3wA3GENw8pI6LDhUUY1OlyMhA4bI6HDxkjobaBWv0StfsmaXfG/rKMVSUEuf9a+b0LgA5iL+Nhh2HpdReVfBRsPZ1iXY25EaEVSUCjWDLZpwuGoWEMuf46K1NDs0bDfVsgX3/8FAHj+YNZyIpwwMKGFYg1HxRqSGZl1dWTnu3uYJhxrBnRCp4kXAh9AYjHEDtGoSArWdsvY/vYuuDEP6x5MjT59Vcba7rFjkWhPkBUVSdHdN5DMyFh9WWLsrcxp+f42ZApLXxGtSAq2UlUcvX3HunqmU7Seviqbni3wExD4ANZ2jw12lV9+/JQ1Af1EdBAioYuWVTbMfTbOmnBUrNmKFPgJ1qThWuggROpJZmRsva4abAIfNHxGe2LsEPgAa9K4c3UFOL32fz8bqEiVXP4UD1+WtN+hIQ6Plj5mh1mSiIUQDftM76periKazJ6wpoEhSg2sbpa0zwIf7CiWEi/WV2YRt6hxPZ6G4rwZfflDq+3fJJR4sbEyA9peelY3SxB1aZuIhXA/4ut5fXUs9I8/3+HFT2VA92MAIEoKCm/rOMifMt9wDyVefD4fACUcttP/aPZo2I/nD6w3GXY4FvrrwQl+/k0CJV7sPPmEdUNsr3O5/Bn2D88NUbAjEQuBEg65/HlPtb/AT+Dx0hRr7oirGkW7llRReijhQAmH+GIIGyszWOjQ8vVQwuHx8hQSsc61BgBzYfOy0w3HQqWz69NE2UKoHko4fBWb7PryZbmJ7XRVm6Bu43utSz2OhZLg9Vfe2Gzf9Kgvv/PkHijxsm6gvQnQZ4jABxEN+9lhGmqDcoJjoaGJMe2+UKwbfJ2ghMPGinUDUetYzRBKONvFv9dSYHEsNHz3I+2+IpuPY52ghMP6yixr1thOV5HKyCi0j3NWCPPWE9ANx0Ing9cRFaUGcofWL2THXMRnW4Oi1EAyK+PZ3rFl942G/a7qE26EkokxQ/0cOYioSrcatCO+OMmaesaxUDCbZ1FqYCtt3Ix3Q11KnNBPNOFW6FzEZ+igB/lTpCyOWZ2gpPcNOwDHE8PiSiglHBIxYxrtH57bNqatdBWrmyWTX+CDtvWqR9059cOdKwBurgU+aGj1otTAdrqKZEY2jVX9z/Zaf7ewz+lUr9GwH8uLIdMznV6uIqqSiE0aUliUGkhlZVMa66Ofysr4erOkbQ4o4fBoecpWbDQybsoEN3guHG7qWURJwdpe2bR5p8QLYT6A+xEf3hRrSGWN4lW/eo4UJQXJ7Int6YcSL+KxSct/HXqhb6Fov2Quf2YS0wuUeBGN+BBtb9RT2RPTpKlEw36sOzyeqQxEqEoqI7sSq0KJF98sTWGGcFq66lPcbTQBwHPRaA5MKACIsoJc/tyx4HgshDjTyQfJwIWqiLKCQrHePpkoqEhNiHIrJWmo1cCikXFME+5GBapcC/W0+7Ad77nfc6HcTERvGzeWureNvjYM7xMjocPGSOiw8cEI9dRHy8twMRI6bPwHTfhdUJub1u0AAAAASUVORK5CYII=';
-const ICON = '<img src="'+LOGO_URL+'" style="width:64px;height:60px;margin-bottom:12px" alt="whale">';
+/* 弹窗/向导用鲸鱼徽章（绿底 + 蓝鲸线稿）；自动「果冻弹跳」动画（大幅压扁回弹） */
+const ICON = '<div class="whale-badge big" style="margin:0 auto 12px"><img src="/assets/icon-whale.png" alt="whale"></div>';
+const _iconCss = '.whale-badge.big{width:72px;height:72px;border-radius:18px}' +
+  '.whale-badge.big img{left:10px;bottom:8px;width:52px;height:52px}' +
+  '@keyframes whaleJelly{0%{transform:scale(1)}18%{transform:scaleX(1.25) scaleY(.8)}38%{transform:scaleX(.82) scaleY(1.16)}' +
+  '58%{transform:scaleX(1.12) scaleY(.88)}76%{transform:scaleX(.94) scaleY(1.06)}92%{transform:scaleX(1.02) scaleY(.99)}100%{transform:scale(1)}}' +
+  '.whale-badge.big{animation:whaleJelly 1.15s cubic-bezier(.34,1.4,.64,1) .15s 2 both}' +
+  '.whale-badge.big:active{transform:scale(.9) rotate(4deg)}';
+document.addEventListener('DOMContentLoaded', ()=>{
+  const st = document.createElement('style'); st.textContent = _iconCss; document.head.appendChild(st);
+});
 
 async function getJSON(url, opts){
   opts = opts || {};
   opts.headers = opts.headers || {};
   if(URL_TOKEN) opts.headers['Authorization'] = 'Bearer ' + URL_TOKEN;
-  const r = await fetch(url, opts);
-  if(!r.ok) throw new Error((await r.text())||r.status);
-  return r.json();
+  // 超时保护：服务端卡死/旧进程无路由时 30s 内必须返回（避免"点了没反应"）
+  const ctrl = new AbortController();
+  const tmr = setTimeout(()=>ctrl.abort(), opts.timeoutMs || 30000);
+  opts.signal = ctrl.signal;
+  try{
+    const r = await fetch(url, opts);
+    if(!r.ok) throw new Error((await r.text())||r.status);
+    return r.json();
+  }finally{
+    clearTimeout(tmr);
+  }
 }
 
 function getPath(obj, path){ let o=obj; for(const k of String(path).split('.')){ if(o==null) return undefined; o=o[k]; } return o; }
@@ -533,6 +1040,7 @@ function syncToForm(){
     }
     if(v==null) v = '';
     if(Array.isArray(v)) v = v.join('，'); // 关键词等多值用全角逗号回显（与输入一致）
+    if(typeof v === 'object' && !Array.isArray(v)) v = JSON.stringify(v, null, 1); // model_prices 等返回 JSON 文本
     el.value = v;
   });
   $('api.temperature-v').textContent = getPath(cfg,'api.temperature') ?? '0.8';
@@ -570,6 +1078,9 @@ function syncToForm(){
   /* 自绘下拉（厂商/模型/etc）：程序赋值后同步按钮文字（不触发业务 change） */
   document.querySelectorAll('select').forEach(s=>{ if(s._refresh) s._refresh(); });
   updateTierRows();
+  if(typeof renderGroupTierBox === 'function') renderGroupTierBox();
+  if(typeof wsSyncToForm === 'function') wsSyncToForm();
+  if(typeof loadMemGroups === 'function') loadMemGroups();
 }
 
 /* 档位联动：关键词(2/3档)与随机(3档)只在对应档位选中时显示 */
@@ -596,6 +1107,14 @@ function syncFromForm(){
     else {
       v = el.value;
       if(path === 'store.keywords') v = v.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+      else if(path === 'api.model_prices'){        // JSON 文本 → dict（非法 JSON 时给空对象，前台提示）
+        try{ v = v.trim() ? JSON.parse(v) : {}; }
+        catch(e){ v = {}; toast('按型号单价 JSON 格式有误，已忽略；示例：{"模型id": {"in":1.5,"out":4.5}}'); }
+      }
+      else if(path === 'store.group_blocklist'){   // JSON 文本 → dict
+        try{ v = v.trim() ? JSON.parse(v) : {}; }
+        catch(e){ v = {}; toast('屏蔽名单 JSON 格式有误，已忽略；示例：{"群名":["昵称"]}'); }
+      }
     }
     setPath(cfg, path, v);
   });
@@ -692,7 +1211,7 @@ function renderGroupList(box, groups, pick, onPick){
     }
   }
   search.addEventListener('input', ()=>draw(search.value));
-  if(!groups.length){ draw(''); } else { draw(''); }
+  draw('');
   return {search, list, draw};
 }
 $('pickGroups').onclick = async ()=>{
@@ -710,8 +1229,226 @@ $('pickGroups').onclick = async ()=>{
   }catch(e){ toast('检测失败：'+e.message); }
 };
 
+/* ── 主题：whale（默认鲸落）/ light / dark / system ── */
+function applyTheme(t){
+  // 默认 whale：出厂视觉；显式选 system 才跟随系统
+  const theme = (['light','dark','whale','system'].includes(t) ? t : 'whale');
+  document.documentElement.setAttribute('data-theme', theme==='system' ? '' : theme);
+  document.body.classList.toggle('whale-anim', theme==='whale');
+}
+function bindThemeSelect(){
+  const sel = document.querySelector('[data-cfg="ui.theme"]');
+  if(!sel || sel._bound) return;
+  sel._bound = true;
+  sel.addEventListener('change', ()=>{ applyTheme(sel.value); toast('主题已切换（保存设置后重启仍生效）'); });
+}
+function syncThemeFromCfg(){
+  bindThemeSelect();
+  // URL ?theme=light|dark|whale 可临时覆盖（用于预览/固定主题，URL 不带时用配置）
+  const qTheme = new URLSearchParams(location.search).get('theme');
+  try{ applyTheme(qTheme || getPath(cfg,'ui.theme')); }catch(e){}
+}
+
+/* ── 鲸鱼光标（默认 22 蓝鲸，用户可自定义图片；点击时果冻式向下点头） ── */
+const WHALE_CURSOR = (function(){
+  const DEFAULT_URL = '/assets/cursor.png';          // 默认：22 蓝鲸（透明底）
+  const CUSTOM_URL = '/assets/custom-cursor.png';    // 用户上传（不存在时 404 → 用默认）
+  let img = new Image(); let url = DEFAULT_URL;
+  let ready = false, enabled = false, el = null;
+  const SIZE = 36;
+  function load(){
+    img = new Image();
+    img.onload = ()=>{ ready = true; if(el) el.style.backgroundImage = 'url("'+url+'")'; if(enabled) build(); };
+    img.onerror = ()=>{ if(url !== DEFAULT_URL){ url = DEFAULT_URL; load(); } };
+    img.src = url;
+  }
+  function setCustom(u){
+    if(u){ url = u; ready = false; if(el){ el.style.backgroundImage = 'url("'+u+'")'; el.style.display = 'block'; } load(); }
+    else { url = DEFAULT_URL; ready = false; if(el){ el.style.backgroundImage = 'url("'+DEFAULT_URL+'")'; } load(); }
+  }
+  function ensureEl(){
+    if(el && el.isConnected) return el;
+    el = document.createElement('div');
+    el.id = 'whaleCursor';
+    el.style.cssText = 'position:fixed;left:0;top:0;width:'+SIZE+'px;height:'+SIZE+'px;'+
+      'pointer-events:none;z-index:99999;display:none;transition:transform .08s cubic-bezier(.34,1.6,.64,1);'+
+      'background:url("'+url+'") no-repeat center/contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))';
+    document.body.appendChild(el);
+    return el;
+  }
+  function build(){
+    const e = ensureEl(); e.style.display = 'block';
+    let st = document.getElementById('whaleCursorStyle');
+    if(!st){ st = document.createElement('style'); st.id = 'whaleCursorStyle'; document.head.appendChild(st); }
+    st.textContent = 'html.whale-cursor,html.whale-cursor *{cursor:none!important}';
+    document.documentElement.classList.add('whale-cursor');
+  }
+  function teardown(){
+    if(el) el.style.display = 'none';
+    const st = document.getElementById('whaleCursorStyle');
+    if(st) st.textContent = '';
+    document.documentElement.classList.remove('whale-cursor');
+  }
+  document.addEventListener('pointermove', (ev)=>{
+    if(!enabled) return;
+    const e = ensureEl();
+    e.style.left = ev.clientX + 'px'; e.style.top = ev.clientY + 'px';
+    e.style.transform = 'translate(-4px,-4px) scale(1) rotate(0deg)';
+  }, {passive:true});
+  document.addEventListener('pointerdown', ()=>{
+    if(!enabled) return;
+    const e = ensureEl();
+    // 果冻点头：先压扁前倾（惯性），再回弹过冲恢复
+    e.style.transform = 'translate(-4px,-4px) scale(.72,.82) rotate(14deg)';
+    setTimeout(()=>{ e.style.transform = 'translate(-4px,-4px) scale(1.18,1.06) rotate(-4deg)'; }, 90);
+    setTimeout(()=>{ e.style.transform = 'translate(-4px,-4px) scale(1) rotate(0deg)'; }, 200);
+  }, true);
+  function set(on){
+    enabled = !!on;
+    if(enabled){ if(ready) build(); else ensureEl(); }
+    else teardown();
+  }
+  load();
+  return { set, setCustom, url: ()=>url };
+})();
+function syncCursorFromCfg(){
+  try{
+    const on = getPath(cfg,'ui.whale_cursor') !== false;
+    const custom = getPath(cfg,'ui.cursor_image');
+    // 默认先确认自定义图是否存在（custom-cursor.png 只有上传后才存在）
+    if(custom){
+      const probe = new Image();
+      probe.onload = ()=> WHALE_CURSOR.setCustom(CUSTOM_URL);
+      probe.onerror = ()=> WHALE_CURSOR.setCustom('');
+      probe.src = CUSTOM_URL;
+    } else {
+      WHALE_CURSOR.setCustom('');
+    }
+    WHALE_CURSOR.set(on);
+  }catch(e){}
+}
+
+/* ── 光标设置分节：上传/预览/重置 ── */
+(function(){
+  const cv = $('cursorPreview'), cctx = cv ? cv.getContext('2d') : null;
+  let preImg = new Image(), preUrl = '/assets/cursor.png';
+  function drawPreview(){
+    if(!cctx) return;
+    cctx.clearRect(0,0,120,120);
+    if(preImg.complete){
+      cctx.save();
+      const s = Math.min(90/preImg.width, 90/preImg.height);
+      const w = preImg.width*s, h = preImg.height*s;
+      cctx.drawImage(preImg, (120-w)/2, (120-h)/2 + 6, w, h);
+      cctx.restore();
+    }
+  }
+  (function initPreview(){
+    preImg.onload = drawPreview;      // 换源后必重绘（重置立即恢复默认图）
+    const probe = new Image();
+    probe.onload = ()=>{ preUrl = '/assets/custom-cursor.png'; preImg.src = preUrl; };
+    probe.onerror = ()=>{ preUrl = '/assets/cursor.png'; preImg.src = preUrl; };
+    probe.src = '/assets/custom-cursor.png';
+  })();
+  if(cv){
+    preImg.onload = drawPreview;
+    cv.addEventListener('pointerdown', ()=>{   // 点击预览也点头
+      cctx.save();
+      cctx.translate(60,70); cctx.rotate(0.24); cctx.scale(0.8,0.86); cctx.translate(-60,-70);
+      drawPreview(); cctx.restore();
+    });
+    const cf = $('cursorFile');
+    if(cf){
+      cf.addEventListener('change', ()=>{
+        const f = cf.files && cf.files[0];
+        if(!f) return;
+        if(!/^image\/(png|jpeg)$/.test(f.type)){ toast('仅支持 PNG/JPEG 图片'); return; }
+        const rd = new FileReader();
+        rd.onload = function(){
+          preImg.src = rd.result;   // 本地预览
+          const img2 = rd.result;
+          $('cursorSaveBtn').disabled = false;
+          $('cursorSaveBtn').dataset.preview = img2;
+          toast('已载入预览图片，点「保存光标设置」生效');
+        };
+        rd.readAsDataURL(f);
+      });
+    }
+    const reset = $('cursorReset');
+    if(reset){
+      reset.onclick = async ()=>{
+        try{
+          // 先删自定义光标残留文件（否则刷新后预览探测到旧文件仍显示——030538），再清配置
+          await getJSON('/api/cursor/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+          await getJSON('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ui:{whale_cursor:true, cursor_image:''}})});
+          cfg = await getJSON('/api/config'); syncToForm(); syncCursorFromCfg();
+          preImg.src = '/assets/cursor.png'; drawPreview();
+          toast('已重置为默认鲸鱼光标');
+          setTimeout(()=> location.reload(), 800);
+        }catch(e){ toast('重置失败：'+e.message); }
+      };
+    }
+    const save = $('cursorSaveBtn');
+    if(save){
+      save.onclick = async ()=>{
+        const dataUrl = save.dataset.preview;
+        if(!dataUrl){ toast('先选一张图片'); return; }
+        try{
+          await getJSON('/api/cursor/upload',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({image:dataUrl})});
+          await getJSON('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ui:{whale_cursor:true, cursor_image:'custom'}})});
+          cfg = await getJSON('/api/config'); syncToForm(); syncCursorFromCfg();
+          preImg.src = '/assets/custom-cursor.png';
+          save.disabled = true; delete save.dataset.preview;
+          toast('✅ 自定义光标已保存并生效');
+          setTimeout(()=> location.reload(), 800);   // 强制刷新确保光标生效
+        }catch(e){ toast('保存失败：'+e.message); }
+      };
+    }
+  }
+})();
+
 async function load(){
-  try{ cfg = await getJSON('/api/config'); syncToForm(); onboarding(); }catch(e){ toast('加载配置失败：'+e.message) }
+  try{ cfg = await getJSON('/api/config'); syncToForm(); onboarding(); applyWhale(); applyCustomBg(); }catch(e){ toast('加载配置失败：'+e.message) }
+
+/* ── 自定义背景：上传 / 恢复默认 / 应用 ── */
+function applyCustomBg(){
+  try{
+    const has = cfg && (getPath(cfg,'ui.background')||'') === 'custom';
+    document.body.classList.toggle('custom-bg', !!has);
+    document.body.style.setProperty('--bgimg', has ? 'url(/assets/ui-bg.jpg)' : 'url(/assets/ocean1.jpg)');
+    if(has && !document.body.classList.contains('wall-video')) document.body.style.setProperty('--bgimg', 'url(/assets/ui-bg.jpg)');
+    if(has) document.body.classList.remove('wall-video');
+  }catch(e){}
+}
+(function(){
+  const up = document.getElementById('bgUpload'), cl = document.getElementById('bgClear'),
+        f = document.getElementById('bgFile'), rst = document.getElementById('bgRst');
+  if(!up) return;
+  up.onclick = ()=> f && f.click();
+  if(f) f.onchange = async ()=>{
+    const file = f.files && f.files[0];
+    if(!file) return;
+    const ok = await new Promise(res=>{ const rd = new FileReader(); rd.onload = ()=>res(rd.result); rd.onerror = ()=>res(null); rd.readAsDataURL(file); });
+    if(!ok){ rst.textContent = '读取文件失败'; return; }
+    rst.textContent = '上传中…';
+    try{
+      const r = await getJSON('/api/ui/background',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:ok})});
+      if(r.ok){ cfg = await getJSON('/api/config'); applyCustomBg(); rst.textContent = '✅ ' + (r.note||'背景已应用'); }
+      else rst.textContent = '上传失败：'+(r.error||'');
+    }catch(e){ rst.textContent = '上传失败：'+e.message; }
+  };
+  cl.onclick = async ()=>{
+    try{
+      const r = await getJSON('/api/ui/background',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear:true})});
+      if(r.ok){ cfg = await getJSON('/api/config'); applyCustomBg(); rst.textContent = '✅ 已恢复默认背景'; }
+      else rst.textContent = '操作失败：'+(r.error||'');
+    }catch(e){ rst.textContent = '操作失败：'+e.message; }
+  };
+})();
+  syncThemeFromCfg(); syncCursorFromCfg(); applyWhale(); applyCustomBg();   // 关键：主加载后也套用文案/背景
   loadStatus(); loadLog(); loadBalance();
 }
 
@@ -737,12 +1474,12 @@ async function loadStatus(){
       if(el){
         el.textContent = (wv.version ? ('微信 ' + wv.version + ' · 适配层 ' + (wv.adapter||'-')) : '未检测到')
           + (wv.supported===false ? '（⚠️ 低于 4.0，请升级微信）' : '');
-        el.style.color = wv.supported===false ? '#B91C1C' : '';
+        el.style.color = wv.supported===false ? 'var(--err-tx)' : '';
       }
       const dh = $('depHint');
       if(dh){
         dh.textContent = s.dep_ok ? '✅ 版本体检：匹配（微信/适配层/依赖均符合要求）' : '⚠️ 版本体检：存在不匹配（重启时自动弹窗询问修正，或运行 检查微信版本.bat --update）';
-        dh.style.color = s.dep_ok ? '#047857' : '#B91C1C';
+        dh.style.color = s.dep_ok ? 'var(--ok-tx)' : 'var(--err-tx)';
       }
     }catch(e){}
     $('st-sessions').textContent = s.stats.sessions;
@@ -750,15 +1487,18 @@ async function loadStatus(){
     $('st-sent').textContent = s.stats.sent;
     $('st-cost').textContent = '¥' + (s.stats.cost||0).toFixed(4);
     const u = s.usage || {};
-    const fmt = (o) => (o && (parseFloat(o.cost||0) > 0 || parseInt(o.tokens||0) > 0 || parseInt(o.sessions||0) > 0))
-      ? ('¥' + (o.cost||0).toFixed(4) + ' · ' + (o.tokens||0) + ' tok · ' + (o.sessions||0) + ' 会话')
-      : '—';
+    const fmt = (o) => ('¥' + (o?parseFloat(o.cost||0):0).toFixed(4) + ' · ' + ((o?parseInt(o.tokens||0):0)) + ' tok · ' + ((o?parseInt(o.sessions||0):0)) + ' 会话');
     const lbl = {daily:'今日', weekly:'本周', monthly:'本月'};
     $('st-dcost').textContent = fmt(u.day);
-    $('st-dlabel').textContent = '今日用量（' + (u.day.sent||0) + ' 条）';
+    $('st-dlabel').textContent = '今日用量（' + (u.day?u.day.sent:0||0) + ' 条）';
     $('st-pcost').textContent = fmt(u.period);
-    $('st-plabel').textContent = (lbl[u.period_type]||'本周期') + '用量（' + (u.period.sent||0) + ' 条）';
+    $('st-plabel').textContent = (lbl[u.period_type]||'本周期') + '用量（' + (u.period?u.period.sent:0||0) + ' 条）';
     $('st-groups').textContent = s.groups.filter(g=>g.target).length;
+    // 成本明细（最近5条/平均/本次其他工具/累计其他工具——恒显示数值）
+    $('st-r5c').textContent = '¥' + (s.stats.recent5_cost||0).toFixed(4);
+    $('st-ac').textContent = '¥' + (s.stats.avg_cost||0).toFixed(4);
+    $('st-extra').textContent = '¥' + (s.stats.extra_now_cost||0).toFixed(4) + (s.stats.extra_now_tokens?(' · ' + s.stats.extra_now_tokens + ' tok'):'');
+    $('st-extra2').textContent = '¥' + (s.stats.extra_total_cost||0).toFixed(4) + (s.stats.extra_total_tokens?(' · ' + s.stats.extra_total_tokens + ' tok'):'');
     $('pauseBtn').textContent = s.paused ? '恢复' : '暂停';
     const tb = $('group-table').querySelector('tbody'); tb.innerHTML='';
     for(const g of s.groups){
@@ -802,7 +1542,7 @@ async function loadSessions(){
       if(showDetail){
         if(e.trigger) html+='<div class="hint" style="margin-top:6px">触发：'+esc(e.trigger.slice(0,120))+'</div>';
         if(tools) html+='<div style="margin-top:6px">工具：'+tools+'</div>';
-        if(e.error) html+='<div style="margin-top:6px;color:#B91C1C">失败：'+esc(e.error)+'</div>';
+        if(e.error) html+='<div style="margin-top:6px;color:var(--err-tx)">失败：'+esc(e.error)+'</div>';
         if(reason){
           html+='<details style="margin-top:6px"><summary class="hint" style="cursor:pointer;user-select:none">推理文本（'+reason.length+' 字'+esc(rpct)+'）</summary>'
             +'<pre class="out" style="margin-top:6px;max-height:220px;overflow:auto;white-space:pre-wrap;cursor:text">'+esc(reason)+'</pre></details>';
@@ -815,16 +1555,58 @@ async function loadSessions(){
   }catch(e){ el.innerHTML='<div class="hint" style="padding:14px;text-align:center">加载失败：'+esc(String(e))+'</div>'; }
 }
 
+/* 联网搜索：当前引擎字段 ↔ web_search.<provider> 小节 专用同步 */
+function wsSyncToForm(){
+  if(!cfg) return;
+  const prov = getPath(cfg,'web_search.provider') || 'bing';
+  if($('wsProvider')) $('wsProvider').value = prov;
+  const sec = (cfg.web_search && cfg.web_search[prov]) || {};
+  if($('wsKey')) $('wsKey').value = sec.api_key || '';
+  if($('wsUrl')) $('wsUrl').value = sec.base_url || '';
+  if($('wsModel')) $('wsModel').value = sec.model || '';
+  if($('wsEngine')) $('wsEngine').value = sec.engine || '';
+  if($('wsCount')) $('wsCount').value = sec.count || 6;
+  wsShowRows(prov);
+}
+function wsSyncFromForm(){
+  if(!$('wsProvider') || !cfg) return;
+  const prov = $('wsProvider').value;
+  if(!cfg.web_search) cfg.web_search = {};
+  const pre = cfg.web_search[prov] || {};
+  if($('wsKey')) pre.api_key = $('wsKey').value;
+  if($('wsUrl')) pre.base_url = $('wsUrl').value;
+  if($('wsModel')) pre.model = $('wsModel').value;
+  if($('wsEngine')) pre.engine = $('wsEngine').value;
+  if($('wsCount')) pre.count = parseInt($('wsCount').value) || 6;
+  cfg.web_search[prov] = pre;
+}
+function wsShowRows(prov){
+  document.querySelectorAll('[data-ws]').forEach(el=>{
+    el.style.display = (el.dataset.ws === prov) ? '' : 'none';
+  });
+}
+(function(){
+  const sel = document.querySelector('[data-cfg="web_search.provider"]');
+  if(sel){
+    sel.addEventListener('change', ()=>wsShowRows(sel.value));
+  }
+})();
+
 async function saveAllBtn(btn){
+  const cur = btn ? btn.textContent : '保存';
+  if(btn){ btn.disabled = true; btn.textContent = '保存中…'; }
   try{
     let raw = null;
     try{ raw = JSON.parse($('rawjson').value); }catch(e){}
-    if(raw){ cfg = raw; } else { syncFromForm(); }
+    if(raw){ cfg = raw; } else { syncFromForm(); wsSyncFromForm(); if(typeof syncMemGroupsToCfg==='function') syncMemGroupsToCfg(); }
     await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
-    toast('已保存 ' + new Date().toLocaleTimeString());
-    try{ await loadStatus(); }catch(e){}
-    try{ loadSessions(); }catch(e){}
-  }catch(e){ toast('保存失败：'+e.message); }
+    toast('✅ 已保存，刷新页面生效…');
+    setTimeout(()=>{
+      const u = new URL(location.href);
+      u.searchParams.set('v', Date.now());   // 带时间戳刷新=不读缓存（鲸语切换必生效）
+      location.replace(u.toString());
+    }, 700);
+  }catch(e){ toast('保存失败：'+e.message); if(btn){ btn.disabled = false; btn.textContent = cur; } }
 }
 
 /* ── 自绘下拉组件：替换所有原生 select（弹层样式可控，DeepSeek 风）── */
@@ -870,6 +1652,22 @@ function enhanceSelects(){
     refreshText();
   });
 }
+/* ── 所有搜索栏统一加「搜索」按钮（点击=模拟触发 input，各列表联动）── */
+(function(){
+  function bind(){
+    document.querySelectorAll('.group-search').forEach(inp=>{
+      if(inp._hasBtn) return; inp._hasBtn = true;
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'ghost';
+      btn.textContent = '搜索';
+      btn.style.cssText = 'padding:3px 12px;margin-left:6px;border-radius:8px';
+      btn.onclick = ()=>{ inp.dispatchEvent(new Event('input', {bubbles:true})); };
+      inp.insertAdjacentElement('afterend', btn);
+    });
+  }
+  bind();
+  new MutationObserver(bind).observe(document.body, {childList:true, subtree:true});
+})();
 /* 遮罩锁滚动：显示弹层时锁定 body，关闭恢复（修复停止页下层还能滚） */
 const _maskStack = [];
 function lockBody(on){ document.body.classList.toggle('locked', on); }
@@ -885,29 +1683,35 @@ function maskClose(el){
 /* ── 模型厂商预设：切换即换 BaseURL/模型，弹窗要 Key ── */
 const PROVIDERS = {
   deepseek:{label:'DeepSeek', base:'https://api.deepseek.com/v1', keyHint:'sk-',
-    models:['deepseek-v4-flash-vision-exp','deepseek-v4-pro-0813','deepseek-v4-flash-0731','deepseek-v4-flash','deepseek-v4-pro','deepseek-v3.2','deepseek-chat','deepseek-reasoner']},
+    models:['deepseek-v4-flash-vision-exp','deepseek-v4-pro-0813','deepseek-v4-flash-0731','deepseek-v4-flash','deepseek-v4-pro','deepseek-v3.2','deepseek-v3.1-terminus','deepseek-r1-0528','deepseek-chat','deepseek-reasoner']},
   moonshot:{label:'Moonshot Kimi', base:'https://api.moonshot.cn/v1', keyHint:'sk-',
-    models:['kimi-k3','kimi-k2.6','kimi-k2-0905-preview','kimi-k2-0711-preview','moonshot-v1-128k','moonshot-v1-32k','moonshot-v1-8k']},
+    models:['kimi-k3','kimi-k2.7-code','kimi-k2.6','kimi-k2','kimi-k2-0905-preview','kimi-k2-0711-preview','moonshot-v1-128k','moonshot-v1-32k','moonshot-v1-8k']},
   zhipu:{label:'智谱 GLM', base:'https://open.bigmodel.cn/api/paas/v4', keyHint:'',
-    models:['glm-5.3','glm-5.2','glm-4.6','glm-4.5','glm-4.5-air','glm-4-plus','glm-4-flash','glm-4v-plus']},
+    models:['glm-5.3','glm-5.3-flash','glm-5.2','glm-5.1','glm-5-turbo','glm-5','glm-5v-turbo','glm-4.7','glm-4.7-flash','glm-4.7-flashx','glm-4.6','glm-4.5','glm-4.5-air','glm-4.6v','glm-4.6v-flashx','glm-4.5v','glm-4-plus','glm-4-long','glm-4-flash','glm-4v-plus']},
   qwen:{label:'通义千问（阿里）', base:'https://dashscope.aliyuncs.com/compatible-mode/v1', keyHint:'sk-',
-    models:['qwen3.8-2.4t-a95b','qwen3.7-max','qwen3-max','qwen3-plus','qwen3-235b-a22b-instruct','qwen3-32b','qwen-max','qwen-plus','qwen-turbo','qwen-vl-max','qwen-vl-plus']},
+    models:['qwen3.8-max','qwen3.8-max-0902','qwen3.8-flash','qwen3.8-2.4t-a95b','qwen3.7-max','qwen3.7-plus','qwen3.7-plus-2026-05-26','qwen3.7-flash','qwen3.6-flash','qwen3.5-plus','qwen3.5-397b-a17b','qwen3-max','qwen3-plus','qwen3-235b-a22b-instruct','qwen3-235b-a22b-thinking-2507','qwen3-coder-plus','qwen3-32b','qwen-max','qwen-plus','qwen-flash','qwen-turbo','qwen-long','qwen-vl-max','qwen-vl-plus']},
   minimax:{label:'MiniMax', base:'https://api.minimaxi.com/v1', keyHint:'',
-    models:['MiniMax-M3','MiniMax-M2.7','MiniMax-M2','MiniMax-M1-80k','abab6.5s-chat']},
+    models:['MiniMax-M3','MiniMax-M2.7','MiniMax-M2.7-Highspeed','MiniMax-M2.5','MiniMax-M2.5-Highspeed','MiniMax-M2.1','MiniMax-M2.1-Highspeed','MiniMax-M2','MiniMax-M1-80k','abab6.5s-chat']},
+  xiaomi:{label:'小米 MiMo', base:'https://api.xiaomimimo.com/v1', keyHint:'',
+    models:['mimo-v2.5','mimo-v2.5-pro','mimo-v2.5-pro-ultraspeed','mimo-v2.5-flash']},
+  hunyuan:{label:'腾讯混元', base:'https://api.hunyuan.cloud.tencent.com/v1', keyHint:'',
+    models:['hunyuan-a13b','hunyuan-role-latest','hunyuan','hy3','hy4-preview']},
+  ernie:{label:'百度文心', base:'https://qianfan.baidubce.com/v2', keyHint:'',
+    models:['ernie-5.0','ernie-4.5']},
   doubao:{label:'豆包（火山方舟）', base:'https://ark.cn-beijing.volces.com/api/v3', keyHint:'',
-    models:['doubao-seed-1.6-250615','doubao-1.5-pro-32k','doubao-vision-pro-32k']},
+    models:['doubao-pro','doubao-lite','doubao-seed-1.6-250615','doubao-1.5-pro-32k','doubao-vision-pro-32k']},
   openai:{label:'ChatGPT（OpenAI）', base:'https://api.openai.com/v1', keyHint:'sk-',
-    models:['gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna','gpt-5','gpt-5-mini','gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','o3','o3-mini','o4-mini','gpt-4-turbo']},
+    models:['gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna','gpt-5.6-cyber','gpt-5.5','gpt-5.5-pro','gpt-5.4','gpt-5.4-mini','gpt-5.4-nano','gpt-5.2','gpt-5.1','gpt-5','gpt-5-mini','gpt-5-nano','gpt-4.1','gpt-4.1-mini','gpt-4.1-nano','gpt-4o','gpt-4o-mini','gpt-4-turbo','o3','o3-mini','o4-mini','gpt-oss-120b','gpt-oss-20b']},
   claude:{label:'Claude（Anthropic，OpenAI 兼容端点）', base:'https://api.anthropic.com/v1', keyHint:'sk-ant-',
-    models:['claude-opus-5','claude-sonnet-5','claude-fable-5','claude-opus-4-1-20250805','claude-sonnet-4-5-20250929','claude-3-7-sonnet-20250219','claude-3-5-haiku-20241022']},
+    models:['claude-fable-5.1','claude-mythos-5.1','claude-fable-5','claude-mythos-5','claude-opus-5','claude-opus-4.8','claude-opus-4.7','claude-opus-4.6','claude-opus-4.5','claude-sonnet-5','claude-sonnet-4.6','claude-haiku-4.5','claude-haiku-4.5-batch','claude-opus-4-1-20250805','claude-sonnet-4-5-20250929','claude-3-7-sonnet-20250219','claude-3-5-haiku-20241022']},
   gemini:{label:'Gemini（Google）', base:'https://generativelanguage.googleapis.com/v1beta/openai', keyHint:'AIza',
-    models:['gemini-3.7-flash','gemini-3.6-flash','gemini-3-pro-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash','gemini-1.5-pro']},
+    models:['gemini-3.8-flash','gemini-3.7-flash','gemini-3.6-flash','gemini-3.5-flash','gemini-3.5-flash-lite','gemini-3.1-pro','gemini-3.1-flash-lite','gemini-3-flash','gemini-3-pro-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash','gemini-1.5-pro']},
   grok:{label:'Grok（xAI）', base:'https://api.x.ai/v1', keyHint:'xai-',
     models:['grok-4.6','grok-4.5','grok-4','grok-3','grok-3-mini','grok-2-latest']},
   nvidia:{label:'NVIDIA（Nemotron）', base:'https://integrate.api.nvidia.com/v1', keyHint:'nvapi-',
-    models:['nemotron-3-ultra-550b']},
+    models:['nemotron-3-ultra','nemotron-3.5-lightning','nemotron-3-ultra-550b']},
   openrouter:{label:'OpenRouter（聚合）', base:'https://openrouter.ai/api/v1', keyHint:'sk-or-',
-    models:['hy3','muse-spark-1.2','muse-spark-1.1','solar-pro-4','inkling-with-ai']},
+    models:['muse-spark-1.3','muse-spark-1.2','muse-spark-1.1','llama-4-maverick','llama-3.3-70b','mistral-large-3','mistral-medium-3.5','command-a','solar-pro-4','step-3.7-flash','longcat-2.0','ling-3.0-flash','granite-4.0-h-micro','inkling-with-ai']},
   custom:{label:'自定义', base:'', keyHint:'', models:[]}
 };
 function renderModelSel(provider){
@@ -963,63 +1767,316 @@ function applyProvider(provider, askKey){
   }
 }
 $('providerSel').addEventListener('change', ()=>applyProvider($('providerSel').value, true));
-/* ── 左上角 Logo：官方蓝鲸大图标 + 悬停「Q 弹跳」动画（重力轨迹，落地压扁回弹）── */
+/* ── 左上角鲸鱼徽章：可拖拽鲸鱼（icon-whale 白鲸） + 三态随机返回 ──
+   拖出：按住鲸鱼 → 跟手（弹簧跟随+速度拉伸）→ 松开随机选一种返回方式。
+   返回方式（等概率随机）：
+     A 蠕动回去：转身 → 波形蠕动（身体波浪+正弦摆尾）→ 循弧线回框 → 缩身钻入
+     B 纸飞机：原地翻转变白 → 平滑 morph 成纸飞机（折痕显现）→ 抛物线滑翔（上冲→滑降）→ 入框翻回鲸鱼
+     C 扎入消失：冲刺拉伸 → 缩小透视消失（0.5s）→ 从框中心喷出（气泡粒子）→ 回弹落稳
+   每个大动作拆成细帧：phase 状态机 + rAF，物理用弹簧/正弦/抛物线。 */
 (function(){
-  const lc = $('logoFx'), ctx = lc.getContext('2d');
-  const W = 200, H = 140;               // 物理画布（CSS 显示 100×70，比例 2:1.4）
-  lc.width = W; lc.height = H;
-  lc.style.width = '100px'; lc.style.height = '70px';
-  const img = new Image();
-  let ready = false;
-  img.onload = function(){ ready = true; drawStatic(0, 1); };
-  img.src = LOGO_URL;
-  const BASE_Y = H - 8;                 // 落脚点（画布底部留 8px）
-  const HERO_W = 106, HERO_H = 100;     // 显示尺寸（约 1.06:1，贴近原图比例）
-  const CW = HERO_W, CH = HERO_H;
-  function drawStatic(yOff, squash){
-    if(yOff === undefined) yOff = 0;
-    if(squash === undefined) squash = 1;
-    ctx.clearRect(0,0,W,H);
-    const w = CW * squash, h = CH * (2 - squash);
-    if(squash !== 1){ // 压扁时底部对齐
-      ctx.drawImage(img, (W - w)/2, BASE_Y - h + yOff, w, h);
-    } else {
-      ctx.drawImage(img, (W - w)/2, BASE_Y - h + yOff, w, h);
-    }
+  const badge = $('whaleBadge');
+  if(!badge) return;
+  const hero = badge.querySelector('img');
+  const BADGE_W = 52, BADGE_H = 52;
+  let FLY = null;               // 飞行实例（游离的克隆鲸鱼）
+  const dragging = {on:false, dx:0, dy:0, vx:0, vy:0, tx:0, ty:0};
+  let returnTimer = null;
+
+  /* ── 图标静态果冻弹跳（悬停时，无拖拽时） ── */
+  hero.style.transformOrigin = 'bottom center';
+  hero.style.transition = 'transform .07s cubic-bezier(.3,1.4,.6,1)';
+  let idleJelly = true;
+  function jelly(seq){
+    const poses = [
+      'scaleY(0.62) scaleX(1.22)', 'scaleY(1.24) scaleX(0.84)',
+      'scaleY(0.58) scaleX(1.26)', 'scaleY(1.14) scaleX(0.9)',
+      'scaleY(0.9) scaleX(1.08)', 'scaleY(1.04) scaleX(0.98)',
+      'scaleY(1) scaleX(1)',
+    ];
+    if(seq >= poses.length){ idleJelly = true; if(!FLY) hero.style.transform = 'scaleY(1) scaleX(1)'; return; }
+    hero.style.transform = poses[seq];
+    setTimeout(()=>jelly(seq + 1), 80 + seq * 30);
   }
-  // 弹跳物理：v<0 往上，g 下坠，落地 vy=-vy*0.5，位移趋 0 停
-  let hov = false, y = 0, vy = 0, squash = 1, running = false, t0 = null;
-  function frame(ts){
-    if(t0 === null) t0 = ts;
-    const dt = Math.min(0.05, (ts - (t0 || ts)) / 1000 || 0.016);
-    t0 = ts;
-    if(hov){
-      vy += 2600 * dt;                 // 重力
-      y += vy * dt;
-      if(y >= 0){                      // 着地
-        if(vy > 520){ y = 0; vy = -vy * 0.45; squash = 0.72; }  // 反弹+压扁
-        else if(vy > 40){ y = 0; vy = -vy * 0.5; squash = 0.82; }
-        else { y = 0; vy = 0; squash += (1 - squash) * 0.25; }
-      } else {
-        squash += (1 - squash) * 0.30; // 空中恢复原形
-        // 起跳瞬间也轻微拉伸表现
+  badge.addEventListener('mouseenter', ()=>{ if(!idleJelly || FLY) return; idleJelly = false; jelly(0); });
+  badge.addEventListener('mouseleave', ()=>{ /* 继续放完 */ });
+
+  /* ── helpers ── */
+  function makeFly(){
+    if(FLY) return FLY;
+    const div = document.createElement('div');
+    div.className = 'whale-fly';
+    div.innerHTML = '<img src="/assets/icon-whale.png" alt="">';
+    document.body.appendChild(div);
+    FLY = div;
+    return div;
+  }
+  function removeFly(){
+    if(FLY){ FLY.remove(); FLY = null; }
+  }
+  function badgeCenter(){
+    const r = badge.getBoundingClientRect();
+    return {x: r.left + r.width/2, y: r.top + r.height/2};
+  }
+
+  /* ── 拖拽：pointer 事件（鼠标+触屏） ── */
+  let wiggle = 0;   // 被抓扭动相位
+  badge.addEventListener('pointerdown', (ev)=>{
+    if(FLY) return;                        // 正在飞行，忽略
+    dragging.on = true;
+    dragging.tx = dragging.dx = ev.clientX;
+    dragging.ty = dragging.dy = ev.clientY;
+    dragging.vx = dragging.vy = 0;
+    dragging.t0 = performance.now();
+    wiggle = 0;
+    idleJelly = false;
+    hero.style.transition = 'none';
+    // 视觉连续：克隆一个游离鲸鱼跟手，本体淡出（返回动画用克隆体）
+    hero.style.opacity = '0.12';
+    const fly = makeFly();
+    fly.style.left = ev.clientX + 'px'; fly.style.top = ev.clientY + 'px';
+    hero.classList.add('whale-grabbing');
+    badge.classList.add('whale-open');     // 取消裁切
+    try{ badge.setPointerCapture(ev.pointerId); }catch(e){}
+    ev.preventDefault();
+  });
+  badge.addEventListener('pointermove', (ev)=>{
+    if(!dragging.on) return;
+    dragging.tx = ev.clientX; dragging.ty = ev.clientY;
+    dragging.vx = dragging.tx - dragging.dx; dragging.vy = dragging.ty - dragging.dy;
+    dragging.dx = dragging.tx; dragging.dy = dragging.ty;
+    /* 跟手 + 速度拉伸 + 被抓扭动（挣扎：后半身摆动，幅度随时间衰减"挣扎累了"） */
+    if(FLY){
+      const dxc = Math.min(Math.abs(dragging.vx), 60), dyc = Math.min(Math.abs(dragging.vy), 40);
+      const sx = 1 + dxc / 200, sy = 1 + dyc / 200;
+      const ang = Math.atan2(dragging.vy, dragging.vx);
+      const held = (performance.now() - (dragging.t0 || performance.now())) / 1000;
+      const amp = Math.max(0.08, 0.4 - held * 0.12);          // 挣扎幅度衰减（0.4→0.08）
+      wiggle += 0.45;
+      const wig = Math.sin(wiggle) * amp;                      // 扭动（摆尾）
+      FLY.style.left = ev.clientX + 'px'; FLY.style.top = ev.clientY + 'px';
+      FLY.style.transform = 'translate(-50%,-50%) scale(' + sx + ',' + sy + ')'
+        + ' rotate(' + (ang * 0.22 + wig * 0.35) + 'rad) scaleX(' + (1 + wig * 0.12) + ')';
+    }
+  });
+  badge.addEventListener('pointerup', (ev)=>{
+    if(!dragging.on) return;
+    dragging.on = false;
+    hero.style.opacity = '';
+    hero.classList.remove('whale-grabbing');
+    badge.classList.remove('whale-open');
+    hero.style.transition = 'transform .25s cubic-bezier(.3,1.4,.6,1)';
+    hero.style.transform = '';
+    /* 选择返回方式：三次等概率随机；留在拖拽落点 → 从落点触发返回（距离决定时长） */
+    const mode = Math.floor(Math.random() * 3);   // 0=蠕动 1=纸飞机 2=扎入
+    const from = {x: ev.clientX, y: ev.clientY};
+    startReturn(mode, from);
+  });
+  badge.addEventListener('pointercancel', ()=>{
+    if(!dragging.on) return;
+    dragging.on = false;
+    hero.style.opacity = '';
+    hero.classList.remove('whale-grabbing');
+    badge.classList.remove('whale-open');
+    hero.style.transition = '';
+    hero.style.transform = '';
+    if(FLY) removeFly();
+    hero.style.opacity = '1';
+  });
+
+  /* ═══════════ 返回方式：蠕动 / 纸飞机 / 扎入（等概率随机） ═══════════ */
+  let planeState = null, zapState = null;
+  function startReturn(mode, from){
+    const start = {x: from.x, y: from.y};
+    const c = badgeCenter();
+    const t0 = performance.now();
+    const mid = {x: c.x + (start.x - c.x) * 0.15 + (Math.random()*40 - 20),
+                 y: c.y - 80 - Math.random()*40};
+    const fly = makeFly();
+    const img = fly.querySelector('img');
+    img.style.display = 'block'; img.style.opacity = '';
+    planeState = null; zapState = null;
+
+    /* ── 时长按距离计算（控制台「光标设置」可调系数 whale_anim.*） ──
+       公式（dist = 拖拽落点到徽章中心距离 px）：
+         蠕动: dur = clamp(260 × dist/100 × k_worm, 600, 2400)
+         纸飞机: fly = clamp(170 × dist/100 × k_plane, 420, 1500) + morph 360 + unmorph 220
+         扎入: dash = clamp(90 × dist/100 × k_zap, 200, 720) + 消失 0.5s 固定 + 冒出 300
+       蠕动最慢、纸飞机更快、扎入按距离自适应（短拖拽都快，长拖拽蠕动能到 2.4s 上限不再加长） */
+    let km = 1;
+    try{
+      const ao = getPath(cfg,'ui.whale_anim') || {};
+      km = Math.max(0.3, Math.min(3, parseFloat(ao[['worm','plane','zap'][mode]]) || 1));
+    }catch(e){}
+    const dist = Math.hypot(start.x - c.x, start.y - c.y);
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const dur  = mode === 0 ? clamp(260 * dist / 100 * km, 600, 2400) : 0;
+    const flyD = mode === 1 ? clamp(170 * dist / 100 * km, 420, 1500) : 0;
+    const zapD = mode === 2 ? clamp(90 * dist / 100 * km, 200, 720) : 0;
+    // 调试日志：每次返回记录（距离/方式/时长），控制台可查
+    try{
+      const names = ['蠕动','纸飞机','扎入'];
+      console.log('[whale-return] mode=' + names[mode] + ' dist=' + Math.round(dist) + 'px dur=' +
+        Math.round(mode===0?dur:(mode===1?flyD+580:zapD+780)) + 'ms（系数 ' + km + '）');
+    }catch(e){}
+
+    if(mode === 0){
+      /* A 蠕动：贝塞尔弧线 + 身体波浪 + 摆尾 + 临近缩身钻入（自驱动） */
+      function worm(now){
+        const t = Math.min(1, (now - t0) / dur);
+        const e = t * t * (3 - 2 * t);
+        const bx = quadBez(start.x, mid.x, c.x, e);
+        const by = quadBez(start.y, mid.y, c.y, e);
+        const wave = Math.sin(e * Math.PI * 6) * 0.16;
+        const tilt = Math.sin(e * Math.PI * 6 + 1.2) * 0.3;
+        const scale = t < 0.75 ? 1 : Math.max(0.05, 1 - (t - 0.75) * 2.2);
+        fly.style.left = bx + 'px'; fly.style.top = by + 'px';
+        fly.style.transform = 'translate(-50%,-50%) scale(' + scale + ') scaleY(' + (1 + wave) + ') scaleX(' + (1 - wave * 0.5) + ') rotate(' + tilt + 'rad)';
+        if(t >= 1){ finishReturn(fly); return; }
+        requestAnimationFrame(worm);
       }
-      drawStatic(-y, squash);
-      requestAnimationFrame(frame);
+      requestAnimationFrame(worm);
+    } else if(mode === 1){
+      planePhase(fly, c, start, flyD);
     } else {
-      y += vy * dt; vy += 2600 * dt;
-      if(y >= 0){ y = 0; vy = 0; squash += (1 - squash) * 0.3; }
-      else squash += (1 - squash) * 0.3;
-      drawStatic(-y, squash);
-      if(y === 0 && Math.abs(squash - 1) < 0.01){ running = false; drawStatic(0, 1); return; }
-      requestAnimationFrame(frame);
+      zapPhase(fly, c, start, zapD);
     }
   }
-  lc.addEventListener('mouseenter', ()=>{ if(!ready || hov) return; hov = true; vy = -360; squash = 1; if(!running){ running = true; t0 = null; requestAnimationFrame(frame); } });
-  lc.addEventListener('mouseleave', ()=>{ hov = false; if(!running){ if(y === 0 && squash === 1){ return; } running = true; requestAnimationFrame(frame); } });
+
+  function finishReturn(fly){
+    // 入框：从框中心回弹出现（0.14s 超弹）+ 气泡粒子
+    const c = badgeCenter();
+    fly.style.left = c.x + 'px'; fly.style.top = c.y + 'px';
+    fly.style.transition = 'transform .14s cubic-bezier(.2,1.6,.5,1), opacity .2s';
+    fly.style.transform = 'translate(-50%,-50%) scale(0)';
+    fly.style.opacity = '1';
+    requestAnimationFrame(()=>{ fly.style.transform = 'translate(-50%,-50%) scale(1.06)'; });
+    spawnBubbles(c.x, c.y);
+    hero.style.opacity = '';             // 本体恢复可见
+    setTimeout(()=>{ fly.style.opacity = '0'; }, 180);
+    setTimeout(()=>{ removeFly(); }, 420);
+    idleJelly = true;
+    // 徽章本体恢复过冲
+    hero.style.transition = 'transform .18s cubic-bezier(.34,1.4,.64,1)';
+    hero.style.transform = 'scaleY(1.12) scaleX(0.9)';
+    setTimeout(()=>{ hero.style.transform = ''; }, 120);
+  }
+
+  /* 纸飞机：morph 白化 → 抛物线滑翔 → 入框翻回（自驱动 rAF；flyMs=滑翔时长） */
+  function planePhase(fly, c, start, flyMs){
+    flyMs = flyMs || 780;
+    // 初始化纸飞机
+    const p = document.createElement('div');
+    p.className = 'paper-plane';
+    p.innerHTML = '<svg viewBox="0 0 64 40" width="58" height="36"><path d="M2 20 L62 2 L38 24 L34 38 Z" fill="#F8FAFF" stroke="#9FC2DE" stroke-width="1.4" stroke-linejoin="round"/><path d="M2 20 L62 2 L34 28 Z" fill="#E8F0FF" opacity="0.85"/><path d="M34 38 L38 24 L34 28 Z" fill="#D8E4F8" opacity="0.9"/></svg>';
+    fly.appendChild(p);
+    planeState = {p, t0: performance.now(), phase: 'morph'};
+    const img = fly.querySelector('img');
+    function tick(){
+      const st = planeState;
+      const ET = performance.now() - st.t0;
+      if(st.phase === 'morph'){
+        const m = Math.min(1, ET / 360);
+        const e = m * m * (3 - 2 * m);
+        img.style.opacity = String(1 - e);
+        p.style.opacity = String(e);
+        fly.style.transform = 'translate(-50%,-50%) scale(' + (1 - e * 0.25) + ') rotate(' + (e * 0.9) + 'rad)';
+        if(m >= 1){ st.phase = 'fly'; st.t0 = performance.now();
+          img.style.display = 'none'; p.style.opacity = '1'; }
+        requestAnimationFrame(tick);
+        return;
+      }
+      if(st.phase === 'fly'){
+        const ft = Math.min(1, ET / flyMs);
+        const fall = ft >= 0.35 ? Math.pow((ft - 0.35) / 0.65, 1.6) : 0;
+        const x = quadBez(start.x, start.x + (c.x - start.x) * 0.35, c.x, ft);
+        const y = quadBez(start.y, start.y - 110, c.y + 18, ft);
+        const pitch = -0.5 + (ft < 0.35 ? Math.sin(ft / 0.35 * Math.PI) * 0.2 : fall * 0.35);
+        p.style.transform = 'rotate(' + pitch + 'rad)';
+        fly.style.left = x + 'px'; fly.style.top = y + 'px';
+        fly.style.transform = 'translate(-50%,-50%) scale(' + (ft > 0.85 ? Math.max(0.1, 1 - (ft - 0.85) * 3) : 1) + ')';
+        if(ft >= 1){ st.phase = 'unmorph'; st.t0 = performance.now(); }
+        requestAnimationFrame(tick);
+        return;
+      }
+      /* unmorph: plane 淡出 → whale 淡入 */
+      const m2 = Math.min(1, ET / 220);
+      const e2 = m2 * m2 * (3 - 2 * m2);
+      p.style.opacity = String(1 - e2);
+      if(m2 > 0.9) img.style.display = 'block';
+      img.style.opacity = String(m2);
+      if(m2 >= 1){ finishReturn(fly); return; }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  /* 扎入消失：冲刺拉伸 → 透视缩小 → 0.5s 空 → 从框中心喷出（dashMs=冲刺时长） */
+  function zapPhase(fly, c, start, dashMs){
+    dashMs = dashMs || 260;
+    zapState = {t0: performance.now(), phase: 'dash',
+                exit: {x: c.x + 34, y: c.y - 40}};
+    const img = fly.querySelector('img');
+    function tick(){
+      const st = zapState;
+      const ET = performance.now() - st.t0;
+      if(st.phase === 'dash'){
+        // 1) 冲刺（0~dashMs）：加速拉伸冲向右下，缩小透视
+        const d = Math.min(1, ET / dashMs);
+        const e = 1 - Math.pow(1 - d, 3);               // easeOutCubic 冲刺
+        img.style.transform = 'scale(1,' + (1 - e * 0.8) + ')';  // 纵向拉长（冲刺拉伸）
+        const x = start.x + (st.exit.x - start.x) * e;
+        const y = start.y + (st.exit.y - start.y) * e;
+        fly.style.left = x + 'px'; fly.style.top = y + 'px';
+        fly.style.transform = 'translate(-50%,-50%) scale(' + (1 - e * 0.75) + ') rotate(' + (e * 0.6) + 'rad)';
+        if(d >= 1){ st.phase = 'hole'; st.t0 = performance.now(); fly.style.opacity = '0'; }
+        requestAnimationFrame(tick);
+        return;
+      }
+      if(st.phase === 'hole'){
+        // 2) 消失 0.5s（480ms），保持透明
+        if(ET >= 480){
+          st.phase = 'emit'; st.t0 = performance.now();
+          img.style.display = 'block'; img.style.transform = '';
+          fly.style.left = c.x + 'px'; fly.style.top = c.y + 'px';
+        }
+        requestAnimationFrame(tick);
+        return;
+      }
+      // 3) 冒出（emit 0~300ms）：从框中心喷出，缩放超弹 + 回弹落稳
+      const e3 = Math.min(1, ET / 300);
+      const pop = 1 - Math.pow(1 - e3, 3);
+      const scale = Math.max(0.1, 0.2 + pop * 1.1 - Math.sin(e3 * Math.PI) * 0.15);
+      fly.style.opacity = '1';
+      fly.style.transform = 'translate(-50%,-50%) scale(' + scale + ')';
+      if(e3 >= 1){ finishReturn(fly); return; }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  /* 小泡泡粒子（入框/冒出时） */
+  function spawnBubbles(x, y){
+    for(let i = 0; i < 7; i++){
+      const b = document.createElement('i');
+      b.className = 'whale-bubble';
+      b.textContent = '·';
+      const ang = Math.random() * Math.PI * 2, r0 = 6 + Math.random() * 10;
+      b.style.left = x + Math.cos(ang) * r0 + 'px';
+      b.style.top = y + Math.sin(ang) * r0 + 'px';
+      document.body.appendChild(b);
+      setTimeout(()=>{ b.style.opacity = '0'; b.style.transform = 'translate(' + Math.cos(ang) * 34 + 'px,' + (Math.sin(ang) * 34 - 10) + 'px) scale(1.6)'; }, 20);
+      setTimeout(()=>b.remove(), 700);
+    }
+  }
+
+  function quadBez(a, m, b, t){
+    const u = 1 - t;
+    return u * u * a + 2 * u * t * m + t * t * b;
+  }
 })();
 
-/* ── 首次运行向导：Key → 检测微信+勾选群 → 一键体检 → 完成 ── */
+/* ── 首次运行向导：厂商/模型/Key → 检测微信+勾选群 → 鼠标操作检测 → 完成 ── */
 // 首次向导：页面生命周期内只弹一次（完成/跳过后不再弹，防止「完成→重载→又弹」循环）
 let _onboardOnce = false;
 async function onboarding(){
@@ -1030,22 +2087,52 @@ async function onboarding(){
   if(key && !key.includes('在这里填') && key !== '******' && !key.includes('••••')) return;  // 真实=已配置
   _onboardOnce = true;
   const m = document.createElement('div'); m.className='mask'; m.id='onboard';
-  m.innerHTML='<div class="box">'+ICON+'<h1>欢迎使用 wx-agent · 三步上手</h1>'+
-    '<p id="obDesc">第 1 步/共 3 步：填入你的 API Key（默认 DeepSeek，sk- 开头）。保存后无需再改文件。</p>'+
-    '<input type="password" id="obKey" placeholder="sk-...">'+
+  m.innerHTML='<div class="box" style="max-width:620px">'+ICON+'<h1>欢迎使用 wx-agent · 三步上手</h1>'+
+    '<p id="obDesc">第 1 步/共 3 步：选择模型厂商 → 选择模型 → 填入该厂商的 API Key。</p>'+
+    '<div class="mid" style="text-align:left">'+
+      '<div class="row"><label>模型厂商</label><div class="grow"><select id="obProvider">'+
+        Object.keys(PROVIDERS).filter(k=>k!=='custom').map(k=>'<option value="'+k+'">'+PROVIDERS[k].label+'</option>').join('')+
+      '</select></div></div>'+
+      '<div class="row"><label>模型</label><div class="grow"><select id="obModel"></select></div></div>'+
+      '<div class="row"><label>API Key</label><div class="grow"><input type="password" id="obKey" placeholder="粘贴该厂商的 Key（如 sk-...）"><div class="hint" id="obKeyHint"></div></div></div>'+
+    '</div>'+
     '<div id="obBody"></div>'+
     '<div class="btns" style="justify-content:center;margin-top:10px"><button class="pri" id="obNext">下一步</button><button class="ghost" id="obLater">跳过向导</button></div></div>';
   document.body.appendChild(m); maskOpen(m);
   let step = 1, picked = [];
+  /* 厂商/模型联动（复用全局 PROVIDERS 与组件） */
+  function obRenderModels(prov){
+    const sel = $('obModel'); sel.innerHTML = '';
+    const p = PROVIDERS[prov] || PROVIDERS.deepseek;
+    p.models.forEach(mm=>{ const o=document.createElement('option'); o.value=mm; o.textContent=mm; sel.appendChild(o); });
+    $('obKeyHint').textContent = p.keyHint ? ('Key 以「'+p.keyHint+'」开头；'+p.label+' 可在官网申请') : ('在 '+p.label+' 官网申请 Key');
+  }
+  $('obProvider').addEventListener('change', ()=>{ obRenderModels($('obProvider').value); });
+  obRenderModels($('obProvider').value);
+  // 预填现有 Key（如果有）
+  const preKey = getPath(cfg,'api.api_key') || '';
+  if(preKey && preKey !== '******' && !preKey.includes('••••') && !preKey.includes('在这里填')) $('obKey').value = preKey;
   $('obNext').onclick = async ()=>{
     try{
       if(step===1){
-        const k=$('obKey').value.trim();
-        if(k){ setPath(cfg,'api.api_key',k); await getJSON('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}); }
+        const prov = $('obProvider').value;
+        const p = PROVIDERS[prov];
+        const k = $('obKey').value.trim();
+        const model = $('obModel').value;
+        if(k){ setPath(cfg,'api.api_key',k); }
+        if(k && !k.includes('••••') && !k.startsWith('sk-***')){
+          if(!cfg.api.provider_keys) cfg.api.provider_keys = {};
+          cfg.api.provider_keys[prov] = k;
+        }
+        setPath(cfg,'api.model',model);
+        setPath(cfg,'api.base_url', p.base);
+        if(cfg.api.provider) cfg.api.provider = '';   // 走顶层 base_url/api_key（向导场景）
+        await getJSON('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+        toast('已保存 '+p.label+' 配置（'+model+'）');
         const r = await getJSON('/api/wechat-groups');
         const groups = r.groups||[];
         $('obDesc').textContent = '第 2 步/共 3 步：勾选需要机器人监听的群（全不勾=监听所有群）。检测到 '+groups.length+' 个群聊。';
-        $('obKey').style.display='none';
+        $('obProvider').closest('.mid').style.display='none';
         const body=$('obBody'); body.innerHTML='';
         picked = [];  // 重新开始（防重复调用残留）
         const pickSet = new Set((wlList||[]));
@@ -1056,7 +2143,7 @@ async function onboarding(){
       }
       if(step===2){
         if(picked.length){ wlList = picked.slice(); setPath(cfg,'wechat.group_name_white_list', wlList.slice()); await getJSON('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}); renderChips(); }
-        $('obDesc').textContent = '第 3 步/共 3 步：一键体检（约 10~20 秒，会移动光标+真实右键测试，请勿动鼠标）。';
+        $('obDesc').textContent = '第 3 步/共 3 步：鼠标操作检测（约 60~100 秒：环境/配置/点击 + 11 项程序鼠标操作，请勿动鼠标）。';
         $('obBody').innerHTML='<pre class="out" id="obCheck" style="height:190px">体检中…</pre>';
         $('obNext').textContent='完成'; step=3;
         const r = await getJSON('/api/selfcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
@@ -1090,22 +2177,55 @@ $('rawJsonBtn').onclick = ()=>{ window.open('/api/config'+(URL_TOKEN?('?token='+
 $('pauseBtn').onclick = async ()=>{
   try{ await getJSON($('pauseBtn').textContent==='暂停'?'/api/pause':'/api/resume',{method:'POST'}); loadStatus(); }catch(e){toast(e.message)}
 };
-$('stopBtn').onclick = async ()=>{
-  if(!confirm('确定停止机器人？停止后可用「重启」按钮或双击启动机器人.vbs 恢复。')) return;
-  try{
-    await getJSON('/api/shutdown',{method:'POST'});
-    toast('已发出停止指令，机器人即将退出…');
-    $('dot').className='dot';
-  }catch(e){
-    toast('停止指令未送达（机器人可能已经不在运行）——页面稍后会显示「机器人已停止」');
-  }
+/* ── 通用确认弹窗（mask + box + 果冻图标），替代原生 confirm ── */
+function confirmBox(title, lines, okLabel, onOk, danger){
+  const m = document.createElement('div'); m.className='mask';
+  const lh = (lines||[]).map(s=>'<p style="text-align:left;margin:4px 0">'+s+'</p>').join('');
+  m.innerHTML = '<div class="box">'
+    + ICON.replace('whale-badge big', 'whale-badge big')   // 果冻动画由 _iconCss 自动触发
+    + '<h1>'+title+'</h1>'+lh
+    + '<div class="btns" style="justify-content:center">'
+    + '<button class="'+(danger?'danger':'pri')+'" id="cboxOk">'+okLabel+'</button>'
+    + '<button class="ghost" id="cboxNo">取消</button></div></div>';
+  document.body.appendChild(m); maskOpen(m);
+  $('cboxOk').onclick = ()=>{ maskClose(m); m.remove(); onOk && onOk(); };
+  $('cboxNo').onclick = ()=>{ maskClose(m); m.remove(); };
+  return m;
+}
+
+$('stopBtn').onclick = ()=>{
+  confirmBox('停止机器人？', [
+    '将同时停止 <b>机器人 + 看门狗</b>（都不会再自动拉起，也不会再弹新控制台）。',
+    '停止后控制台将不再自动刷新状态；<b>启动机器人.vbs</b> 可随时重新启动。',
+    '微信窗口保持打开即可，机器人不会再发消息；群聊数据不会丢失。',
+  ], '确认停止', async ()=>{
+    try{
+      await getJSON('/api/shutdown',{method:'POST'});
+      toast('已发出停止指令，机器人即将退出…');
+      $('dot').className='dot';
+      // 展示停止详情弹窗
+      const m = confirmBox('机器人已停止 ✔', [
+        '已结束全部进程（机器人 + 看门狗）。',
+        '想再次运行：双击项目根目录 <b>启动机器人.vbs</b>，或点「重启」按钮。<br>',
+        '控制台将自动关闭；日志已保存在 logs\\wx_agent.log。',
+      ], '知道了');
+      /* 关闭自动 tag */
+      setTimeout(()=>{ try{ if(!window.closed) window.close(); }catch(_e){} }, 4000);
+    }catch(e){
+      toast('停止指令未送达（机器人可能已经不在运行）——页面稍后会显示「机器人已停止」');
+    }
+  });
 };
-$('restartBtn').onclick = async ()=>{
-  if(!confirm('重启机器人？会在后台无窗口方式重新启动（约 2 秒）。')) return;
-  try{
-    await getJSON('/api/restart',{method:'POST'});
-    toast('已发出重启指令，等待新实例接管…');
-  }catch(e){ toast('重启失败：'+e.message); }
+$('restartBtn').onclick = ()=>{
+  confirmBox('重启机器人？', [
+    '先在后台启动一个新实例（<b>2 秒左右</b>），然后旧实例自动退出——无缝接替，<b>不中断监听</b>。',
+    '新实例会重新打开控制台标签（若自动打开已开启）。',
+  ], '确认重启', async ()=>{
+    try{
+      await getJSON('/api/restart',{method:'POST'});
+      toast('已发出重启指令，等待新实例接管…');
+    }catch(e){ toast('重启失败：'+e.message); }
+  });
 };
 $('testApi').onclick = async ()=>{
   const btn=$('testApi'); btn.disabled=true; $('testResult').textContent='测试中…';
@@ -1116,21 +2236,57 @@ $('testApi').onclick = async ()=>{
   }catch(e){ $('testResult').textContent='❌ '+e.message; }
   finally{ btn.disabled=false; }
 };
-$('selfCheck').onclick = async ()=>{
-  const btn=$('selfCheck'); btn.disabled=true;
-  const pre=$('selfCheckResult'); pre.classList.remove('dn');
-  pre.textContent='体检中（约 10~20 秒，会移动光标+真实右键测试，请勿动鼠标）…';
+$('codeCheck').onclick = async ()=>{
+  const btn=$('codeCheck'); btn.disabled=true; if($('codeCheckDeps')) $('codeCheckDeps').disabled=true;
+  const pre = $('codeResult') || (()=>{
+    const p2=document.createElement('pre'); p2.className='out'; p2.id='codeResult';
+    document.getElementById('selfCheckResult').insertAdjacentElement('beforebegin', p2);
+    return p2; })();
+  pre.classList.remove('dn');
+  $('codeCheckTip').textContent='代码检测中（约 1~3 秒，不动鼠标）…';
   try{
-    const r = await getJSON('/api/selfcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    let lines=['===== 一键体检 =====', r.summary||'', ''];
+    const r = await getJSON('/api/code-check',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:200000});
+    let lines=['===== 代码检测 =====', r.summary||'', ''];
     for(const c of (r.checks||[])){
       const mark = c.status==='ok'?'✅':(c.status==='warn'?'⚠️':(c.status==='fail'?'❌':'ℹ️'));
       lines.push(mark+' '+c.name+'：'+c.detail);
       if(c.hint) lines.push('    建议：'+c.hint);
     }
     pre.textContent = lines.join('\n');
-  }catch(e){ pre.textContent='体检失败：'+e.message; }
-  finally{ btn.disabled=false; }
+    $('codeCheckTip').textContent = '';
+  }catch(e){ pre.textContent='代码检测失败：'+e.message; $('codeCheckTip').textContent=''; }
+  finally{ btn.disabled=false; if($('codeCheckDeps')) $('codeCheckDeps').disabled=false; }
+};
+if($('codeCheckDeps')) $('codeCheckDeps').onclick = async ()=>{
+  const btn=$('codeCheckDeps'); btn.disabled=true; if($('codeCheck')) $('codeCheck').disabled=true;
+  $('codeCheckTip').textContent='依赖详细核对中（55 项，稍慢）…';
+  $('codeCheck').click();
+};
+
+$('selfCheck').onclick = async ()=>{
+  const btn=$('selfCheck'); btn.disabled=true;
+  if($('selfCheckStop')) $('selfCheckStop').disabled=false;
+  const pre=$('selfCheckResult'); pre.classList.remove('dn');
+  pre.textContent='鼠标操作检测中（约 40~70 秒：环境/配置/点击 + 程序鼠标操作，期间请勿动鼠标；可随时点「停止检测」）…';
+  try{
+    const r = await getJSON('/api/selfcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    let lines=['===== 鼠标操作检测 =====', r.summary||'', ''];
+    for(const c of (r.checks||[])){
+      const mark = c.status==='ok'?'✅':(c.status==='warn'?'⚠️':(c.status==='fail'?'❌':'ℹ️'));
+      lines.push(mark+' '+c.name+'：'+c.detail);
+      if(c.hint) lines.push('    建议：'+c.hint);
+    }
+    if(r.cancelled) lines.push('\n（检测已被手动停止）');
+    pre.textContent = lines.join('\n');
+    if(r.cancelled) toast('✅ 已停止检测');
+  }catch(e){ pre.textContent='检测失败：'+e.message; }
+  finally{ btn.disabled=false; if($('selfCheckStop')) $('selfCheckStop').disabled=true; }
+};
+if($('selfCheckStop')) $('selfCheckStop').onclick = async ()=>{
+  try{
+    await getJSON('/api/selfcheck-stop',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    toast('已发出停止请求（当前检测项跑完即停）');
+  }catch(e){ toast('停止失败：'+e.message); }
 };
 $('pokeTest').onclick = async ()=>{
   const btn=$('pokeTest'); btn.disabled=true;
@@ -1147,6 +2303,643 @@ $('pokeTest').onclick = async ()=>{
   finally{ btn.disabled=false; }
 };
 /* 拍一拍目标群下拉（填充监听目标群） */
+/* 共享记忆群选择：勾选哪些群互享记忆 */
+let _memGroups = [];
+async function loadMemGroups(){
+  const box = $('memGroupsBox'); if(!box) return;
+  try{
+    _memGroups = (await getJSON('/api/wechat-groups')).groups || [];
+    const sel = getPath(cfg,'memory.shared_groups') || [];
+    box.innerHTML = '';
+    if(!_memGroups.length){ box.innerHTML = '<span class="hint">未检测到群（启动机器人并检测群后这里会列出）</span>'; return; }
+    _memGroups.forEach(g=>{
+      const nm = g.name || g.nick || g.wxid || '';
+      const lab = document.createElement('label');
+      lab.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border:1px solid var(--bd);border-radius:10px;background:var(--input-bg);cursor:pointer';
+      const ck = document.createElement('input'); ck.type = 'checkbox'; ck.className = 'memGroupCk';
+      ck.checked = sel.some(s=>s===nm || s===g.wxid);
+      lab.appendChild(ck); lab.appendChild(document.createTextNode(' '+nm));
+      box.appendChild(lab);
+    });
+  }catch(e){ box.innerHTML = '<span class="hint">群列表读取失败：'+e.message+'</span>'; }
+}
+function syncMemGroupsToCfg(){
+  if(!cfg) return;
+  const names = [];
+  document.querySelectorAll('.memGroupCk').forEach((ck,i)=>{
+    if(ck.checked && _memGroups[i]) names.push(_memGroups[i].name || _memGroups[i].nick || _memGroups[i].wxid || '');
+  });
+  if(!cfg.memory) cfg.memory = {};
+  cfg.memory.shared_groups = names;
+}
+(function(){
+  const saveBtn = document.querySelector('[data-save]');
+  // 所有数据保存前并入 shared_groups（追加在 saveAllBtn 内的 wsSyncFromForm 后）
+  const _orig = window.syncMemGroupsToCfg;
+  window.addEventListener('load', ()=>loadMemGroups());
+})();
+
+/* ── 自定义角色卡：模型评分 / 模型补足 ── */
+(async function(){
+  const btn = document.getElementById('pScoreLLM');
+  const en = document.getElementById('pEnrich');
+  const rst = document.getElementById('pScoreRst');
+  if(!btn) return;
+  function curText(){ const ta = document.querySelector('[data-cfg="persona.role_text"]'); return ta ? ta.value : ''; }
+  btn.onclick = async ()=>{
+    if(!document.getElementById('pUseLlm').checked){ rst.textContent = '未勾选"允许模型处理"——本地规则无法保证贴合度，评分需模型参与（勾选后点此）'; return; }
+    const t = curText();
+    if(!t.trim()){ rst.textContent = '请先填写角色文本（或从选单选一个）'; return; }
+    rst.textContent = '模型评分中（约 10~30 秒）…';
+    try{
+      const r = await getJSON('/api/persona/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t, llm:true})});
+      if(r.ok) rst.textContent = '✅ 模型评分 '+Number(r.score).toFixed(1)+' 分　'+(r.reason||'');
+      else rst.textContent = '评分失败：'+(r.error||'');
+    }catch(e){ rst.textContent = '评分失败：'+e.message; }
+  };
+  en.onclick = async ()=>{
+    const t = curText();
+    const name = ((document.querySelector('[data-cfg="persona.bot_name"]')||{}).value||'').trim();
+    if(!name){ rst.textContent = '请先填「人设名」（模型按角色名联网整理设定）'; return; }
+    const rounds = parseInt((document.getElementById('pRounds')||{}).value || '1');
+    rst.textContent = '模型补足中（'+rounds+' 轮，每轮 10~30 秒，按人设贴近度修正）…';
+    try{
+      const r = await getJSON('/api/persona/ai-enrich',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, text:t, rounds})});
+      if(r.ok){
+        const ta = document.querySelector('[data-cfg="persona.role_text"]');
+        if(ta){ ta.value = r.text; }
+        const tr = (r.trace||[]).map(x=>'第'+x.round+'轮:'+(x.score!=null?x.score.toFixed(2)+'分':'—')).join(' → ');
+        rst.textContent = '✅ 补足完成（'+tr+'）'+(r.score!=null?' 最终 '+r.score.toFixed(2)+' 分':'')+'——点下方「保存」落盘后生效';
+        toast('✅ 补足完成，记得保存');
+      } else rst.textContent = '模型失败：'+(r.error||'');
+    }catch(e){ rst.textContent = '模型失败：'+e.message; }
+  };
+})();
+
+/* ── 角色评分表（已并入人设选单 v2 卡片；此块仅保留导出入口）── */
+(async function(){
+  const exp = document.getElementById('rateExport');
+  if(!exp) return;
+  exp.onclick = async ()=>{
+    try{
+      const r = await getJSON('/api/community/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'persona_ratings'})});
+      toast(r.ok ? '✅ 评分已导出' : '导出失败');
+    }catch(e){ toast('导出失败：'+e.message); }
+  };
+})();
+
+/* ── 人设选单 v2（分区 chips + 两行卡[系统分/用户打分/描述] + ➕新建分区/添加角色）── */
+(async function(){
+  const box = document.getElementById('personaList');
+  if(!box) return;
+  let list = [], customs = [], scores = {}, userCats = {}, builtCats = [], curCat = '', sortByScore = false, favs = {};
+  try{
+    const r = await getJSON('/api/personas');
+    list = r.personas || [];
+    const rc = await getJSON('/api/personas/custom');
+    customs = (rc.custom || []).map(c=>({key:c.key, name:c.name, text:c.text, cat:c.cat || '📝 自定义'}));
+    try{
+      const rs = await getJSON('/api/personas/scores');
+      (rs.rows||[]).forEach(x=>{ scores[x.key] = x; });
+    }catch(e){}
+    try{ const rf = await getJSON('/api/personas/favs'); favs = rf.favs || {}; }catch(e){}
+    try{
+      const rc2 = await getJSON('/api/persona/cats');
+      builtCats = rc2.built || [];
+      (rc2.user||[]).forEach(c=>{ userCats[c.name] = c.desc || ''; });
+    }catch(e){}
+  }catch(e){ box.innerHTML = '<span class="hint">读取失败：'+e.message+'</span>'; return; }
+  async function rc_load(){
+    try{ const rc = await getJSON('/api/personas/custom'); customs = (rc.custom||[]).map(c=>({key:c.key,name:c.name,text:c.text,cat:c.cat||'📝 自定义'})); render(); }
+    catch(e){}
+  }
+  function allCats(){
+    const cs = {};
+    list.forEach(p=>{ cs[p.cat || '🔥 网络热门'] = true; });
+    customs.forEach(p=>{ cs[p.cat || '📝 自定义'] = true; });
+    Object.keys(userCats).forEach(c=>{ cs[c] = true; });
+    return Object.keys(cs);
+  }
+  function renderChips(){
+    const wrap = document.getElementById('personaCats'); if(!wrap) return;
+    wrap.querySelectorAll('.pCatChip').forEach(c=>c.remove());
+    allCats().forEach(c=>{
+      const b = document.createElement('button');
+      b.className = 'pCatChip ghost';
+      b.style.cssText = 'padding:2px 12px;border-radius:20px;'+(curCat===c?'background:var(--blue-soft);color:var(--blue);font-weight:700':'');
+      b.textContent = c;
+      b.onclick = ()=>{ curCat = (curCat===c?'':c); renderChips(); render(); };
+      wrap.insertBefore(b, document.getElementById('pCatAdd'));
+      // 用户分区：右键/小 ✕ 删除
+      const isBuilt = builtCats.includes(c);
+      const isCustomDefault = c.indexOf('📝') >= 0;
+      if(!isBuilt && !isCustomDefault){
+        const x = document.createElement('span');
+        x.textContent = ' ✕';
+        x.style.color = 'var(--err-tx)';
+        x.title = '删除分区「'+c+'」（分区下的自定义卡会移回 📝 自定义）';
+        x.onclick = async (ev)=>{
+          ev.stopPropagation();
+          if(!confirm('删除分区「'+c+'」？其中自定义角色会自动移回「📝 自定义」。')) return;
+          try{
+            await getJSON('/api/persona/cats/del',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:c})});
+            delete userCats[c];
+            if(curCat === c) curCat = '';
+            toast('✅ 分区「'+c+'」已删除'); renderChips(); rc_load();
+          }catch(e){ toast('删除失败：'+e.message); }
+        };
+        b.appendChild(x);
+      }
+    });
+  }
+  function stars(key, n, editable){
+    let s = '';
+    for(let i=1;i<=5;i++){
+      const on = n >= i;
+      s += '<span data-k="'+key+'" data-v="'+i+'" style="cursor:'+(editable?'pointer':'default')+';font-size:15px;margin:0 1px;color:'+(on?'#FFD54F':'var(--tx2)')+'">'+(on?'★':'☆')+'</span>';
+    }
+    return s;
+  }
+  function renderChips(){
+    const wrap = document.getElementById('personaCats'); if(!wrap) return;
+    wrap.querySelectorAll('.pCatChip').forEach(c=>c.remove());
+    allCats().forEach(c=>{
+      const b = document.createElement('button');
+      b.className = 'pCatChip ghost';
+      b.style.cssText = 'padding:2px 12px;border-radius:20px;'+(curCat===c?'background:var(--blue-soft);color:var(--blue);font-weight:700':'');
+      b.textContent = c;
+      b.onclick = ()=>{ curCat = (curCat===c?'':c); renderChips(); render(); };
+      wrap.insertBefore(b, document.getElementById('pCatAdd'));
+    });
+  }
+  function render(){
+    const q = ((document.getElementById('personaSearch')||{}).value || '').trim().toLowerCase();
+    const all = list.concat(customs);
+    let show = all.filter(p => !curCat || (p.cat||'🔥 网络热门') === curCat);
+    show = show.filter(p => !q || p.name.includes(q) || (p.key||'').includes(q) || (p.text||'').includes(q));
+    // ① 星标置顶（始终最上） ② 按评估分排序（当前视图）
+    if(sortByScore){
+      show = show.slice().sort((a,b)=> ((scores[b.key]||{}).model||0) - ((scores[a.key]||{}).model||0));
+    }
+    show = show.slice().sort((a,b)=> ((favs[a.key]?0:1) - (favs[b.key]?0:1)));
+    box.innerHTML = '';
+    if(!show.length){ box.innerHTML = '<span class="hint">没有匹配</span>'; return; }
+    show.forEach(p=>{
+      const sc = scores[p.key] || {};
+      const model = sc.model;
+      const fav = !!favs[p.key];
+      const card = document.createElement('div');
+      card.style.cssText = 'border:1px solid var(--bd);border-radius:10px;margin:4px 0;padding:7px 9px;position:relative';
+      card.onmouseenter = ()=> card.style.background = 'var(--hover-bg)';
+      card.onmouseleave = ()=> card.style.background = '';
+      card.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<button class="ghost fav" title="'+(fav?'取消星标':'收藏置顶')+'" style="padding:0 6px;color:'+(fav?'#FFD54F':'var(--tx2)')+'">'+(fav?'★':'☆')+'</button>'+
+          '<b style="flex:1">🐟 '+esc(p.name)+'</b>'+
+          (model!=null?('<span class="hint">模型 <b style="color:var(--warn)">'+Number(model).toFixed(2)+'</b></span>'):'')+
+          (p.key && String(p.key).indexOf('custom_')===0 ? '<button class="ghost move" style="padding:1px 8px">移动</button><button class="ghost del" style="padding:1px 8px;color:var(--err-tx)">删</button>' : '')+
+          '<button class="ghost use" style="padding:1px 12px">使用</button>'+
+          '<span class="dots" title="更多操作">⋯</span>'+
+        '</div>'+
+        '<div class="hint" style="margin-top:3px">'+(p.text||'').replace(/\n/g,' ').slice(0,60)+(p.text&&p.text.length>60?'…':'')+'</div>';
+      const dots = card.querySelector('.dots');
+      dots.style.cssText = 'cursor:pointer;color:var(--tx2);padding:0 4px;font-weight:700;transform:rotate(90deg);display:inline-block';
+      dots.onclick = (ev)=>{
+        ev.stopPropagation();
+        const menu = document.createElement('div');
+        menu.className = 'dsel-menu dn';
+        menu.style.cssText = 'position:absolute;right:6px;top:22px;z-index:60;display:block';
+        const items = [
+          ['为模型打星', async ()=>{ await getJSON('/api/personas/rate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:p.key, score:5})}); toast('✅ 已为「'+p.name+'」打星'); render(); }],
+          ['编辑角色卡', async ()=>{ const ta=document.querySelector('[data-cfg="persona.role_text"]'); if(ta){ ta.value=p.text; } syncToForm(); toast('已填入编辑区，点保存生效'); }],
+          ['导出其评分', async ()=>{ await getJSON('/api/community/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'persona_ratings'})}); toast('✅ 评分已导出'); }],
+          ['复制角色名', async ()=>{ await navigator.clipboard.writeText(p.name); toast('已复制'); }],
+        ];
+        menu.innerHTML = items.map((x,i)=>'<li data-i="'+i+'">'+x[0]+'</li>').join('');
+        card.appendChild(menu);
+        menu.querySelectorAll('li').forEach((li,i)=>{ li.onclick = async (ev)=>{ ev.stopPropagation(); menu.remove(); items[i][1](); }; });
+        setTimeout(()=>{ document.addEventListener('click', ()=>menu.remove(), {once:true}); }, 0);
+      };
+      const favBtn = card.querySelector('.fav');
+      favBtn.onclick = async (ev)=>{
+        ev.stopPropagation();
+        try{
+          await getJSON('/api/personas/fav',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:p.key, fav:!fav})});
+          favs[p.key] = !fav; render();
+        }catch(e){ toast('星标失败：'+e.message); }
+      };
+      box.appendChild(card);
+      const useBtn = card.querySelector('.use');
+      useBtn.onclick = async (ev)=>{
+        ev.stopPropagation();
+        try{
+          if(!cfg.persona) cfg.persona = {};
+          cfg.persona.bot_name = p.name;
+          cfg.persona.role_text = p.text;
+          await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
+          syncToForm();
+          toast('✅ 已切换人设「'+p.name+'」并保存（重启机器人后生效）');
+        }catch(e){ toast('应用失败：'+e.message); }
+      };
+      const delBtn = card.querySelector('.del');
+      if(delBtn) delBtn.onclick = async (ev)=>{
+        ev.stopPropagation();
+        if(!confirm('删除「'+p.name+'」？')) return;
+        try{
+          await getJSON('/api/personas/custom/del',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:p.key})});
+          toast('已删除'); rc_load();
+        }catch(e){ toast('删除失败：'+e.message); }
+      };
+      const mvBtn = card.querySelector('.move');
+      if(mvBtn) mvBtn.onclick = async (ev)=>{
+        ev.stopPropagation();
+        const cats = allCats().join('、');
+        const cat = prompt('移到哪个分区？可填已有分区（'+cats+'）或输入新名字自动新建', p.cat);
+        if(cat===null) return;
+        if(!cat.trim()){ toast('分区名不能为空'); return; }
+        try{
+          await getJSON('/api/personas/custom',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:p.key,name:p.name,text:p.text,cat:cat.trim()})});
+          toast('✅ 已移到「'+cat.trim()+'」'); rc_load();
+        }catch(e){ toast('移动失败：'+e.message); }
+      };
+    });
+  }
+  /* 排序按钮 */
+  (function(){
+    const s = document.getElementById('pSort'), so = document.getElementById('pSortOff');
+    if(s) s.onclick = ()=>{ sortByScore = true; render(); toast('已按评估分高→低排序（当前视图）'); };
+    if(so) so.onclick = ()=>{ sortByScore = false; render(); };
+  })();
+  /* ➕ 新建分区 / 添加角色（弹出菜单） */
+  const addBtn = document.getElementById('pCatAdd');
+  if(addBtn) addBtn.onclick = ()=>{
+    const box2 = document.createElement('div'); box2.className = 'box'; box2.style.textAlign = 'left';
+    const cats = allCats();
+    box2.innerHTML =
+      '<h1>➕ 新建分区 / 添加到分区</h1>'+
+      '<div class="row"><label>类型</label><div class="grow"><select id="pAddType"><option value="cat">新建分区</option><option value="persona">添加角色到分区</option></select></div></div>'+
+      '<div class="row" id="pAddCatRow"><label>分区名</label><div class="grow"><input id="pAddCat" placeholder="如 🎮 我的游戏（可新建）"></div></div>'+
+      '<div class="row" id="pAddDescRow"><label>分区描述</label><div class="grow"><input id="pAddDesc" placeholder="这分区的角色都是什么（可选）"></div></div>'+
+      '<div class="row" id="pAddNameRow" style="display:none"><label>角色名</label><div class="grow"><input id="pAddName" placeholder="角色名"></div></div>'+
+      '<div class="row" id="pAddTextRow" style="display:none"><label>角色文本</label><div class="grow"><textarea id="pAddText" rows="5" placeholder="角色设定（会交补足引擎+评分）"></textarea></div></div>'+
+      '<div class="hint" id="pAddCats" style="margin:4px 0">已有分区：'+(builtCats.concat(Object.keys(userCats)).join('、'))+'</div>'+
+      '<div class="btns" style="justify-content:flex-end;margin-top:8px"><button class="pri" id="pAddOk">创建</button><button class="ghost" id="pAddCancel">取消</button></div>';
+    const mm = document.createElement('div'); mm.className = 'mask'; mm.appendChild(box2);
+    document.body.appendChild(mm); maskOpen(mm);
+    const typeSel = box2.querySelector('#pAddType');
+    typeSel.onchange = ()=>{
+      const isP = typeSel.value === 'persona';
+      box2.querySelector('#pAddNameRow').style.display = isP?'':'none';
+      box2.querySelector('#pAddTextRow').style.display = isP?'':'none';
+    };
+    box2.querySelector('#pAddCancel').onclick = ()=>{ maskClose(mm); mm.remove(); };
+    box2.querySelector('#pAddOk').onclick = async ()=>{
+      const cat = (box2.querySelector('#pAddCat').value||'').trim();
+      if(!cat){ toast('分区名不能为空'); return; }
+      try{
+        if(typeSel.value === 'cat'){
+          const desc = (box2.querySelector('#pAddDesc').value||'').trim();
+          await getJSON('/api/persona/cats/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cat, desc})});
+          userCats[cat] = desc;
+          toast('✅ 分区「'+cat+'」已创建（在分区栏可看/删除）');
+          renderChips();
+        }else{
+          const name = (box2.querySelector('#pAddName').value||'').trim();
+          const text = (box2.querySelector('#pAddText').value||'').trim();
+          if(!name || !text){ toast('角色名和文本都要填'); return; }
+          const r = await getJSON('/api/personas/custom',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, text, cat})});
+          if(r.ok){ toast('✅ 角色「'+name+'」已加入分区「'+cat+'」'); rc_load(); }
+          else toast('失败：'+(r.error||''));
+        }
+        maskClose(mm); mm.remove();
+      }catch(e){ toast('失败：'+e.message); }
+    };
+  };
+  if(document.getElementById('personaSearch')) document.getElementById('personaSearch').addEventListener('input', render);
+  renderChips(); render();
+})();
+
+/* 角色卡 → 行为档位推荐（本地关键词，零 token） */
+(function(){
+  const PH = ["活跃","话痨","话多","话唠","开朗","热情","外向","爱说话","爱聊","自来熟","中二","卖萌","活泼","调皮","社牛","气氛组","爱抛梗","爱接话"];
+  const PL = ["高冷","安静","沉默","内向","潜水","话少","不爱说话","寡言","冷淡","宅","旁观","看戏","围观","佛系","淡定"];
+  const SH = {3:["表情包爱好者","表情狂魔","表情轰炸","斗图","斗表情","表情包大师"],
+              2:["表情包","用表情","表情帝","爱用表情","颜文字","可爱","萌"],
+              1:["偶尔表情","偶尔用用","表情克制"],
+              0:["不用表情","不发表情","正经","严肃","老成","严谨","书卷气","文绉绉"]};
+  const btn = $('roleHintBtn');
+  if(!btn) return;
+  btn.onclick = ()=>{
+    const txt = ($('roleHint') || document.querySelector('[data-cfg="persona.role_text"]'));
+    const rt = txt ? (txt.value || '') : '';
+    if(!rt.trim()){ $('roleHintRst').textContent = '角色文本为空，用默认（普通/少表情）'; }
+    let hi = 0, lo = 0;
+    PH.forEach(k=>{ if(rt.includes(k)) hi++; });
+    PL.forEach(k=>{ if(rt.includes(k)) lo++; });
+    let part = 'medium';
+    if(hi - lo >= 2) part = 'high';
+    else if(lo - hi >= 2) part = 'low';
+    let st = 0;
+    [3,2,1,0].forEach(lv=>{ if(st===0 && SH[lv].some(k=>rt.includes(k))) st = lv; });
+    $('roleHintPart').value = part;
+    $('roleHintSticker').value = String(st);
+    $('roleHintRst').textContent = '推荐：参与度 ' + (part==='high'?'活跃':part==='low'?'安静':'普通') + ' · 表情包 ' + st + ' 级';
+    $('roleHintDetail').style.display = '';
+  };
+  const apply = $('roleHintApply');
+  if(apply){
+    apply.onclick = async ()=>{
+      try{
+        setPath(cfg, 'persona.participation', $('roleHintPart').value);
+        setPath(cfg, 'store.sticker_level', parseInt($('roleHintSticker').value) || 0);
+        await getJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)});
+        syncToForm();
+        toast('已应用行为档（参与度/表情包）');
+      }catch(e){ toast('应用失败：'+e.message); }
+    };
+  }
+})();
+
+/* 高级功能页：UI 布局状态 */
+(async function(){
+  try{
+    const r = await getJSON('/api/ui-layout');
+    const box = $('uiLayoutStat');
+    if(box && r.ok){
+      const it = r.layout || {};
+      box.textContent = '已标定 ' + ((it.sidebar_items||[]).length||0) + ' 个侧栏图标' + (it.sidebar_items?'（'+it.sidebar_items.join(',')+'）':'');
+    }
+  }catch(e){ if($('uiLayoutStat')) $('uiLayoutStat').textContent = '读取失败：'+e.message; }
+})();
+if($('uiLayoutReload')) $('uiLayoutReload').onclick = ()=>location.reload();
+if($('uiRecalibrate')) $('uiRecalibrate').onclick = async ()=>{
+  if(!confirmBox) return;
+  const b = $('uiRecalibrate'); b.disabled = true; b.textContent = '标定中…（微信前台）';
+  try{
+    const r = await getJSON('/api/ui/recalibrate', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    if(r.ok) toast('✅ 标定完成：检测到 '+r.count+' 个侧栏图标');
+    else toast('标定失败：'+(r.error||''));
+  }catch(e){ toast('标定失败：'+e.message); }
+  b.disabled = false; b.textContent = '重新标定（接管鼠标）';
+  location.reload();
+};
+
+/* 壁纸视频：video 成功→启用；失败→CSS 波浪 */
+(function(){
+  const v = document.getElementById('wallVideo');
+  if(!v) return;
+  v.addEventListener('loadeddata', ()=>{
+    try{
+      if((getPath(cfg,'ui.theme')||'whale')==='whale' && (getPath(cfg,'ui.background')||'')!=='custom') document.body.classList.add('wall-video');
+    }catch(e){ document.body.classList.add('wall-video'); }
+  });
+  v.addEventListener('error', ()=>{ document.body.classList.remove('wall-video'); });
+  const _sel = document.querySelector('[data-cfg="ui.theme"]');
+  if(_sel){
+    _sel.addEventListener('change', ()=>{
+      document.body.classList.toggle('wall-video', _sel.value==='whale' && !v.error);
+    });
+  }
+})();
+
+/* ── 涟漪 v4：逐字浮动（hover 卡片标题波浪）+ 光标处细环；新面板自动生效 ── */
+(function(){
+  let lastT = 0;
+  document.addEventListener('mousemove', (ev)=>{
+    const now = performance.now();
+    if(now - lastT < 100) return;
+    lastT = now;
+    const targetEl = ev.target && ev.target.closest ? ev.target.closest('.card,.side,.box,.menu') : null;
+    if(targetEl){
+      const r = targetEl.getBoundingClientRect();
+      const x = ev.clientX - r.left, y = ev.clientY - r.top;
+      for(const cls of ['ripple', 'ripple r2']){
+        const d = document.createElement('i');
+        d.className = cls; d.style.left = x + 'px'; d.style.top = y + 'px';
+        targetEl.appendChild(d);
+        setTimeout(()=>d.remove(), 1350);
+      }
+      // 逐字浮动：把卡片标题拆成字（一次拆好缓存）
+      if(!targetEl._waves && targetEl.classList.contains('card')){
+        targetEl._waves = true;
+        targetEl.querySelectorAll('h2, h3, .desc > b').forEach(h=>{
+          if(h.dataset.waved) return;
+          const t = h.textContent;
+          if(t.length > 60) return;
+          h.dataset.waved = '1';
+          const sp = document.createElement('span');
+          sp.innerHTML = Array.from(t).map((ch, i)=>
+            '<span class="wave-char" style="animation-delay:'+(i*0.12).toFixed(2)+'s">'+esc(ch)+'</span>').join('');
+          h.innerHTML = '';
+          h.appendChild(sp);
+        });
+      }
+    }
+  });
+  function bindFloat(){
+    document.querySelectorAll('.card:not(.float-a)').forEach((el, i)=>{
+      el.classList.add('float-a');
+      el.style.animationDelay = (i % 7) * 0.7 + 's';   // 卡片轻柔浮沉（性能安全：仅 transform）
+    });
+  }
+  bindFloat();
+  new MutationObserver(bindFloat).observe(document.body, {childList:true, subtree:true});
+})();
+
+/* ── 🐋 鲸语版界面文案：DeepSeek 味（先想再答/省算力/推理）；功能说明照旧 ── */
+const WHALE_TXT = {
+  "wx-agent 控制台": "wx-agent 控制台 · 想到再答",
+  "概览": "🐋 概览 · 算力是省的，感情是真的",
+  "配置与启动": "⚙️ 配置 · 你先别急，让我想想",
+  "模型 API": "🧊 模型 API · deepseek，等我翻下资料",
+  "微信": "💬 微信 · 收到，正在思考",
+  "拍一拍": "👋 拍一拍 · 我轻轻出个手，就一下",
+  "记忆": "🧠 记忆 · 我好像有点想起来了",
+  "记忆共享": "🤝 记忆共享 · 想起来的都算数",
+  "人设与响应": "🎭 人设 · 今天扮演谁，先想牌",
+  "社区与学习": "📚 社区 · 好东西先存着，回头再想",
+  "发送限制": "🚦 发送限制 · 说太多怕烧算力",
+  "联网搜索": "🔎 联网搜索 · 我去外面翻翻",
+  "服务器": "🖥️ 服务器 · 后台有人守着，不用想",
+  "界面适配": "🎨 界面 · 脸面不能省",
+  "运行日志": "📜 运行日志 · 思考过程全在这",
+  "检测中心": "检测中心 · 出门前先自检一遍",
+  "体检与功能自检": "检测中心 · 出门前先自检一遍",
+  "测试 API 连通": "测试 API 连通（先让我推理一下再说）",
+  "保存": "保存（存好了，算力已省下）",
+  "停止": "停止（下班了，别唤醒我）",
+  "重启": "重启（睡饱了，重新思考）",
+  "一键体检": "鼠标操作检测（动手前先想好）",
+  "代码检测": "代码检测（先检查，再思考）",
+  "代码检测＋依赖核对": "代码检测＋依赖核对（连依赖一起想）",
+  "功能自检清单": "功能自检清单（按重要性，一个一个过）",
+  "程序鼠标检验": "🖱️ 程序鼠标检验（我说到做到）",
+  "调试 · 高级功能": "调试 · 高级功能（内行才来的地方）",
+  "群聊配置": "群聊配置 · 在谁家唠，先说好",
+  "停止检测": "停止检测（这次不推理了）",
+  "发送消息": "发送消息（话给你带到了）",
+};
+function applyWhale(){
+  try{
+    if(!cfg || (getPath(cfg,'ui.text_style')||'') !== 'whale') return;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while(walker.nextNode()) nodes.push(walker.currentNode);
+    for(const n of nodes){
+      const t = (n.nodeValue||'').trim();
+      if(WHALE_TXT[t] && n.nodeValue.indexOf(WHALE_TXT[t]) < 0){
+        n.nodeValue = n.nodeValue.replace(t, WHALE_TXT[t]);
+      }
+    }
+    // 顶栏徽标
+    const lg = document.querySelector('.logo span');
+    if(lg && lg.textContent.indexOf('鲸鲸号') < 0){
+      lg.innerHTML = lg.innerHTML.replace('wx-agent 控制台', 'wx-agent 控制台 · 🐋 鲸鲸号');
+    }
+    document.title = 'wx-agent · 鲸鲸号';
+  }catch(e){}
+}
+document.addEventListener('DOMContentLoaded', applyWhale);
+
+/* ── 卡片水波：hover 时从鼠标位置荡开两道涟漪，渐平后自动清除 */
+(function(){
+  document.querySelectorAll('.card,.side').forEach(el=>{
+    el._ripBound = true;
+    el.addEventListener('mouseenter', (ev)=>{
+      const r = el.getBoundingClientRect();
+      const x = ev.clientX - r.left, y = ev.clientY - r.top;
+      for(const cls of ['ripple','ripple r2']){
+        const d = document.createElement('i');
+        d.className = cls;
+        d.style.left = x + 'px'; d.style.top = y + 'px';
+        el.appendChild(d);
+        setTimeout(()=>d.remove(), 1100);
+      }
+    });
+  });
+})();
+
+/* ── 程序鼠标检验区（按钮直控鼠标；搜索框过滤 + 滚动槽）── */
+const UI_TESTS = [
+  {id:"moments_open",  name:"朋友圈：打开",        desc:"点侧栏朋友圈图标 → 验证「朋友圈」窗口出现"},
+  {id:"moments_close", name:"朋友圈：关闭",        desc:"点窗口右上角叉号 → 验证已关（可反复测）"},
+  {id:"moments_like",  name:"朋友圈：点赞第一条",  desc:"蓝点→「赞」→自动关窗（对第一条动态）"},
+  {id:"moments_comment", name:"朋友圈：评论第一条", desc:"蓝点→「评论」→输入测试评论→发送→关窗（会真评论）"},
+  {id:"moments_scroll", name:"朋友圈：滚动刷",     desc:"滚轮滚动信息流（幅度按窗口高）→ 关窗"},
+  {id:"emoji_collect", name:"表情：收藏（右键）",  desc:"右键最近一条 [表情]/[图片] →「添加到表情」（会真收藏）"},
+  {id:"emoji_panel",   name:"表情：面板发送",      desc:"点输入栏笑脸→面板→爱心→点表情→发送（未指定名字时）"},
+  {id:"message_collect", name:"消息：收藏",        desc:"右键最新消息→「收藏」（验证菜单通路）"},
+  {id:"message_recall", name:"消息：撤回",         desc:"右键自己最新消息→「撤回」（2分钟内有效）"},
+  {id:"windows_clean", name:"窗口：清理残留",      desc:"枚举并关闭所有微信残留子窗口（叉号→验证→兜底）"},
+  {id:"recalibrate",   name:"UI 图标库：重新标定", desc:"接管鼠标检测侧栏图标序列并写 ui_layout.json"},
+];
+async function runUiTest(id, btn){
+  const res = document.getElementById('uiTestRst_' + id);
+  const stop = document.getElementById('uiTestStop_' + id);
+  if(!btn) btn = document.getElementById('uiTestBtn_' + id);
+  if(!btn) return;
+  btn.disabled = true; btn.textContent = '执行中…';
+  if(stop) stop.disabled = false;
+  if(res) res.textContent = '';
+  try{
+    const r = await getJSON('/api/ui-test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({kind:id})});
+    if(res){
+      const ok = r && r.ok;
+      res.textContent = ok ? ('✅ ' + (r.note || '成功')) : ('❌ ' + (r.error || '失败'));
+      res.style.color = ok ? 'var(--ok-tx)' : 'var(--err-tx)';
+    }
+  }catch(e){ if(res){ res.textContent = '❌ ' + e.message; res.style.color = 'var(--err-tx)'; } }
+  btn.disabled = false; btn.textContent = '执行';
+  if(stop) stop.disabled = true;
+}
+async function stopUiTest(id){
+  try{
+    await getJSON('/api/ui-test/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    toast('已请求停止（当前动作完成即中止）');
+    setTimeout(()=>{ const b = document.getElementById('uiTestBtn_' + id); if(b){ b.disabled = false; b.textContent = '执行'; } }, 1500);
+  }catch(e){ toast('停止失败：'+e.message); }
+}
+function renderUiTests(){
+  const box = document.getElementById('uiTestBox'); if(!box) return;
+  const q = (document.getElementById('uiTestSearch') || {}).value || '';
+  box.innerHTML = '';
+  UI_TESTS.filter(t => !q || t.name.includes(q) || t.desc.includes(q)).forEach(t=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--bd)';
+    row.innerHTML = '<div style="flex:1"><b>'+t.name+'</b><div class="hint">'+t.desc+'</div>'+
+      '<span id="uiTestRst_'+t.id+'" style="font-size:12.5px"></span></div>'+
+      '<button class="pri" id="uiTestBtn_'+t.id+'" style="white-space:nowrap">执行</button>'+
+      '<button class="ghost" id="uiTestStop_'+t.id+'" style="white-space:nowrap;color:var(--err-tx)" disabled>停止</button>';
+    box.appendChild(row);
+    row.querySelector('#uiTestBtn_'+t.id).onclick = ()=>runUiTest(t.id);
+    row.querySelector('#uiTestStop_'+t.id).onclick = ()=>stopUiTest(t.id);
+  });
+}
+if(document.getElementById('uiTestSearch')){
+  document.getElementById('uiTestSearch').addEventListener('input', renderUiTests);
+  renderUiTests();
+}
+
+/* 表情包收藏夹（搜索框 + 滚动槽 + 最多显示 60 个） */
+let _emojiAll = [];
+async function loadEmojis(){
+  try{
+    const r = await getJSON('/api/emojis');
+    const box = $('emojiBox');
+    if(!box) return;
+    _emojiAll = (r.emojis||[]);
+    renderEmojis();
+    $('emojiCount').textContent = '共 ' + _emojiAll.length + ' 个（机器人发送用 send_emoji）';
+  }catch(e){
+    const box = $('emojiBox');
+    if(box) box.innerHTML = '<span class="hint">读取失败：'+e.message+'</span>';
+  }
+}
+function renderEmojis(){
+  const box = $('emojiBox'); if(!box) return;
+  const q = ($('emojiSearch') && $('emojiSearch').value || '').trim().toLowerCase();
+  const list = q ? _emojiAll.filter(e=>e.name.toLowerCase().includes(q)) : _emojiAll;
+  if(!list.length){
+    box.innerHTML = '<span class="hint">' + (q ? '没有匹配「'+q+'」的表情' : '收藏夹为空：群里收到好玩的表情后，机器人可用 collect_emoji 收藏。') + '</span>';
+    return;
+  }
+  const show = list.slice(0, 60);
+  box.innerHTML = '';
+  show.forEach(e=>{
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;flex:0 0 auto';
+    const img = document.createElement('img');
+    img.src = '/assets/emoji/' + encodeURIComponent(e.name) + '?t=' + Date.now();
+    img.style.cssText = 'width:44px;height:44px;object-fit:contain;border:1px solid var(--bd);border-radius:8px;background:var(--card)';
+    img.title = e.name;
+    img.onerror = ()=>{ img.style.opacity = '.2'; img.title = e.name + '（图片读取失败）'; };
+    wrap.appendChild(img);
+    const del = document.createElement('button');
+    del.textContent = '×';
+    del.title = '删除 ' + e.name;
+    del.style.cssText = 'position:absolute;top:-5px;right:-5px;width:18px;height:18px;line-height:16px;padding:0;border-radius:50%;background:var(--err);color:#fff;font-size:12px;cursor:pointer;border:none';
+    del.onclick = async (ev)=>{
+      ev.stopPropagation();
+      if(!confirm('删除表情「'+e.name+'」？')) return;
+      try{
+        const r = await getJSON('/api/emojis/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:e.name})});
+        if(r.ok){ toast('已删除'); loadEmojis(); } else toast('删除失败：'+(r.error||''));
+      }catch(ex){ toast('删除失败：'+ex.message); }
+    };
+    wrap.appendChild(del);
+    box.appendChild(wrap);
+  });
+  if(list.length > show.length){
+    const more = document.createElement('div');
+    more.className = 'hint'; more.style.cssText = 'width:100%';
+    more.textContent = '…还有 ' + (list.length - show.length) + ' 个（滚到底或用搜索）';
+    box.appendChild(more);
+  }
+}
+if($('emojiRefresh')) $('emojiRefresh').onclick = loadEmojis;
+if($('emojiSearch')) $('emojiSearch').addEventListener('input', renderEmojis);
+loadEmojis();
+
 async function loadPokeGroups(){
   try{
     const r = await getJSON('/api/wechat-groups');
@@ -1204,13 +2997,81 @@ async function loadMemory(chat_key){
           toast('已删除'); loadMemory(sel.value);
         }catch(e){ toast('删除失败：'+e.message); }
       };
-      tr.innerHTML='<td>'+esc(name)+'</td><td>'+n+'</td><td>'+memTime(m.updatedAt)+'</td>';
+      tr.innerHTML='<td><input type="checkbox" class="memPick" data-uid="'+esc(String(m.userId||''))+'" data-nm="'+esc(name)+'" style="width:15px;height:15px"></td><td>'+esc(name)+'</td><td>'+n+'</td><td>'+memTime(m.updatedAt)+'</td>';
+      tr.querySelector('.memPick').onchange = ()=>{
+        const any = !!document.querySelector('.memPick:checked');
+        const b = $('memClearSel'); if(b) b.disabled = !any;
+      };
+      const editBtn=document.createElement('button'); editBtn.className='ghost'; editBtn.textContent='编辑';
+      editBtn.onclick=async ()=>{
+        const cur=(m.impressions||[]).map(e=>e.content||'').join('\n');
+        const box=document.createElement('div'); box.className='box'; box.style.textAlign='left';
+        box.innerHTML='<h1>编辑「'+esc(name)+'」的印象</h1><p>每行一条印象；清空=删除全部。</p>'+
+          '<textarea id="memEdit" rows="6" class="out">'+esc(cur)+'</textarea>'+
+          '<div class="btns" style="justify-content:flex-end;margin-top:10px"><button class="pri" id="memEditOk">保存</button><button class="ghost" id="memEditCancel">取消</button></div>';
+        const mm=document.createElement('div'); mm.className='mask'; mm.appendChild(box);
+        document.body.appendChild(mm); maskOpen(mm);
+        $('memEditOk').onclick=async ()=>{
+          try{
+            const lines=($('memEdit').value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+            await getJSON('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({action:'update',chat_key:sel.value,user_id:m.userId,name:m.name,contents:lines})});
+            toast('已更新'); maskClose(mm); mm.remove(); loadMemory(sel.value);
+          }catch(e){ toast('更新失败：'+e.message); }
+        };
+        $('memEditCancel').onclick=()=>{ maskClose(mm); mm.remove(); };
+      };
+      tr.appendChild(editBtn);
       tr.appendChild(del);
       tb.appendChild(tr);
     }
   }catch(e){ $('memEmpty').style.display='block'; $('memEmpty').textContent='加载失败：'+e.message; }
 }
 let memMembers = [];
+/* 清除勾选的记忆 / 清除全部 / 清除会话日志 */
+(async function(){
+  const selB = document.getElementById('memClearSel'), allB = document.getElementById('memClearAll'), rst = document.getElementById('memClearRst');
+  const sessB = document.getElementById('sessClear');
+  if(!selB || !allB) return;
+  selB.onclick = async ()=>{
+    const picked = Array.from(document.querySelectorAll('.memPick:checked'));
+    if(!picked.length){ toast('请先勾选要清除的成员'); return; }
+    if(!confirm('清除勾选的 '+picked.length+' 位成员全部印象？')) return;
+    try{
+      for(const p of picked){
+        await getJSON('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({chat_key:(sel?sel.value:''),user_id:p.dataset.uid})});
+      }
+      if(rst) rst.textContent = '✅ 已清除 '+picked.length+' 位';
+      toast('✅ 已清除 '+picked.length+' 位成员印象');
+      if(typeof loadMemory === 'function') loadMemory(sel ? sel.value : '');
+    }catch(e){ toast('清除失败：'+e.message); }
+  };
+  allB.onclick = async ()=>{
+    if(!confirm('⚠️ 清除全部记忆（所有群所有成员印象+共享记忆）？不可恢复！')) return;
+    try{
+      const r = await getJSON('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'clear_all'})});
+      if(rst) rst.textContent = '✅ '+(r.ok?'全部记忆已清除':('失败：'+(r.error||'')));
+      toast(r.ok ? '✅ 全部记忆已清除' : '清除失败');
+      if(typeof loadMemory === 'function') loadMemory('');
+    }catch(e){ toast('清除失败：'+e.message); }
+  };
+  if(document.getElementById('memCheckAll')) document.getElementById('memCheckAll').onchange = (e)=>{
+    document.querySelectorAll('.memPick').forEach(c=>{ c.checked = e.target.checked; });
+    selB.disabled = !e.target.checked;
+  };
+  if(sessB) sessB.onclick = async ()=>{
+    if(!confirm('⚠️ 清除全部会话日志（运行明细里的对话历史）？模型之后不会再记得这些对话。')) return;
+    try{
+      const r = await getJSON('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'clear_sessions'})});
+      if(rst) rst.textContent = '✅ '+(r.note||'已清除');
+      toast('✅ 会话日志已清除');
+      try{ loadSessions(); }catch(e){}
+    }catch(e){ toast('清除失败：'+e.message); }
+  };
+})();
 $('memChats').addEventListener('change', ()=>loadMemory($('memChats').value));
 $('memRefresh').onclick = ()=>loadMemory($('memChats').value);
 /* 记忆页群搜索：过滤下拉选项；回车选中第一个匹配（群多时最顺手） */
@@ -1267,7 +3128,10 @@ async function checkAlive(){
     offlineShown=true;
     const ov=document.createElement('div'); ov.className='mask';
     ov.innerHTML='<div class="box">'+ICON+'<h1>机器人已停止</h1>'+
-      '<p>后台进程已退出。可双击「启动机器人.vbs」（完全无窗口）或在有运行实例时点「重启」恢复。</p>'+
+      '<p style="text-align:left;margin:4px 0">· 全部进程已结束（机器人 + 看门狗），不会再自动拉起。</p>'+
+      '<p style="text-align:left;margin:4px 0">· 想再次运行：双击根目录 <b>启动机器人.vbs</b>（完全无窗口），或 <b>一键启动.bat</b>（依赖检查+自检+启动）。</p>'+
+      '<p style="text-align:left;margin:4px 0">· 群聊与存档数据不会丢失，下次启动自动恢复。</p>'+
+      '<p style="text-align:left;margin:4px 0">· 日志已保存在 logs\\wx_agent.log，供排查。</p>'+
       '<div class="hint">正在尝试自动关闭本标签页；约 3 秒后关不掉就请手动关闭（浏览器会拦截脚本关闭，属正常现象）。</div></div>';
     document.body.appendChild(ov); maskOpen(ov);
     // 稳定关闭：先 window.open 建立「脚本可关」的同源窗口再 close（绕过浏览器限制）
@@ -1289,6 +3153,149 @@ setInterval(checkAlive, 6000);
 $('sessRefresh').onclick = ()=>loadSessions();
 addEventListener('hashchange', ()=>{ if(location.hash==='#sec-sessions') loadSessions(); });
 $('sessExpand').addEventListener('change', ()=>loadSessions());
+/* ── 社区与学习：每群档位 / 屏蔽名单 / 导出 / 导入 ── */
+function renderGroupTierBox(){
+  const box = $('groupTierBox'); if(!box) return;
+  const unified = getPath(cfg,'store.unified_tier');
+  if(unified !== false){ box.innerHTML='<div class="hint">勾选"每群独立档位"后，这里列出每个群可单独设置档位。</div>'; return; }
+  const groups = (cfg && cfg.wechat && cfg.wechat.group_name_white_list) || [];
+  const gt = getPath(cfg,'store.group_tier') || {};
+  box.innerHTML='';
+  if(!groups.length){ box.innerHTML='<div class="hint">没有群白名单——群列表为空（在「微信」卡勾选群后此处自动列出）。</div>'; return; }
+  groups.forEach(g=>{
+    const row=document.createElement('div'); row.className='row';
+    row.innerHTML='<label>'+esc(g)+'</label><div class="grow"><select data-group-tier="'+esc(g)+'">'+
+      '<option value="">跟随全局</option><option value="1">1 档</option><option value="2">2 档</option>'+
+      '<option value="3">3 档</option><option value="4">4 档</option></select></div>';
+    const sel=row.querySelector('select');
+    sel.value = gt[g] != null ? String(gt[g]) : '';
+    sel.addEventListener('change', ()=>{
+      const v = sel.value ? parseInt(sel.value,10) : null;
+      const cur = getPath(cfg,'store.group_tier') || {};
+      if(v === null) delete cur[g]; else cur[g] = v;
+      setPath(cfg,'store.group_tier', cur);
+    });
+    box.appendChild(row);
+  });
+}
+$('unifiedTierChk').addEventListener('change', ()=>renderGroupTierBox());
+/* 打开种子库 / 确认上传（联动社区上传开关+URL） */
+(function(){
+  const ob = document.getElementById('openSeedBtn'), ub = document.getElementById('uploadSeeds');
+  if(!ob || !ub) return;
+  ob.onclick = async ()=>{
+    try{
+      const r = await getJSON('/api/open-path',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:'data/seed_library.json'})});
+      if(!r.ok) toast('打开失败：'+(r.error||''));
+      else toast('✅ 已打开种子库（编辑后保存即可生效）');
+    }catch(e){ toast('打开失败：'+e.message); }
+  };
+  const chk = document.querySelector('[data-cfg="community.upload_enabled"]');
+  const url = document.querySelector('[data-cfg="community.holyshits_upload_url"]');
+  const fbUrl = document.querySelector('[data-cfg="community.feedback_upload_url"]');
+  const fbBtn = document.getElementById('uploadFeedback');
+  function syncState(){
+    ub.disabled = !(chk && chk.checked && url && url.value.trim());
+    if(fbBtn) fbBtn.disabled = !(chk && chk.checked && fbUrl && fbUrl.value.trim());
+  }
+  syncState();
+  if(chk) chk.addEventListener('input', syncState);
+  if(url) url.addEventListener('input', syncState);
+  if(fbUrl) fbUrl.addEventListener('input', syncState);
+  ub.onclick = async ()=>{
+    if(!confirm('确认把当前种子库上传到配置的服务器？')) return;
+    try{
+      const r = await getJSON('/api/community/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'holyshits'})});
+      const msg = r && r.ok ? ('✅ 已上传 '+((r.count||r.uploaded||0))+' 条') : ('上传失败：'+(r.error||'未配置'));
+      $('uploadRst').textContent = msg; toast(msg);
+    }catch(e){ $('uploadRst').textContent = '上传失败：'+e.message; }
+  };
+  if(fbBtn) fbBtn.onclick = async ()=>{
+    if(!confirm('确认把意见反馈上传到配置的服务器？')) return;
+    try{
+      const r = await getJSON('/api/community/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'feedback'})});
+      const msg = r && r.ok ? ('✅ 意见已上传 '+((r.count||r.uploaded||0))+' 条') : ('上传失败：'+(r.error||'未配置'));
+      $('uploadRst').textContent = msg; toast(msg);
+    }catch(e){ $('uploadRst').textContent = '上传失败：'+e.message; }
+  };
+})();
+
+$('seedImportBtn').onclick = async ()=>{
+  try{
+    const text = $('seedImport').value || '';
+    if(!text.trim()){ toast('请先粘贴要导入的金句文本'); return; }
+    const r = await getJSON('/api/scoring/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    $('seedImportRst').textContent = r.ok ? ('已导入 '+r.imported+' 条') : ('失败：'+r.error);
+    toast(r.ok ? ('✅ 金句已导入种子库 '+r.imported+' 条') : ('导入失败：'+r.error));
+  }catch(e){ toast('导入失败：'+e.message); }
+};
+/* 选择文件导入种子库（txt/json；读入→文本→查重合并→生效） */
+(function(){
+  const btn = document.getElementById('seedImportFile');
+  if(!btn) return;
+  const file = document.getElementById('seedFile');
+  btn.onclick = ()=> file && file.click();
+  if(file) file.onchange = async ()=>{
+    const f = file.files && file.files[0];
+    if(!f) return;
+    const text = await f.text();
+    if(!text.trim()){ toast('文件为空'); return; }
+    try{
+      const r = await getJSON('/api/scoring/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+      $('seedImportRst').textContent = r.ok ? ('✅ 从文件导入 '+r.imported+' 条（查重后）') : ('导入失败：'+(r.error||''));
+      toast(r.ok ? ('✅ 文件导入 '+r.imported+' 条，已查重并生效') : ('导入失败：'+r.error));
+    }catch(e){ toast('导入失败：'+e.message); }
+    file.value = '';
+  };
+})();
+/* 高级功能页：种子库状态 */
+async function loadSeedStats(){
+  try{
+    const r = await getJSON('/api/scoring/stats');
+    if(r.ok && $('seedStats')){
+      const d = r.data || {};
+      $('seedStats').textContent = '种子库 '+ (d.seed_count||0) +' 条 · 已学反应 '+ (d.reaction_count||0) +' 条 · 高分参考 '+ ((d.top||[]).length||0) +' 条';
+    }
+  }catch(e){ if($('seedStats')) $('seedStats').textContent = '种子库状态读取失败（'+e.message+'）'; }
+}
+if($('seedReload')) $('seedReload').onclick = loadSeedStats;
+loadSeedStats();
+async function doExport(kind, label){
+  const btn = document.getElementById('export'+label); if(btn) btn.disabled = true;
+  try{
+    const r = await getJSON('/api/community/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind})});
+    if(r.ok){
+      $('exportRst').textContent = '已导出 '+r.count+' 条 → '+r.path;
+      let op = document.getElementById('openExportDir');
+      if(!op){        op = document.createElement('button'); op.id='openExportDir'; op.className='ghost';
+        op.style.marginLeft='8px'; op.textContent='打开所在位置';
+        $('exportRst').parentNode.appendChild(op);
+        op.onclick = async ()=>{
+          const rr = await getJSON('/api/open-path',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:r.path})});
+          if(!rr.ok) toast('打开失败：'+(rr.error||''));
+        };
+      }
+    } else { $('exportRst').textContent = '失败：'+(r.error||''); }
+    toast(r.ok ? ('✅ '+label+' 已导出') : ('导出失败：'+r.error));
+  }catch(e){ $('exportRst').textContent='失败：'+e.message; toast('导出失败：'+e.message); }
+  if(btn) btn.disabled = false;
+}
+$('exportHolyshits').onclick = ()=>doExport('holyshits','Holyshits');
+/* 显式「打开导出文件夹」：打开配置的导出目录（绝对路径，不存在则提示） */
+(function(){
+  const b = document.getElementById('openExportDir');
+  if(!b) return;
+  b.onclick = async ()=>{
+    try{
+      const dir = (getPath(cfg,'community.export_dir')||'exports').trim()||'exports';
+      const r = await getJSON('/api/open-path',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:dir})});
+      if(!r.ok) toast('打开失败：'+((r.error||'')+(r.note||'')));
+      else toast('✅ 已打开导出文件夹');
+    }catch(e){ toast('打开失败：'+e.message); }
+  };
+})();
+$('exportFeedback').onclick = ()=>doExport('feedback','Feedback');
+$('exportMessages').onclick = ()=>doExport('messages','Messages');
 const _tierSel = document.querySelector('[data-cfg="store.context_tier"]');
 if(_tierSel) _tierSel.addEventListener('change', ()=>updateTierRows());
 </script>

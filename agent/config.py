@@ -92,7 +92,26 @@ DEFAULT_CONFIG = {
         "hard_split_at": 2000,     # 微信单条消息安全切分长度
         "uia_setvalue": True,      # 输入用 UIA SetValue 后台直写（不点输入框/不粘贴），发送回车仍需瞬时置前
     },
-    # ── 主动开话题（可选）──────────────────────────────────────────────
+    # ── 拍一拍（回拍 90% + 冷却 30 分钟 + 主动皮一下低频）────────────────
+    "poke": {
+        "reply_probability": 0.9,     # 别人拍你，回拍概率（0~1）
+        "cooldown_seconds": 1800,     # 同一人不重复回拍的冷却（秒）
+        "delay_seconds": 18.0,        # 收到拍一拍到回拍的延迟（秒，先让模型回应+落库）
+        "active_probability": 0.1,    # 模型主动皮一下的概率（0~1）
+        "active_daily_limit": 3,      # 每天最多主动拍几次
+    },
+    # ── 人性化行为决策（省 token 规则引擎；人设 participation/sticker_level 只调频率系数）──
+    "behavior": {
+        "collect_emoji": {"enabled": True, "probability": 0.8, "cooldown_s": 900, "daily_limit": 6},
+        "send_emoji": {"enabled": True, "probability": 0.35, "cooldown_s": 600, "daily_limit": 6},
+        "like_moments": {"enabled": False, "probability": 0.4, "cooldown_s": 3600, "daily_limit": 5},
+        "moments_comment": {"enabled": False, "probability": 0.3, "cooldown_s": 7200, "daily_limit": 3},
+        "moments_publish": {"enabled": False, "probability": 0.15, "cooldown_s": 21600, "daily_limit": 1},
+        "moments_surf": {"enabled": False, "probability": 0.2, "cooldown_s": 10800, "daily_limit": 3},
+        "at_member": {"enabled": True, "probability": 0.18, "cooldown_s": 1200, "daily_limit": 10},
+        "poke_active": {"enabled": True, "probability": 0.1, "cooldown_s": 600, "daily_limit": 3},
+    },
+    # ── 主动开话题（可选，默认关）──────────────────────────────────────
     "proactive": {
         "enabled": False,
         "check_interval_min_ms": 1800000,
@@ -103,15 +122,19 @@ DEFAULT_CONFIG = {
     # ── 存储 ───────────────────────────────────────────────────────────
     "store": {
         "max_messages_per_chat": 0,   # 0 = 不限制
-        "context_tier": 4,            # 1=仅艾特 2=+关键词 3=+随机 4=全读
+        "context_tier": 2,            # 1=仅艾特 2=+关键词 3=+随机 4=全读（默认 2 档：省 token 且够活跃）
         "context_slider_pos": None,   # 滑条位置（可选，优先于 context_tier）
-        "at_count": 20,
-        "keyword_count": 15,
+        "at_count": 12,
+        "keyword_count": 10,
         "keywords": [],
         "random_percent": 60,         # 3 档随机回复概率（3 档=艾特/关键词必回 + 普通消息按此概率回，60% 适中活跃）
-        "random_count": 8,
-        "all_count": 80,
+        "random_count": 6,
+        "all_count": 30,
         "past_window_min": 30,        # 历史上下文只带最近 N 分钟（0=不限，防回应很久前的旧艾特/旧话题）
+        "unified_tier": True,         # true=上方档位对所有群生效；false=可按群单独设置（group_tier）
+        "group_tier": {},             # {群名: 1~4} 仅 unified_tier=false 时生效；未设置的群跟随全局
+        "group_blocklist": {},        # {群名: [昵称, wxid...]} 被屏蔽群员：不存档、不触发、不进提示词
+        "sticker_level": 0,           # 表情包积极度 0~3：不鼓励/偶尔/较积极/爱好者（提示词引导）
     },
     # ── 记忆 ───────────────────────────────────────────────────────────
     "memory": {
@@ -124,6 +147,39 @@ DEFAULT_CONFIG = {
         "use_chat_model": True,
         "provider": "",
         "model": "",
+        "share_across_groups": False, # true=所有群共享一个记忆池（群间互通）；false=每群独立（默认）
+        "shared_groups": [],          # 可选：只在这几个群间共享记忆（填群名；比全共享更精准，需勾选下方群）
+    },
+    # ── 反应评分引擎（v1：正反馈 + 种子库，让机器人越聊越有趣）──────────
+    "scoring": {
+        "enabled": True,              # 本地正反馈评分（零 token，防饱和）
+        "seed_library": True,         # 内置有趣种子库（few-shot 参考）
+        "online_scoring": False,      # 可选：每次 reaction 后调 LLM 打分（费 token，默认关）
+        "heat_decay": True,           # 热度衰减（老梗降权，防饱和）
+        "import_seed_file": "",       # 可选：从金句墙导出的 JSON/文本导入种子库
+    },
+    # ── 社区分享（本地导出 + 可选上传 URL，默认关）──────────────────────
+    "community": {
+        "export_dir": "exports",      # 导出目录（金句/意见/聊天记录落地文件）
+        "holyshits_upload_url": "",   # 可选：金句上传接收端 URL（留空=仅本地导出）
+        "feedback_upload_url": "",    # 可选：意见反馈上传接收端 URL
+        "upload_enabled": False,      # 总开关：关闭时一律只本地导出
+    },
+    # ── 界面 ───────────────────────────────────────────────────────────
+    "ui": {
+        "coord_scale": "auto",        # 显示缩放 auto | 1.25 等
+        "clean_overlays": True,       # 点击前清遮挡
+        "poke_degraded": False,
+        "poke_fail_count": 0,
+        "theme": "whale",             # 主题：whale（默认鲸落深海）| light | dark | system
+        "whale_cursor": True,         # 鲸鱼指针光标（点击时向下点头）
+        "cursor_image": "",           # 自定义光标图片名（assets/custom-cursor.png 或留空=默认鲸鱼 22）
+        "whale_anim": {               # 拖拽返回动画时长系数（倍率；1=标准；距离×系数=毫秒）
+            "worm": 1.0,              # 蠕动（最慢）：速度系数，距离每 100px ≈ 260ms×系数
+            "plane": 1.0,             # 纸飞机（较快）：距离每 100px ≈ 170ms×系数
+            "zap": 1.0,               # 扎入（距离自适应，含 0.5s 消失+0.3s 冒出）：每 100px ≈ 90ms×系数
+        },
+        "moments_entry": "",          # 朋友圈入口坐标 "x,y"（渲染区相对；留空=自动尝试；各电脑校准一次）
     },
     # ── Web 控制台（浏览器里改设置 / 看状态 / 看日志 / 测试 API）────────
     "server": {

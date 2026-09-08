@@ -157,6 +157,12 @@ class SendQueue:
                     self.store.append_self(chat_key, text, ts=ts)
                     if self.on_sent:
                         self.on_sent(chat_key, text)
+                    # 反应评分：记录这条 reaction（群友后续回应会在 on_incoming 里加分）
+                    try:
+                        from .scoring import note_reaction
+                        note_reaction(text, chat_key)
+                    except Exception:
+                        pass
                     sent.append({"text": text, "at": format_clock_time(ts)})
                 except Exception as e:
                     failed.append({"index": i, "text": text, "error": str(e)})
