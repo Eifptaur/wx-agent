@@ -1132,12 +1132,13 @@ class WebUI:
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})
                 elif path == "/api/code-check/progress":
-                    # 代码检测进度（GET/POST）：{done, progress:{done,total,current}, result?}
+                    # 代码检测进度（GET/POST）：{done, progress:{done,total,current}, items?, result?}
                     try:
                         from agent.code_check import run as _code_run
                         done = bool(getattr(_code_run, "_done", False))
                         self._json({"ok": True, "done": done,
                                     "progress": getattr(_code_run, "_prog", None),
+                                    "items": list(getattr(_code_run, "_checks", None) or []) if not done else None,
                                     "result": getattr(_code_run, "_res", None) if done else None})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)})

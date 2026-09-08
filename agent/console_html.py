@@ -2500,8 +2500,10 @@ $('testApi').onclick = async ()=>{
   }catch(e){ $('testResult').textContent='❌ '+e.message; }
   finally{ btn.disabled=false; }
 };
-$('codeCheck').onclick = async ()=>{
-  const btn=$('codeCheck'); btn.disabled=true; if($('codeCheckDeps')) $('codeCheckDeps').disabled=true;
+async function runCodeCheck(deps){
+  const btn=$('codeCheck'), btn2=$('codeCheckDeps');
+  if(btn){ btn.disabled=true; btn.textContent='检测中…'; }
+  if(btn2){ btn2.disabled=true; btn2.textContent='检测中…'; }
   const pre = $('codeResult') || (()=>{
     const p2=document.createElement('pre'); p2.className='out'; p2.id='codeResult';
     document.getElementById('selfCheckResult').insertAdjacentElement('beforebegin', p2);
@@ -2509,33 +2511,50 @@ $('codeCheck').onclick = async ()=>{
   pre.classList.remove('dn');
   $('codeCheckTip').textContent='代码检测启动中…';
   try{
-    await getJSON('/api/code-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deps: !!window.__ccDeps}),timeoutMs:15000});
-    // 轮询进度（每项显示百分比 + 当前项）
-    let done=false, r=null;
-    for(let i=0;i<200 && !done;i++){
+    await getJSON('/api/code-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deps:!!deps}),timeoutMs:15000});
+    // 轮询进度（实时逐项：概览状态条显示 百分比+当前项；结果面板逐项滚动）
+    let done=false, r=null, lastItems='';
+    for(let i=0;i<300 && !done;i++){
       const pr = await getJSON('/api/code-check/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:10000});
       const prg = (pr&&pr.progress)||{};
       const d=prg.done||0, t=prg.total||0, cur=prg.current||'';
       if(pr && pr.done){ done=true; r=pr.result; }
       $('codeCheckTip').textContent = done ? '代码检测完成' : ('检测中 '+(t?Math.round(d/t*100):0)+'% · '+cur);
-      await new Promise(res=>setTimeout(res,120));
+      const items = (pr&&pr.items)||[];
+      if(items.length){
+        const key = JSON.stringify(items.map(x=>x.status+x.name));
+        if(key !== lastItems){
+          lastItems = key;
+          const lines = ['===== 代码检测 '+(done?'':'（进行中…）')+' =====',''];
+          for(const c of items){
+            const mark = c.status==='ok'?'✅':(c.status==='warn'?'⚠️':(c.status==='fail'?'❌':'ℹ️'));
+            lines.push(mark+' '+c.name+'：'+c.detail);
+          }
+          pre.textContent = lines.join('\n');
+          pre.scrollTop = pre.scrollHeight;   // 逐项实时滚动
+        }
+      }
+      await new Promise(res=>setTimeout(res,150));
     }
-    let lines = r ? ['===== 代码检测 =====', r.summary||'', ''] : ['===== 代码检测 =====','（仍检测中，请稍后再点）'];
+    let lines = r ? ['===== 代码检测 =====', r.summary||'', ''] : ['===== 代码检测 =====','（仍在检测中，请稍后再查看）'];
     for(const c of (r&&r.checks||[])){
       const mark = c.status==='ok'?'✅':(c.status==='warn'?'⚠️':(c.status==='fail'?'❌':'ℹ️'));
       lines.push(mark+' '+c.name+'：'+c.detail);
       if(c.hint) lines.push('    建议：'+c.hint);
     }
     pre.textContent = lines.join('\n');
-    $('codeCheckTip').textContent = r ? ('✅ 代码检测完成：' + (r.summary||'')) : '代码检测完成';
-  }catch(e){ pre.textContent='代码检测失败：'+e.message; $('codeCheckTip').textContent='代码检测失败：'+e.message; }
-  finally{ btn.disabled=false; if($('codeCheckDeps')) $('codeCheckDeps').disabled=false; window.__ccDeps = false; }
-};
-if($('codeCheckDeps')) $('codeCheckDeps').onclick = async ()=>{
-  const btn=$('codeCheckDeps'); btn.disabled=true; if($('codeCheck')) $('codeCheck').disabled=true;
-  window.__ccDeps = true;   // 真跑依赖版本核对（之前没传 deps 实际是空跑）
-  $('codeCheck').click();
-};
+    $('codeCheckTip').textContent = r ? ('✅ 代码检测完成：' + (r.summary||'')) : '代码检测仍在进行中…';
+    if(r) toast('✅ 代码检测完成：'+(r.summary||'')); else toast('代码检测仍在进行中…', 4000);
+  }catch(e){
+    pre.textContent='代码检测失败：'+e.message;
+    $('codeCheckTip').textContent='❌ 代码检测失败：'+e.message;
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='代码检测'; }
+    if(btn2){ btn2.disabled=false; btn2.textContent='代码检测＋依赖核对'; }
+  }
+}
+$('codeCheck').onclick = ()=>runCodeCheck(false);
+if($('codeCheckDeps')) $('codeCheckDeps').onclick = ()=>runCodeCheck(true);
 
 $('selfCheck').onclick = async ()=>{
   const btn=$('selfCheck'); btn.disabled=true;
