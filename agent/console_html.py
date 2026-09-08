@@ -142,6 +142,13 @@ body.custom-bg::before{opacity:1!important}
   60%{transform:translate(-50%,-50%) scale(1.7);opacity:.4}
   100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}
 }
+/* 涟漪 v5（重做：鼠标划过周围——卡片/文字缓慢浮动震荡，频率缓像水面慢慢荡开） */
+.card{transition:transform .6s cubic-bezier(.3,1.25,.5,1),box-shadow .6s ease}
+.card:hover{transform:translateY(-3px) scale(1.005);box-shadow:0 12px 30px rgba(63,168,240,.14),0 2px 8px rgba(31,41,55,.08)}
+.card:hover::after{animation:cardShimmer 2.6s ease-in-out infinite}
+@keyframes cardShimmer{0%,100%{opacity:.5}50%{opacity:1}}
+.card:hover h2,.card:hover .row label{transform:translateY(-1px)}
+.card h2,.card .row label{transition:transform .55s ease}
 /* 逐字浮动：每个字一个 span，波浪相位递增（"细浪一波波打过来"） */
 .wave-char{display:inline-block;animation:charFloat 3.2s ease-in-out infinite}
 @keyframes charFloat{
