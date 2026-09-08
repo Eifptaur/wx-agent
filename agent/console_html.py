@@ -2217,7 +2217,7 @@ async function onboarding(){
         $('obDesc').textContent = '第 3 步/共 3 步：鼠标操作检测（约 60~100 秒：环境/配置/点击 + 11 项程序鼠标操作，请勿动鼠标）。';
         $('obBody').innerHTML='<pre class="out" id="obCheck" style="height:190px">体检中…</pre>';
         $('obNext').textContent='完成'; step=3;
-        const r = await getJSON('/api/selfcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        const r = await getJSON('/api/selfcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:180000});
         let lines=[r.summary||'',''];
         for(const c of (r.checks||[])){
           lines.push((c.status==='ok'?'✅':(c.status==='warn'?'⚠️':'❌'))+' '+c.name+'：'+c.detail);
@@ -2350,7 +2350,7 @@ $('selfCheck').onclick = async ()=>{
   const pre=$('selfCheckResult'); pre.classList.remove('dn');
   pre.textContent='鼠标操作检测中（约 40~70 秒：环境/配置/点击 + 程序鼠标操作，期间请勿动鼠标；可随时点「停止检测」）…';
   try{
-    const r = await getJSON('/api/selfcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const r = await getJSON('/api/selfcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',timeoutMs:180000});
     let lines=['===== 鼠标操作检测 =====', r.summary||'', ''];
     for(const c of (r.checks||[])){
       const mark = c.status==='ok'?'✅':(c.status==='warn'?'⚠️':(c.status==='fail'?'❌':'ℹ️'));

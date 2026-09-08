@@ -1562,7 +1562,7 @@ def main():
                     (r.get("note") or "成功") if ok else ("失败：" + str(r.get("error") or r.get("note") or ""))[:120],
                     "" if ok else "可点下方单独按钮重测该单项（看具体原因）")
             except Exception as e:
-                add("鼠标·" + label, "fail", str(e)[:120], "可点对应单独按钮重测")
+                add("鼠标·" + label, "fail", str(e)[:120], "可点对应单独按钮重测；单项失败不中断整轮检测（逐个完成后出总报告）")
 
         ok_n = sum(1 for c in checks if c["status"] == "ok")
         warn_n = sum(1 for c in checks if c["status"] == "warn")
