@@ -534,6 +534,11 @@ th{color:var(--tx2);font-weight:500}
         机制：机器人每次发言后，若群友在 24h 内热烈回应（@ 它 / 接话 / 追问）→ 该条话术加分；冷场 → 降权。热度半衰期 7 天，老梗自动衰减，防饱和。<br>
         <b>不变人原则</b>：学习只调整语言风格（机灵/更有人情味/更机敏），<b>绝不改变角色卡人设</b>——角色设定是绝对基准权重最高，参考素材只能"换衣服不能换魂"，你的角色卡是什么样，学得越久就越像那个人的语气。用户自定义角色卡同样适用。
       </div>
+      <div style="display:flex;gap:12px;align-items:center;margin:14px 0 18px;padding:14px;border-radius:14px;background:rgba(63,168,240,.08);border:1px solid var(--blue-line)">
+        <button id="learnApply" class="pri" title="点击开启机器学习，机制会真的开始工作（有群友回应时学习）" style="font-weight:700">🧠 确定学习</button>
+        <button id="learnEval" class="ghost" title="模型按评分细则评估：学习前后对话质量变化，打分并说明提升多少" style="font-weight:700">📊 学习评估</button>
+        <span id="learnRst" class="hint" style="flex:1"></span>
+      </div>
       <div class="row"><label>种子库状态</label><div class="grow">
         <span class="hint" id="seedStats" style="display:inline-block">加载中…</span>
         <button id="seedReload" class="ghost" style="margin-left:8px">刷新</button>
@@ -3271,7 +3276,7 @@ $('seedImportBtn').onclick = async ()=>{
 /* 高级功能页：种子库状态 */
 async function loadSeedStats(){
   try{
-    const r = await getJSON('/api/scoring/stats');
+    const r = await getJSON('/api/scoring/stats',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     if(r.ok && $('seedStats')){
       const d = r.data || {};
       $('seedStats').textContent = '种子库 '+ (d.seed_count||0) +' 条 · 已学反应 '+ (d.reaction_count||0) +' 条 · 高分参考 '+ ((d.top||[]).length||0) +' 条';
@@ -3280,6 +3285,24 @@ async function loadSeedStats(){
 }
 if($('seedReload')) $('seedReload').onclick = loadSeedStats;
 loadSeedStats();
+/* 机器学习：确定学习 / 学习评估 */
+(function(){
+  const r=$('learnRst');
+  if($('learnApply')) $('learnApply').onclick = async ()=>{
+    if(r) r.textContent='正在确认学习机制…';
+    try{
+      const res=await getJSON('/api/learning/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      if(r) r.textContent = res.ok ? (res.note||'✅ 已开启') : ('开启失败：'+(res.error||res.note));
+    }catch(e){ if(r) r.textContent='开启失败：'+e.message; }
+  };
+  if($('learnEval')) $('learnEval').onclick = async ()=>{
+    if(r) r.textContent='正在让模型评估学习效果（按评分细则）…';
+    try{
+      const res=await getJSON('/api/learning/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      if(r) r.innerHTML = (res.eval?('评估：'+res.eval : (res.error||res.note||'评估完成'));
+    }catch(e){ if(r) r.textContent='评估失败：'+e.message; }
+  };
+})();
 async function doExport(kind, label){
   const btn = document.getElementById('export'+label); if(btn) btn.disabled = true;
   try{

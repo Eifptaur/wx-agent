@@ -664,7 +664,39 @@ class WebUI:
                         self._json({"ok": True, "data": _s()})
                     except Exception as e:
                         self._json({"ok": False, "error": str(e)}, 500)
-                elif path == "/api/pause":
+                elif path == "/api/learning/start":
+                    # 确定学习：确保评分引擎打开（群友24h热烈回应→该话术加分；真实启动学习）
+                    try:
+                        from agent.config import get_config as _gc, save_config as _sc
+                        _c = _gc(); _c.setdefault("scoring", {})["enabled"] = True; _sc(_c)
+                        self._json({"ok": True, "note": "✅ 机器学习已开启：之后每条发言，群友24h内热烈回应(接话/追问/@)会为该话术加分，冷场降权；会话越久越贴合。评分引擎已在工作。"})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
+                elif path == "/api/learning/evaluate":
+                    # 学习评估：按评分细则让模型评「学习到的反响话术」的质量（五维+相对未学习的提升幅度）
+                    try:
+                        from agent import llm
+                        from agent.scoring import top_reactions
+                        rxns = top_reactions(8)
+                        if rxns:
+                            lines = ["下面是我最近【机器学习】学到的、群里反响好的话术（含热度分）："]
+                            for r in rxns:
+                                lines.append("- “%s”（热度 %.0f）" % (str(r.get("text") or "")[:60], float(r.get("score") or 0)))
+                            sample = "\n".join(lines)
+                        else:
+                            sample = "（当前还没有学到的高分反应——请先让机器人多聊、等群友有热烈回应后，评分引擎才会积累。）"
+                        RULES = """【机器学习效果评分细则】（每维 0~100 精确到分，总分=均值）：
+1 自然度：像真人口吻，无AI腔/总结腔；
+2 有趣度：有梗/机灵/让人想接；
+3 人设贴合：是不是该角色会说的话（不换魂）；
+4 机敏度：接话时机、回球、处理冷场/被调侃的水准。
+得分说明：五维均值。并给出"相比未学习前的对话质量提升幅度"（百分之多少，0~100%），一句话点评哪方面进步最明显。"""
+                        sys = [{"role": "system", "content": RULES}, {"role": "user", "content": sample}]
+                        r = llm.chat_completion(sys, temperature=0.3)
+                        self._json({"ok": True, "eval": (r.get("message") or {}).get("content", ""),
+                                    "note": "已按评分细则评估（分数越高越好；括号内为相对未学习的提升）"})
+                    except Exception as e:
+                        self._json({"ok": False, "error": str(e)})
                     parent.pause_fn()
                     self._json({"ok": True})
                 elif path == "/api/resume":
