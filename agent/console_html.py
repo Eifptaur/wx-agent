@@ -29,7 +29,7 @@ HTML = r"""<!DOCTYPE html>
   --shadow:inset 0 1px 0 rgba(255,255,255,.26),0 10px 34px rgba(10,40,80,.5),0 2px 8px rgba(0,20,40,.4);
   --input-bg:rgba(255,255,255,.09); --hover-bg:rgba(255,255,255,.16); --input-bd:rgba(160,210,255,.35); --topbar:rgba(8,24,46,.7);
   --code-bg:rgba(4,16,32,.7); --code-tx:#BFE9FF; --ok-soft:rgba(53,240,192,.14); --ok-tx:#7AF9E2;
-  --err-soft:rgba(255,138,138,.16); --err-tx:#FFB0B0; --menu-bg:rgba(12,36,64,.94);
+  --err-soft:rgba(255,138,138,.16); --err-tx:#FFB0B0; --menu-bg:#0C2440;
 }
 /* 浅色主题（手动）——明亮蓝白 */
 :root[data-theme=light]{
